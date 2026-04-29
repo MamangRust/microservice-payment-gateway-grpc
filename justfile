@@ -11,6 +11,14 @@ default:
     @just --list
 
 
+# Validate all modules (build and unit test)
+validate:
+    @echo "🔍 Validating all workspace modules..."
+    @go list -m -f '{{ "{{" }}.Dir{{ "}}" }}/...' | grep -v 'tests' | xargs go build
+    @go list -m -f '{{ "{{" }}.Dir{{ "}}" }}/...' | grep -v 'tests' | xargs go test -short
+    @echo "✅ Validation successful."
+
+
 # Generate protocol buffers
 generate-proto:
     protoc \
