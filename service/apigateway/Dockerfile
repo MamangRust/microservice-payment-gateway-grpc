@@ -6,7 +6,9 @@ WORKDIR /app
 COPY shared/go.mod shared/go.sum ./shared/
 COPY pb/go.mod pb/go.sum ./pb/
 COPY pkg/go.mod pkg/go.sum ./pkg/
-COPY service/apigateway/go.mod service/apigateway/go.sum ./service/apigateway/
+# Copy all service go.mod files because they are inter-dependent via replacements
+COPY service/ ./service/
+RUN find service -type f ! -name "go.mod" ! -name "go.sum" -delete
 
 WORKDIR /app/service/apigateway
 

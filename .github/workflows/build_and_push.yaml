@@ -31,7 +31,7 @@ jobs:
 
     strategy:
       matrix:
-        service: [apigateway, auth, user, role, card, merchant, saldo, topup, transaction, transfer, withdraw, email, migrate]
+        service: [apigateway, auth, user, role, card, merchant, saldo, topup, transaction, transfer, withdraw, email, ai-security, stats-reader, stats-writer]
 
     steps:
       - name: Checkout

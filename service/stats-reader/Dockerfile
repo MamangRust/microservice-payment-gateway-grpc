@@ -6,7 +6,9 @@ WORKDIR /app
 COPY shared/go.mod shared/go.sum ./shared/
 COPY pb/go.mod pb/go.sum ./pb/
 COPY pkg/go.mod pkg/go.sum ./pkg/
-COPY service/stats-reader/go.mod service/stats-reader/go.sum ./service/stats-reader/
+# Copy all service go.mod files because they are inter-dependent via replacements
+COPY service/ ./service/
+RUN find service -type f ! -name "go.mod" ! -name "go.sum" -delete
 
 WORKDIR /app/service/stats-reader
 
