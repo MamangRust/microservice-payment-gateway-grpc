@@ -1,0 +1,123 @@
+groups:
+  - name: transfer-services-alerts
+    rules:
+      - alert: HighFailureRate_TransferCommandService
+        expr: increase(transfer_command_service_request_total{status="error"}[5m]) > 5
+        for: 2m
+        labels:
+          severity: warning
+          service: transfer_command_service
+        annotations:
+          summary: "High failure rate on transfer_command_service"
+          description: "More than 5 error requests in the last 5 minutes."
+
+      - alert: HighLatency_TransferCommandService
+        expr: histogram_quantile(0.95, rate(transfer_command_service_request_duration_seconds_bucket[5m])) > 1
+        for: 2m
+        labels:
+          severity: warning
+          service: transfer_command_service
+        annotations:
+          summary: "High latency on transfer_command_service"
+          description: "P95 latency is greater than 1 second."
+
+      - alert: NoTraffic_TransferCommandService
+        expr: rate(transfer_command_service_request_total[5m]) == 0
+        for: 2m
+        labels:
+          severity: warning
+          service: transfer_command_service
+        annotations:
+          summary: "No traffic on transfer_command_service"
+          description: "No requests received in the last 5 minutes."
+
+      - alert: HighFailureRate_TransferQueryService
+        expr: increase(transfer_query_service_request_total{status="error"}[5m]) > 5
+        for: 2m
+        labels:
+          severity: warning
+          service: transfer_query_service
+        annotations:
+          summary: "High failure rate on transfer_query_service"
+          description: "More than 5 error requests in the last 5 minutes."
+
+      - alert: HighLatency_TransferQueryService
+        expr: histogram_quantile(0.95, rate(transfer_query_service_request_duration_seconds_bucket[5m])) > 1
+        for: 2m
+        labels:
+          severity: warning
+          service: transfer_query_service
+        annotations:
+          summary: "High latency on transfer_query_service"
+          description: "P95 latency is greater than 1 second."
+
+      - alert: NoTraffic_TransferQueryService
+        expr: rate(transfer_query_service_request_total[5m]) == 0
+        for: 2m
+        labels:
+          severity: warning
+          service: transfer_query_service
+        annotations:
+          summary: "No traffic on transfer_query_service"
+          description: "No requests received in the last 5 minutes."
+
+      - alert: HighFailureRate_TransferStatisticByCardService
+        expr: increase(transfer_statistic_by_card_service_request_total{status="error"}[5m]) > 5
+        for: 2m
+        labels:
+          severity: warning
+          service: transfer_statistic_by_card_service
+        annotations:
+          summary: "High failure rate on transfer_statistic_by_card_service"
+          description: "More than 5 error requests in the last 5 minutes."
+
+      - alert: HighLatency_TransferStatisticByCardService
+        expr: histogram_quantile(0.95, rate(transfer_statistic_by_card_service_request_duration_seconds_bucket[5m])) > 1
+        for: 2m
+        labels:
+          severity: warning
+          service: transfer_statistic_by_card_service
+        annotations:
+          summary: "High latency on transfer_statistic_by_card_service"
+          description: "P95 latency is greater than 1 second."
+
+      - alert: NoTraffic_TransferStatisticByCardService
+        expr: rate(transfer_statistic_by_card_service_request_total[5m]) == 0
+        for: 2m
+        labels:
+          severity: warning
+          service: transfer_statistic_by_card_service
+        annotations:
+          summary: "No traffic on transfer_statistic_by_card_service"
+          description: "No requests received in the last 5 minutes."
+
+      
+      - alert: HighFailureRate_TransferStatisticService
+        expr: increase(transfer_statistic_service_request_total{status="error"}[5m]) > 5
+        for: 2m
+        labels:
+          severity: warning
+          service: transfer_statistic_service
+        annotations:
+          summary: "High failure rate on transfer_statistic_service"
+          description: "More than 5 error requests in the last 5 minutes."
+
+      - alert: HighLatency_TransferStatisticService
+        expr: histogram_quantile(0.95, rate(transfer_statistic_service_request_duration_seconds_bucket[5m])) > 1
+        for: 2m
+        labels:
+          severity: warning
+          service: transfer_statistic_service
+        annotations:
+          summary: "High latency on transfer_statistic_service"
+          description: "P95 latency is greater than 1 second."
+
+      - alert: NoTraffic_TransferStatisticService
+        expr: rate(transfer_statistic_service_request_total[5m]) == 0
+        for: 2m
+        labels:
+          severity: warning
+          service: transfer_statistic_service
+        annotations:
+          summary: "No traffic on transfer_statistic_service"
+          description: "No requests received in the last 5 minutes."

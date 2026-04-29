@@ -1,0 +1,93 @@
+groups:
+  - name: saldo-services-alerts
+    rules:
+      - alert: HighFailureRate_SaldoCommandService
+        expr: increase(saldo_command_service_request_total{status="error"}[5m]) > 5
+        for: 2m
+        labels:
+          severity: warning
+          service: saldo_command_service
+        annotations:
+          summary: "High failure rate on saldo_command_service"
+          description: "More than 5 error requests in the last 5 minutes for saldo_command_service."
+
+      - alert: HighLatency_SaldoCommandService
+        expr: histogram_quantile(0.95, rate(saldo_command_service_request_duration_seconds_bucket[5m])) > 1
+        for: 2m
+        labels:
+          severity: warning
+          service: saldo_command_service
+        annotations:
+          summary: "High latency detected on saldo_command_service"
+          description: "P95 latency for saldo_command_service is greater than 1 second."
+
+      - alert: NoTraffic_SaldoCommandService
+        expr: rate(saldo_command_service_request_total[5m]) == 0
+        for: 2m
+        labels:
+          severity: warning
+          service: saldo_command_service
+        annotations:
+          summary: "No traffic on saldo_command_service"
+          description: "No requests received for saldo_command_service in the last 5 minutes."
+
+      - alert: HighFailureRate_SaldoQueryService
+        expr: increase(saldo_query_service_request_total{status="error"}[5m]) > 5
+        for: 2m
+        labels:
+          severity: warning
+          service: saldo_query_service
+        annotations:
+          summary: "High failure rate on saldo_query_service"
+          description: "More than 5 error requests in the last 5 minutes for saldo_query_service."
+
+      - alert: HighLatency_SaldoQueryService
+        expr: histogram_quantile(0.95, rate(saldo_query_service_request_duration_seconds_bucket[5m])) > 1
+        for: 2m
+        labels:
+          severity: warning
+          service: saldo_query_service
+        annotations:
+          summary: "High latency detected on saldo_query_service"
+          description: "P95 latency for saldo_query_service is greater than 1 second."
+
+      - alert: NoTraffic_SaldoQueryService
+        expr: rate(saldo_query_service_request_total[5m]) == 0
+        for: 2m
+        labels:
+          severity: warning
+          service: saldo_query_service
+        annotations:
+          summary: "No traffic on saldo_query_service"
+          description: "No requests received for saldo_query_service in the last 5 minutes."
+
+      
+      - alert: HighFailureRate_SaldoStatisticsService
+        expr: increase(saldo_statistics_service_request_total{status="error"}[5m]) > 5
+        for: 2m
+        labels:
+          severity: warning
+          service: saldo_statistics_service
+        annotations:
+          summary: "High failure rate on saldo_statistics_service"
+          description: "More than 5 error requests in the last 5 minutes for saldo_statistics_service."
+
+      - alert: HighLatency_SaldoStatisticsService
+        expr: histogram_quantile(0.95, rate(saldo_statistics_service_request_duration_seconds_bucket[5m])) > 1
+        for: 2m
+        labels:
+          severity: warning
+          service: saldo_statistics_service
+        annotations:
+          summary: "High latency detected on saldo_statistics_service"
+          description: "P95 latency for saldo_statistics_service is greater than 1 second."
+
+      - alert: NoTraffic_SaldoStatisticsService
+        expr: rate(saldo_statistics_service_request_total[5m]) == 0
+        for: 2m
+        labels:
+          severity: warning
+          service: saldo_statistics_service
+        annotations:
+          summary: "No traffic on saldo_statistics_service"
+          description: "No requests received for saldo_statistics_service in the last 5 minutes."

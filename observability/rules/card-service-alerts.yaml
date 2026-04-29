@@ -1,0 +1,122 @@
+groups:
+  - name: card-services-alerts
+    rules:
+      - alert: HighFailureRate_CardCommandService
+        expr: increase(card_command_service_requests_total{status="error"}[5m]) > 5
+        for: 2m
+        labels:
+          severity: warning
+          service: card_command_service
+        annotations:
+          summary: "High failure rate on card_command_service"
+          description: "More than 5 error requests in the last 5 minutes for card_command_service."
+
+      - alert: HighLatency_CardCommandService
+        expr: histogram_quantile(0.95, rate(card_command_service_request_duration_seconds_bucket[5m])) > 1
+        for: 2m
+        labels:
+          severity: warning
+          service: card_command_service
+        annotations:
+          summary: "High latency detected on card_command_service"
+          description: "P95 latency for card_command_service is greater than 1 second in the last 5 minutes."
+
+      - alert: NoTraffic_CardCommandService
+        expr: rate(card_command_service_requests_total[5m]) == 0
+        for: 2m
+        labels:
+          severity: warning
+          service: card_command_service
+        annotations:
+          summary: "No traffic detected on card_command_service"
+          description: "No traffic detected on card_command_service in the last 5 minutes."
+
+      - alert: HighFailureRate_CardDashboardService
+        expr: increase(card_dashboard_service_requests_total{status="error"}[5m]) > 5
+        for: 2m
+        labels:
+          severity: warning
+          service: card_dashboard_service
+        annotations:
+          summary: "High failure rate on card_dashboard_service"
+          description: "More than 5 error requests in the last 5 minutes for card_dashboard_service."
+
+      - alert: HighLatency_CardDashboardService
+        expr: histogram_quantile(0.95, rate(card_dashboard_service_request_duration_seconds_bucket[5m])) > 1
+        for: 2m
+        labels:
+          severity: warning
+          service: card_dashboard_service
+        annotations:
+          summary: "High latency detected on card_dashboard_service"
+          description: "P95 latency for card_dashboard_service is greater than 1 second in the last 5 minutes."
+
+      - alert: NoTraffic_CardDashboardService
+        expr: rate(card_dashboard_service_requests_total[5m]) == 0
+        for: 2m
+        labels:
+          severity: warning
+          service: card_dashboard_service
+        annotations:
+          summary: "No traffic detected on card_dashboard_service"
+          description: "No traffic detected on card_dashboard_service in the last 5 minutes."
+
+      - alert: HighFailureRate_CardStatisticService
+        expr: increase(card_statistic_service_requests_total{status="error"}[5m]) > 5
+        for: 2m
+        labels:
+          severity: warning
+          service: card_statistic_service
+        annotations:
+          summary: "High failure rate on card_statistic_service"
+          description: "More than 5 error requests in the last 5 minutes for card_statistic_service."
+
+      - alert: HighLatency_CardStatisticService
+        expr: histogram_quantile(0.95, rate(card_statistic_service_request_duration_seconds_bucket[5m])) > 1
+        for: 2m
+        labels:
+          severity: warning
+          service: card_statistic_service
+        annotations:
+          summary: "High latency detected on card_statistic_service"
+          description: "P95 latency for card_statistic_service is greater than 1 second in the last 5 minutes."
+
+      - alert: NoTraffic_CardStatisticService
+        expr: rate(card_statistic_service_requests_total[5m]) == 0
+        for: 2m
+        labels:
+          severity: warning
+          service: card_statistic_service
+        annotations:
+          summary: "No traffic detected on card_statistic_service"
+          description: "No traffic detected on card_statistic_service in the last 5 minutes."
+
+      - alert: HighFailureRate_CardTransactionService
+        expr: increase(card_transaction_service_requests_total{status="error"}[5m]) > 5
+        for: 2m
+        labels:
+          severity: warning
+          service: card_transaction_service
+        annotations:
+          summary: "High failure rate on card_transaction_service"
+          description: "More than 5 error requests in the last 5 minutes for card_transaction_service."
+
+      - alert: HighLatency_CardTransactionService
+        expr: histogram_quantile(0.95, rate(card_transaction_service_request_duration_seconds_bucket[5m])) > 1
+        for: 2m
+        labels:
+          severity: warning
+          service: card_transaction_service
+        annotations:
+          summary: "High latency detected on card_transaction_service"
+          description: "P95 latency for card_transaction_service is greater than 1 second in the last 5 minutes."
+
+      - alert: NoTraffic_CardTransactionService
+        expr: rate(card_transaction_service_requests_total[5m]) == 0
+        for: 2m
+        labels:
+          severity: warning
+          service: card_transaction_service
+        annotations:
+          summary: "No traffic detected on card_transaction_service"
+          description: "No traffic detected on card_transaction_service in the last 5 minutes."

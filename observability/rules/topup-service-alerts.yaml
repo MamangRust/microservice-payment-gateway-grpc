@@ -1,0 +1,123 @@
+groups:
+  - name: topup-services-alerts
+    rules:
+      - alert: HighFailureRate_TopupCommandService
+        expr: increase(topup_command_service_request_total{status="error"}[5m]) > 5
+        for: 2m
+        labels:
+          severity: warning
+          service: topup_command_service
+        annotations:
+          summary: "High failure rate on topup_command_service"
+          description: "More than 5 error requests in the last 5 minutes for topup_command_service."
+
+      - alert: HighLatency_TopupCommandService
+        expr: histogram_quantile(0.95, rate(topup_command_service_request_duration_seconds_bucket[5m])) > 1
+        for: 2m
+        labels:
+          severity: warning
+          service: topup_command_service
+        annotations:
+          summary: "High latency on topup_command_service"
+          description: "P95 latency for topup_command_service is greater than 1 second."
+
+      - alert: NoTraffic_TopupCommandService
+        expr: rate(topup_command_service_request_total[5m]) == 0
+        for: 2m
+        labels:
+          severity: warning
+          service: topup_command_service
+        annotations:
+          summary: "No traffic on topup_command_service"
+          description: "No requests received for topup_command_service in the last 5 minutes."
+
+      - alert: HighFailureRate_TopupQueryService
+        expr: increase(topup_query_service_request_total{status="error"}[5m]) > 5
+        for: 2m
+        labels:
+          severity: warning
+          service: topup_query_service
+        annotations:
+          summary: "High failure rate on topup_query_service"
+          description: "More than 5 error requests in the last 5 minutes for topup_query_service."
+
+      - alert: HighLatency_TopupQueryService
+        expr: histogram_quantile(0.95, rate(topup_query_service_request_duration_seconds_bucket[5m])) > 1
+        for: 2m
+        labels:
+          severity: warning
+          service: topup_query_service
+        annotations:
+          summary: "High latency on topup_query_service"
+          description: "P95 latency for topup_query_service is greater than 1 second."
+
+      - alert: NoTraffic_TopupQueryService
+        expr: rate(topup_query_service_request_total[5m]) == 0
+        for: 2m
+        labels:
+          severity: warning
+          service: topup_query_service
+        annotations:
+          summary: "No traffic on topup_query_service"
+          description: "No requests received for topup_query_service in the last 5 minutes."
+
+
+      - alert: HighFailureRate_TopupStatisticByCardService
+        expr: increase(topup_statistic_by_card_service_request_total{status="error"}[5m]) > 5
+        for: 2m
+        labels:
+          severity: warning
+          service: topup_statistic_by_card_service
+        annotations:
+          summary: "High failure rate on topup_statistic_by_card_service"
+          description: "More than 5 error requests in the last 5 minutes for topup_statistic_by_card_service."
+
+      - alert: HighLatency_TopupStatisticByCardService
+        expr: histogram_quantile(0.95, rate(topup_statistic_by_card_service_request_duration_seconds_bucket[5m])) > 1
+        for: 2m
+        labels:
+          severity: warning
+          service: topup_statistic_by_card_service
+        annotations:
+          summary: "High latency on topup_statistic_by_card_service"
+          description: "P95 latency for topup_statistic_by_card_service is greater than 1 second."
+
+      - alert: NoTraffic_TopupStatisticByCardService
+        expr: rate(topup_statistic_by_card_service_request_total[5m]) == 0
+        for: 2m
+        labels:
+          severity: warning
+          service: topup_statistic_by_card_service
+        annotations:
+          summary: "No traffic on topup_statistic_by_card_service"
+          description: "No requests received for topup_statistic_by_card_service in the last 5 minutes."
+
+      - alert: HighFailureRate_TopupStatisticService
+        expr: increase(topup_statistic_service_request_total{status="error"}[5m]) > 5
+        for: 2m
+        labels:
+          severity: warning
+          service: topup_statistic_service
+        annotations:
+          summary: "High failure rate on topup_statistic_service"
+          description: "More than 5 error requests in the last 5 minutes for topup_statistic_service."
+
+      - alert: HighLatency_TopupStatisticService
+        expr: histogram_quantile(0.95, rate(topup_statistic_service_request_duration_seconds_bucket[5m])) > 1
+        for: 2m
+        labels:
+          severity: warning
+          service: topup_statistic_service
+        annotations:
+          summary: "High latency on topup_statistic_service"
+          description: "P95 latency for topup_statistic_service is greater than 1 second."
+
+      - alert: NoTraffic_TopupStatisticService
+        expr: rate(topup_statistic_service_request_total[5m]) == 0
+        for: 2m
+        labels:
+          severity: warning
+          service: topup_statistic_service
+        annotations:
+          summary: "No traffic on topup_statistic_service"
+          description: "No requests received for topup_statistic_service in the last 5 minutes."

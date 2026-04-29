@@ -1,0 +1,123 @@
+groups:
+  - name: withdraw-services-alerts
+    rules:
+      - alert: HighFailureRate_WithdrawCommandService
+        expr: increase(withdraw_command_service_request_total{status="error"}[5m]) > 5
+        for: 2m
+        labels:
+          severity: warning
+          service: withdraw_command_service
+        annotations:
+          summary: "High failure rate on withdraw_command_service"
+          description: "More than 5 error requests in the last 5 minutes."
+
+      - alert: HighLatency_WithdrawCommandService
+        expr: histogram_quantile(0.95, rate(withdraw_command_service_request_duration_seconds_bucket[5m])) > 1
+        for: 2m
+        labels:
+          severity: warning
+          service: withdraw_command_service
+        annotations:
+          summary: "High latency on withdraw_command_service"
+          description: "P95 latency > 1 second in the last 5 minutes."
+
+      - alert: NoTraffic_WithdrawCommandService
+        expr: rate(withdraw_command_service_request_total[5m]) == 0
+        for: 2m
+        labels:
+          severity: warning
+          service: withdraw_command_service
+        annotations:
+          summary: "No traffic on withdraw_command_service"
+          description: "No traffic detected in the last 5 minutes."
+
+      - alert: HighFailureRate_WithdrawQueryService
+        expr: increase(withdraw_query_service_request_total{status="error"}[5m]) > 5
+        for: 2m
+        labels:
+          severity: warning
+          service: withdraw_query_service
+        annotations:
+          summary: "High failure rate on withdraw_query_service"
+          description: "More than 5 error requests in the last 5 minutes."
+
+      - alert: HighLatency_WithdrawQueryService
+        expr: histogram_quantile(0.95, rate(withdraw_query_service_request_duration_seconds_bucket[5m])) > 1
+        for: 2m
+        labels:
+          severity: warning
+          service: withdraw_query_service
+        annotations:
+          summary: "High latency on withdraw_query_service"
+          description: "P95 latency > 1 second in the last 5 minutes."
+
+      - alert: NoTraffic_WithdrawQueryService
+        expr: rate(withdraw_query_service_request_total[5m]) == 0
+        for: 2m
+        labels:
+          severity: warning
+          service: withdraw_query_service
+        annotations:
+          summary: "No traffic on withdraw_query_service"
+          description: "No traffic detected in the last 5 minutes."
+
+      - alert: HighFailureRate_WithdrawStatisticByCardService
+        expr: increase(withdraw_statistic_by_card_service_request_total{status="error"}[5m]) > 5
+        for: 2m
+        labels:
+          severity: warning
+          service: withdraw_statistic_by_card_service
+        annotations:
+          summary: "High failure rate on withdraw_statistic_by_card_service"
+          description: "More than 5 error requests in the last 5 minutes."
+
+      - alert: HighLatency_WithdrawStatisticByCardService
+        expr: histogram_quantile(0.95, rate(withdraw_statistic_by_card_service_request_duration_seconds_bucket[5m])) > 1
+        for: 2m
+        labels:
+          severity: warning
+          service: withdraw_statistic_by_card_service
+        annotations:
+          summary: "High latency on withdraw_statistic_by_card_service"
+          description: "P95 latency > 1 second in the last 5 minutes."
+
+      - alert: NoTraffic_WithdrawStatisticByCardService
+        expr: rate(withdraw_statistic_by_card_service_request_total[5m]) == 0
+        for: 2m
+        labels:
+          severity: warning
+          service: withdraw_statistic_by_card_service
+        annotations:
+          summary: "No traffic on withdraw_statistic_by_card_service"
+          description: "No traffic detected in the last 5 minutes."
+
+
+      - alert: HighFailureRate_WithdrawStatisticService
+        expr: increase(withdraw_statistic_service_request_total{status="error"}[5m]) > 5
+        for: 2m
+        labels:
+          severity: warning
+          service: withdraw_statistic_service
+        annotations:
+          summary: "High failure rate on withdraw_statistic_service"
+          description: "More than 5 error requests in the last 5 minutes."
+
+      - alert: HighLatency_WithdrawStatisticService
+        expr: histogram_quantile(0.95, rate(withdraw_statistic_service_request_duration_seconds_bucket[5m])) > 1
+        for: 2m
+        labels:
+          severity: warning
+          service: withdraw_statistic_service
+        annotations:
+          summary: "High latency on withdraw_statistic_service"
+          description: "P95 latency > 1 second in the last 5 minutes."
+
+      - alert: NoTraffic_WithdrawStatisticService
+        expr: rate(withdraw_statistic_service_request_total[5m]) == 0
+        for: 2m
+        labels:
+          severity: warning
+          service: withdraw_statistic_service
+        annotations:
+          summary: "No traffic on withdraw_statistic_service"
+          description: "No traffic detected in the last 5 minutes."
