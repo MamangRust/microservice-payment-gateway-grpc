@@ -22,7 +22,7 @@ WORKDIR /app
 COPY shared/ ./shared/
 COPY pb/ ./pb/
 COPY pkg/ ./pkg/
-COPY service/stats-writer/ ./service/stats-writer/
+COPY service/ ./service/
 
 WORKDIR /app/service/stats-writer
 
