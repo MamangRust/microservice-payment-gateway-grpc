@@ -550,11 +550,13 @@ flowchart TD
     classDef infra fill:#172554,stroke:#60a5fa,color:#dbeafe,stroke-width:1.5px
     classDef obs fill:#052e16,stroke:#4ade80,color:#dcfce7,stroke-width:1.5px
     classDef job fill:#431407,stroke:#fb923c,color:#fed7aa,stroke-width:1.5px
+    classDef olap fill:#1e293b,stroke:#a855f7,color:#f3e8ff,stroke-width:1.5px
 
     subgraph K8S["Kubernetes Cluster — namespace: payment-gateway"]
 
         subgraph Ingress["Ingress Controller"]
             NGINX["NGINX Ingress<br/>+ TLS Termination"]:::k8s
+            APIGW["API Gateway Pod"]:::pod
         end
 
         subgraph CorePods["Core Service Pods + HPAs"]
@@ -583,6 +585,11 @@ flowchart TD
                 TRANSFER["transfer-pod"]:::pod
                 WITHDRAW["withdraw-pod"]:::pod
             end
+
+            subgraph OLAPPods["OLAP Analytics"]
+                STATS_WRITER["stats-writer-pod"]:::olap
+                STATS_READER["stats-reader-pod"]:::olap
+            end
         end
 
         subgraph InfraPods["Infrastructure Pods"]
@@ -590,6 +597,7 @@ flowchart TD
             PGB["PgBouncer Daemon"]:::infra
             REDIS_CLUSTER[("Redis Cluster + PVC")]:::infra
             KAFKA[("Kafka StatefulSet")]:::infra
+            CLICKHOUSE[("ClickHouse OLAP + PVC")]:::infra
         end
 
         subgraph ObsPods["Observability Pods"]
@@ -611,14 +619,23 @@ flowchart TD
     end
 
     NGINX --> APIGW
+    APIGW -->|"gRPC"| CorePods
+    APIGW -->|"gRPC"| STATS_READER
     CorePods --> PGB
     PGB --> PG
     CorePods --> REDIS_CLUSTER
     CorePods --> KAFKA
     KAFKA --> EMAIL
+    KAFKA --> STATS_WRITER
+    STATS_WRITER --> CLICKHOUSE
+    STATS_READER --> CLICKHOUSE
 
     CorePods -.->|"/metrics"| PROM
     CorePods -.->|"OTLP"| OTEL
+    STATS_WRITER -.->|"/metrics"| PROM
+    STATS_READER -.->|"/metrics"| PROM
+    STATS_WRITER -.->|"OTLP"| OTEL
+    STATS_READER -.->|"OTLP"| OTEL
     OTEL -.-> JAEGER
     PROMTAIL -.-> LOKI
     PROM -.-> GRAFANA
@@ -634,7 +651,8 @@ flowchart TD
 | **Language** | Go (Golang v1.25) | High-performance compiled concurrent backend execution. |
 | **API Edge Gateway** | Echo (REST API) | High-performance REST API Gateway engine with auto-generated Swagger UI. |
 | **RPC Inter-service** | gRPC + Protobuf | Blazing fast, contract-first synchronous communications. |
-| **Database** | PostgreSQL v17 | Safe ACID ledger persistent storage system. |
+| **OLTP Database** | PostgreSQL v17 | Safe ACID ledger persistent storage system. |
+| **OLAP Database** | ClickHouse | Ultra-high performance column-oriented data warehouse for aggregations and analytics. |
 | **Database Gateway**| PgBouncer | Extreme-efficiency PostgreSQL socket connection pooler. |
 | **Type-Safe SQL** | sqlc | Code generator translating strict raw SQL queries into Go code. |
 | **DB Migrations** | Goose | Incremental database schema version manager. |
@@ -663,8 +681,8 @@ Ensure the following system packages are locally configured:
 ### 1. Clone the Workspace
 
 ```sh
-git clone https://github.com/MamangRust/monolith-payment-gateway-grpc.git
-cd monolith-payment-gateway-grpc
+git clone https://github.com/MamangRust/microservice-payment-gateway-grpc.git
+cd microservice-payment-gateway-grpc
 ```
 
 ### 2. Prepare Environment Configurations
@@ -722,6 +740,9 @@ just ps
 | **Pyroscope Profiling Panel** | [http://localhost:4040](http://localhost:4040) |
 | **PgBouncer Gateway Node** | `localhost:6432` |
 | **PostgreSQL Database Engine** | `localhost:5432` |
+| **Stats Reader gRPC Service** | `localhost:50062` |
+| **ClickHouse Native TCP** | `localhost:9000` |
+| **ClickHouse HTTP Interface** | `localhost:8123` |
 
 To fully stop the development system:
 
@@ -761,7 +782,7 @@ The workspace includes a standard `Makefile` and `justfile` featuring mirroring 
 ## Workspace Directory Tree
 
 ```
-monolith-payment-gateway-grpc/
+microservice-payment-gateway-grpc/
 ├── proto/                          # Protobuf contracts (12 domains)
 │   ├── auth.proto                  #   Identity tokens contracts
 │   ├── card/                       #   Virtual Card specifications
@@ -775,8 +796,8 @@ monolith-payment-gateway-grpc/
 │   ├── transfer/                   #   Peer-to-peer transaction specifications
 │   ├── user/                       #   User CRUD data properties
 │   └── withdraw/                   #   Bank settlement configurations
+├── pb/                             # Compiled protobuf outputs
 ├── shared/                         # Consolidated workspace module
-│   ├── pb/                         #   Compiled protobuf outputs
 │   ├── domain/                     #   Internal domain models & requests
 │   ├── mapper/                     #   Bidirectional converters (Proto ↔ Go)
 │   ├── cache/                      #   Redis caching wrappers
@@ -794,6 +815,7 @@ monolith-payment-gateway-grpc/
 │   ├── hash/                       #   Bcrypt cryptography utilities
 │   ├── kafka/                      #   Kafka writer/reader configurations
 │   ├── logger/                     #   Structured Zap logs wrappers
+│   ├── clickhouse/                 #   ClickHouse database connection factory
 │   ├── method_topup/               #   Valid top-up methods definitions
 │   ├── middleware/                 #   HTTP/gRPC general middleware
 │   ├── otel/                       #   Telemetry hooks config
@@ -816,11 +838,13 @@ monolith-payment-gateway-grpc/
 │   ├── transaction/                #   Central audit ledger service
 │   ├── transfer/                   #   P2P funding transfer engine
 │   ├── withdraw/                   #   Outbound settlement handler
+│   ├── stats-writer/               #   ClickHouse Kafka events consumer (OLAP writer)
+│   ├── stats-reader/               #   ClickHouse gRPC analytics queries server (OLAP reader)
 │   ├── email/                      #   Asynchronous Kafka notification worker
 │   └── migrate/                    #   Incremental DB migrations runner
 ├── deployments/
 │   ├── local/                      #   Docker compose infrastructure scripts
-│   └── kubernetes/                 #   Production K8s manifests ( deployments, HPAs, volumes)
+│   └── kubernetes/                 #   Production K8s manifests (deployments, HPAs, volumes)
 ├── observability/                  #   Telemetry pipeline yaml profiles (Loki, OTEL, Promtail)
 ├── grafana/                        #   Pre-configured dashboard templates
 ├── nginx/                          #   Reverse-proxy edge rules
@@ -838,5 +862,5 @@ This project is open-sourced under the MIT License for educational and developme
 ---
 
 <p align="center">
-  Built with Go, gRPC, Apache Kafka, and a passion for high-performance modular monoliths.
+  Built with Go, gRPC, Apache Kafka, ClickHouse OLAP, and a passion for high-performance microservices.
 </p>
