@@ -423,6 +423,7 @@ flowchart TD
     classDef infra fill:#172554,stroke:#60a5fa,color:#dbeafe,stroke-width:1.5px
     classDef obs fill:#052e16,stroke:#4ade80,color:#dcfce7,stroke-width:1.5px
     classDef event fill:#431407,stroke:#fb923c,color:#fed7aa,stroke-width:1.5px
+    classDef olap fill:#1e293b,stroke:#a855f7,color:#f3e8ff,stroke-width:1.5px
 
     subgraph DockerCompose["docker-compose.yml — Local Environment"]
 
@@ -454,6 +455,11 @@ flowchart TD
                 TRANSFER["transfer-service"]
                 WITHDRAW["withdraw-service"]
             end
+
+            subgraph OLAPSuite["OLAP & Analytics"]
+                STATS_WRITER["stats-writer"]:::olap
+                STATS_READER["stats-reader"]:::olap
+            end
         end
         class Services core
 
@@ -472,6 +478,7 @@ flowchart TD
             REDIS_TRANS[("redis-transfer :6388")]
             REDIS_WITHDRAW[("redis-withdraw :6389")]
             KAFKA[("Kafka Broker :9092")]
+            CLICKHOUSE[("ClickHouse OLAP :9000/:8123")]
             PYRO[("Pyroscope :4040")]
         end
         class Infra infra
@@ -497,10 +504,14 @@ flowchart TD
 
     NGINX --> APIGW
     APIGW -->|"gRPC"| Services
+    APIGW -->|"gRPC"| STATS_READER
     Services -->|"gRPC/SQL"| PGB
     PGB --> PG
     Services --> KAFKA
     KAFKA --> EMAIL
+    KAFKA --> STATS_WRITER
+    STATS_WRITER --> CLICKHOUSE
+    STATS_READER --> CLICKHOUSE
 
     AUTH --> REDIS_AUTH
     USER --> REDIS_USER
@@ -517,6 +528,10 @@ flowchart TD
     Services -.->|"Metrics"| PROM
     Services -.->|"Traces"| OTEL
     Services -.->|"Profiles"| PYRO
+    STATS_WRITER -.->|"Metrics"| PROM
+    STATS_READER -.->|"Metrics"| PROM
+    STATS_WRITER -.->|"Traces"| OTEL
+    STATS_READER -.->|"Traces"| OTEL
     OTEL -.-> JAEGER
     PROMTAIL -.-> LOKI
     PROM -.-> GRAFANA
