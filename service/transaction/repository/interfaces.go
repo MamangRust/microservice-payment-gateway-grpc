@@ -2,29 +2,43 @@ package repository
 
 import (
 	"context"
+	"time"
 
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
+	carddb "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/database/schema"
+	merchantdb "github.com/MamangRust/microservice-payment-gateway-grpc/service/merchant/database/schema"
+	saldodb "github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/database/schema"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/transaction/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/idempotency"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/outbox"
 )
 
+type IdempotencyRepository interface {
+	idempotency.Store
+}
+
+type OutboxRepository interface {
+	outbox.Store[db.OutboxRecord]
+}
+
 type MerchantRepository interface {
-	FindByApiKey(ctx context.Context, api_key string) (*db.GetMerchantByApiKeyRow, error)
+	FindByApiKey(ctx context.Context, api_key string) (*merchantdb.GetMerchantByApiKeyRow, error)
 }
 
 type SaldoRepository interface {
-	FindByCardNumber(ctx context.Context, card_number string) (*db.Saldo, error)
+	FindByCardNumber(ctx context.Context, card_number string) (*saldodb.Saldo, error)
 
-	UpdateSaldoBalance(ctx context.Context, request *requests.UpdateSaldoBalance) (*db.UpdateSaldoBalanceRow, error)
+	UpdateSaldoBalance(ctx context.Context, request *requests.UpdateSaldoBalance) (*saldodb.UpdateSaldoBalanceRow, error)
 }
 
 type CardRepository interface {
-	FindCardByUserId(ctx context.Context, user_id int) (*db.GetCardByUserIDRow, error)
+	FindCardByUserId(ctx context.Context, user_id int) (*carddb.GetCardByUserIDRow, error)
 
-	FindUserCardByCardNumber(ctx context.Context, card_number string) (*db.GetUserEmailByCardNumberRow, error)
+	FindUserCardByCardNumber(ctx context.Context, card_number string) (*carddb.GetUserEmailByCardNumberRow, error)
 
-	FindCardByCardNumber(ctx context.Context, card_number string) (*db.GetCardByCardNumberRow, error)
+	FindCardByCardNumber(ctx context.Context, card_number string) (*carddb.GetCardByCardNumberRow, error)
 
-	UpdateCard(ctx context.Context, request *requests.UpdateCardRequest) (*db.UpdateCardRow, error)
+	UpdateCard(ctx context.Context, request *requests.UpdateCardRequest) (*carddb.UpdateCardRow, error)
 }
 
 type TransactionQueryRepository interface {
@@ -40,6 +54,9 @@ type TransactionCommandRepository interface {
 	CreateTransaction(ctx context.Context, request *requests.CreateTransactionRequest) (*db.CreateTransactionRow, error)
 	UpdateTransaction(ctx context.Context, request *requests.UpdateTransactionRequest) (*db.UpdateTransactionRow, error)
 	UpdateTransactionStatus(ctx context.Context, request *requests.UpdateTransactionStatus) (*db.UpdateTransactionStatusRow, error)
+	TransitionStatus(ctx context.Context, id int, fromStatus, toStatus, reason string) (*db.UpdateTransactionStatusRow, error)
+	GuardStatus(ctx context.Context, id int, fromStatus, toStatus, reason string) (bool, error)
+	ListStuck(ctx context.Context, olderThan time.Duration, maxRows int32) ([]*db.StuckTransaction, error)
 	TrashedTransaction(ctx context.Context, transaction_id int) (*db.Transaction, error)
 	RestoreTransaction(ctx context.Context, topup_id int) (*db.Transaction, error)
 	DeleteTransactionPermanent(ctx context.Context, topup_id int) (bool, error)

@@ -46,7 +46,7 @@ message TransferResponse {
   string transfer_no = 2;
   string transfer_from = 3;
   string transfer_to = 4;
-  int32 transfer_amount = 5;
+  int64 transfer_amount = 5;
   string transfer_time = 6;
   string created_at = 7;
   string updated_at = 8;
@@ -57,7 +57,7 @@ message TransferResponseDeleteAt {
   string transfer_no = 2;
   string transfer_from = 3;
   string transfer_to = 4;
-  int32 transfer_amount = 5;
+  int64 transfer_amount = 5;
   string transfer_time = 6;
   string created_at = 7;
   string updated_at = 8;

@@ -66,7 +66,7 @@ func (s *loginService) Login(ctx context.Context, request *requests.AuthRequest)
 	ctx, span, end, status, logSuccess := s.observability.StartTracingAndLogging(ctx, method, attribute.String("email", request.Email))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	// Check if account is locked

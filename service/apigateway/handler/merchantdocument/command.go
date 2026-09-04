@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"strconv"
 
-	merchantdocument_cache "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/redis/api/merchantdocument"
 	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb/merchant_document"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
+	merchantdocument_cache "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/redis/api/merchantdocument"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
 	merchantdocumentapimapper "github.com/MamangRust/microservice-payment-gateway-grpc/shared/mapper/merchantdocument"
@@ -55,16 +55,16 @@ func NewMerchantCommandDocumentHandler(params *merchantCommandDocumentHandleDeps
 
 	routerMerchantDocument := params.router.Group("/api/merchant-document-command")
 
-	routerMerchantDocument.POST("/create", merchantDocumentHandler.Create)
-	routerMerchantDocument.POST("/updates/:id", merchantDocumentHandler.Update)
-	routerMerchantDocument.POST("/update-status/:id", merchantDocumentHandler.UpdateStatus)
+	routerMerchantDocument.POST("/create", params.apiHandler.Handle("create-merchant-document", merchantDocumentHandler.Create))
+	routerMerchantDocument.POST("/updates/:id", params.apiHandler.Handle("update-merchant-document", merchantDocumentHandler.Update))
+	routerMerchantDocument.POST("/update-status/:id", params.apiHandler.Handle("update-merchant-document-status", merchantDocumentHandler.UpdateStatus))
 
-	routerMerchantDocument.POST("/trashed/:id", merchantDocumentHandler.TrashedDocument)
-	routerMerchantDocument.POST("/restore/:id", merchantDocumentHandler.RestoreDocument)
-	routerMerchantDocument.DELETE("/permanent/:id", merchantDocumentHandler.Delete)
+	routerMerchantDocument.POST("/trashed/:id", params.apiHandler.Handle("trash-merchant-document", merchantDocumentHandler.TrashedDocument))
+	routerMerchantDocument.POST("/restore/:id", params.apiHandler.Handle("restore-merchant-document", merchantDocumentHandler.RestoreDocument))
+	routerMerchantDocument.DELETE("/permanent/:id", params.apiHandler.Handle("delete-merchant-document-permanent", merchantDocumentHandler.Delete))
 
-	routerMerchantDocument.POST("/restore/all", merchantDocumentHandler.RestoreAllDocuments)
-	routerMerchantDocument.POST("/permanent/all", merchantDocumentHandler.DeleteAllDocumentsPermanent)
+	routerMerchantDocument.POST("/restore/all", params.apiHandler.Handle("restore-all-merchant-documents", merchantDocumentHandler.RestoreAllDocuments))
+	routerMerchantDocument.POST("/permanent/all", params.apiHandler.Handle("delete-all-merchant-documents-permanent", merchantDocumentHandler.DeleteAllDocumentsPermanent))
 }
 
 // Create godoc

@@ -4,14 +4,14 @@ import (
 	"context"
 	"testing"
 
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
-	tests "github.com/MamangRust/microservice-payment-gateway-test"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/role/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/role/repository"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/role/service"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/cache"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/observability"
+	tests "github.com/MamangRust/microservice-payment-gateway-test"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"

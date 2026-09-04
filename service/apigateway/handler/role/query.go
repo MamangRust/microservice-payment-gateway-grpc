@@ -3,14 +3,11 @@ package rolehandler
 import (
 	"net/http"
 	"strconv"
-	"time"
 
-	"github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/middlewares"
-	mencache "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/redis"
-	role_cache "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/redis/api/role"
 	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb/role"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/kafka"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/middlewares"
+	role_cache "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/redis/api/role"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
 	apimapper "github.com/MamangRust/microservice-payment-gateway-grpc/shared/mapper/role"
@@ -18,8 +15,6 @@ import (
 )
 
 type roleQueryHandlerApi struct {
-	kafka *kafka.Kafka
-
 	role pb.RoleQueryServiceClient
 
 	logger logger.LoggerInterface
@@ -32,12 +27,11 @@ type roleQueryHandlerApi struct {
 }
 
 type roleQueryHandleDeps struct {
-	client     pb.RoleQueryServiceClient
-	router     *echo.Echo
-	logger     logger.LoggerInterface
-	mapper     apimapper.RoleQueryResponseMapper
-	kafka      *kafka.Kafka
-	cache_role mencache.RoleCache
+	client        pb.RoleQueryServiceClient
+	router        *echo.Echo
+	logger        logger.LoggerInterface
+	mapper        apimapper.RoleQueryResponseMapper
+	roleValidator *middlewares.RoleValidator
 
 	cache role_cache.RoleMencache
 
@@ -50,17 +44,16 @@ func NewRoleQueryHandleApi(params *roleQueryHandleDeps) *roleQueryHandlerApi {
 		role:       params.client,
 		logger:     params.logger,
 		mapper:     params.mapper,
-		kafka:      params.kafka,
 		cache:      params.cache,
 		apiHandler: params.apiHandler,
 	}
 
-	roleMiddleware := middlewares.NewRoleValidator(params.kafka, "request-role", "response-role", 5*time.Second, params.logger, params.cache_role)
+	roleMiddleware := params.roleValidator
 
 	routerRole := params.router.Group("/api/role-query")
 
 	roleMiddlewareChain := roleMiddleware.Middleware()
-	requireAdmin := middlewares.RequireRoles("Admin_Role_10")
+	requireAdmin := middlewares.RequireRoles("ROLE_ADMIN")
 
 	routerRole.GET("", roleMiddlewareChain(requireAdmin(roleQueryHandler.FindAll)))
 

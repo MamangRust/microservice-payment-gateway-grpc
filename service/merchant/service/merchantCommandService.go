@@ -6,15 +6,15 @@ import (
 	"fmt"
 	"strconv"
 
-	merchant_errors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors/merchant_errors/service"
+	sharedErrors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
 
-	mencache "github.com/MamangRust/microservice-payment-gateway-grpc/service/merchant/redis"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/adapter"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/service/merchant/repository"
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/merchant/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/email"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/kafka"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
+	mencache "github.com/MamangRust/microservice-payment-gateway-grpc/service/merchant/redis"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/service/merchant/repository"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/events"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/errorhandler"
@@ -105,7 +105,7 @@ func (s *merchantCommandService) CreateMerchant(ctx context.Context, request *re
 	ctx, span, end, status, logSuccess := s.observability.StartTracingAndLogging(ctx, method)
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	user, err := s.userAdapter.FindById(ctx, request.UserID)
@@ -121,12 +121,16 @@ func (s *merchantCommandService) CreateMerchant(ctx context.Context, request *re
 	}
 
 	go func() {
-		htmlBody := email.GenerateEmailHTML(map[string]string{
+		htmlBody, err := email.GenerateEmailHTML(map[string]string{
 			"Title":   "Welcome to SanEdge Merchant Portal",
 			"Message": "Your merchant account has been created successfully. To continue, please upload the required documents for verification. Once completed, our team will review and activate your account.",
 			"Button":  "Upload Documents",
 			"Link":    fmt.Sprintf("https://sanedge.example.com/merchant/%d/documents", user.UserID),
 		})
+		if err != nil {
+			s.logger.Error("failed to generate merchant email HTML", zap.Error(err))
+			return
+		}
 
 		emailPayload := map[string]any{
 			"email":   user.Email,
@@ -141,7 +145,7 @@ func (s *merchantCommandService) CreateMerchant(ctx context.Context, request *re
 		}
 
 		if s.kafka != nil {
-			err = s.kafka.SendMessage("email-service-topic-merchant-created", strconv.Itoa(int(res.MerchantID)), payloadBytes)
+			err = s.kafka.SendMessage("email-service-topic-merchant-create", strconv.Itoa(int(res.MerchantID)), payloadBytes)
 			if err != nil {
 				s.logger.Error("failed to send merchant creation email via kafka", zap.Error(err), zap.Int("merchant_id", int(res.MerchantID)))
 			}
@@ -155,10 +159,13 @@ func (s *merchantCommandService) CreateMerchant(ctx context.Context, request *re
 				Status:     "inactive", // Default status for new merchant
 				CreatedAt:  time.Now(),
 			}
-			statsPayloadByte, _ := json.Marshal(statsEvent)
-			_ = s.kafka.SendMessage("stats-topic-merchant-events", strconv.Itoa(int(res.MerchantID)), statsPayloadByte)
-		} else {
-			s.logger.Warn("kafka is nil, skipping email notification", zap.Int("merchant_id", int(res.MerchantID)))
+
+			statsPayloadByte, err := json.Marshal(statsEvent)
+			if err != nil {
+				s.logger.Error("failed to marshal merchant stats event", zap.Error(err), zap.Int("merchant_id", int(res.MerchantID)))
+			} else {
+				_ = s.kafka.SendMessage("stats-topic-merchant-events", strconv.Itoa(int(res.MerchantID)), statsPayloadByte)
+			}
 		}
 	}()
 
@@ -173,7 +180,7 @@ func (s *merchantCommandService) UpdateMerchant(ctx context.Context, request *re
 	ctx, span, end, status, logSuccess := s.observability.StartTracingAndLogging(ctx, method)
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	res, err := s.merchantCommandRepository.UpdateMerchant(ctx, request)
@@ -195,7 +202,7 @@ func (s *merchantCommandService) UpdateMerchantStatus(ctx context.Context, reque
 	ctx, span, end, status, logSuccess := s.observability.StartTracingAndLogging(ctx, method)
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	merchant, err := s.merchantQueryRepository.FindByMerchantId(ctx, *request.MerchantID)
@@ -237,12 +244,16 @@ func (s *merchantCommandService) UpdateMerchantStatus(ctx context.Context, reque
 			return
 		}
 
-		htmlBody := email.GenerateEmailHTML(map[string]string{
+		htmlBody, err := email.GenerateEmailHTML(map[string]string{
 			"Title":   subject,
 			"Message": message,
 			"Button":  "Go to Portal",
 			"Link":    link,
 		})
+		if err != nil {
+			s.logger.Error("failed to generate merchant status email HTML", zap.Error(err))
+			return
+		}
 
 		emailPayload := map[string]any{
 			"email":   user.Email,
@@ -271,10 +282,13 @@ func (s *merchantCommandService) UpdateMerchantStatus(ctx context.Context, reque
 				Status:     res.Status,
 				CreatedAt:  time.Now(),
 			}
-			statsPayloadByte, _ := json.Marshal(statsEvent)
-			_ = s.kafka.SendMessage("stats-topic-merchant-events", strconv.Itoa(int(res.MerchantID)), statsPayloadByte)
-		} else {
-			s.logger.Warn("kafka is nil, skipping email notification", zap.Int("merchant_id", *request.MerchantID))
+
+			statsPayloadByte, err := json.Marshal(statsEvent)
+			if err != nil {
+				s.logger.Error("failed to marshal merchant status stats event", zap.Error(err), zap.Int("merchant_id", int(res.MerchantID)))
+			} else {
+				_ = s.kafka.SendMessage("stats-topic-merchant-events", strconv.Itoa(int(res.MerchantID)), statsPayloadByte)
+			}
 		}
 	}()
 
@@ -292,7 +306,7 @@ func (s *merchantCommandService) TrashedMerchant(ctx context.Context, merchant_i
 		attribute.Int("merchant_id", merchant_id))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	s.logger.Debug("Trashing merchant", zap.Int("merchant_id", merchant_id))
@@ -302,7 +316,7 @@ func (s *merchantCommandService) TrashedMerchant(ctx context.Context, merchant_i
 		status = "error"
 		return errorhandler.HandleError[*db.Merchant](
 			s.logger,
-			merchant_errors.ErrFailedTrashMerchant,
+			err,
 			method,
 			span,
 
@@ -322,7 +336,7 @@ func (s *merchantCommandService) RestoreMerchant(ctx context.Context, merchant_i
 		attribute.Int("merchant_id", merchant_id))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	s.logger.Debug("Restoring merchant", zap.Int("merchant_id", merchant_id))
@@ -332,7 +346,7 @@ func (s *merchantCommandService) RestoreMerchant(ctx context.Context, merchant_i
 		status = "error"
 		return errorhandler.HandleError[*db.Merchant](
 			s.logger,
-			merchant_errors.ErrFailedRestoreMerchant,
+			err,
 			method,
 			span,
 
@@ -352,7 +366,7 @@ func (s *merchantCommandService) DeleteMerchantPermanent(ctx context.Context, me
 		attribute.Int("merchant_id", merchant_id))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	s.logger.Debug("Deleting merchant permanently", zap.Int("merchant_id", merchant_id))
@@ -362,7 +376,7 @@ func (s *merchantCommandService) DeleteMerchantPermanent(ctx context.Context, me
 		status = "error"
 		return errorhandler.HandleError[bool](
 			s.logger,
-			merchant_errors.ErrFailedDeleteMerchant,
+			err,
 			method,
 			span,
 
@@ -381,7 +395,7 @@ func (s *merchantCommandService) RestoreAllMerchant(ctx context.Context) (bool, 
 	ctx, span, end, status, logSuccess := s.observability.StartTracingAndLogging(ctx, method)
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	s.logger.Debug("Restoring all merchants")
@@ -391,7 +405,7 @@ func (s *merchantCommandService) RestoreAllMerchant(ctx context.Context) (bool, 
 		status = "error"
 		return errorhandler.HandleError[bool](
 			s.logger,
-			merchant_errors.ErrFailedRestoreAllMerchants,
+			sharedErrors.ErrFailed("restore all merchants"),
 			method,
 			span,
 		)
@@ -407,7 +421,7 @@ func (s *merchantCommandService) DeleteAllMerchantPermanent(ctx context.Context)
 	ctx, span, end, status, logSuccess := s.observability.StartTracingAndLogging(ctx, method)
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	s.logger.Debug("Permanently deleting all merchants")
@@ -417,7 +431,7 @@ func (s *merchantCommandService) DeleteAllMerchantPermanent(ctx context.Context)
 		status = "error"
 		return errorhandler.HandleError[bool](
 			s.logger,
-			merchant_errors.ErrFailedDeleteAllMerchants,
+			sharedErrors.ErrFailed("delete all merchants permanently"),
 			method,
 			span,
 		)

@@ -59,7 +59,7 @@ func (s *passwordResetService) ForgotPassword(ctx context.Context, email string)
 	ctx, span, end, status, logSuccess := s.observability.StartTracingAndLogging(ctx, method, attribute.String("email", email))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	res, err := s.user.FindByEmail(ctx, email)
@@ -88,12 +88,16 @@ func (s *passwordResetService) ForgotPassword(ctx context.Context, email string)
 
 	s.mencache.SetResetTokenCache(ctx, random, int(res.UserID), 5*time.Minute)
 
-	htmlBody := emails.GenerateEmailHTML(map[string]string{
+	htmlBody, err := emails.GenerateEmailHTML(map[string]string{
 		"Title":   "Reset Your Password",
 		"Message": "Click the button below to reset your password.",
 		"Button":  "Reset Password",
 		"Link":    "https://sanedge.example.com/reset-password?token=" + random,
 	})
+	if err != nil {
+		status = "error"
+		return sharederrorhandler.HandleError[bool](s.logger, err, method, span, zap.String("email", email))
+	}
 
 	emailPayload := map[string]any{
 		"email":   res.Email,
@@ -126,7 +130,7 @@ func (s *passwordResetService) ResetPassword(ctx context.Context, req *requests.
 	ctx, span, end, status, logSuccess := s.observability.StartTracingAndLogging(ctx, method, attribute.String("reset_token", req.ResetToken))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	var userID int
@@ -156,7 +160,7 @@ func (s *passwordResetService) ResetPassword(ctx context.Context, req *requests.
 		return sharederrorhandler.HandleError[bool](s.logger, err, method, span, zap.Int("user.id", userID))
 	}
 
-	_ = s.resetToken.DeleteResetToken(ctx, userID)
+	_ = s.resetToken.DeleteResetToken(ctx, int32(userID))
 	s.mencache.DeleteResetTokenCache(ctx, req.ResetToken)
 
 	logSuccess("Successfully reset password", zap.String("reset_token", req.ResetToken))
@@ -170,7 +174,7 @@ func (s *passwordResetService) VerifyCode(ctx context.Context, code string) (boo
 	ctx, span, end, status, logSuccess := s.observability.StartTracingAndLogging(ctx, method, attribute.String("code", code))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	res, err := s.user.FindByVerificationCode(ctx, code)
@@ -187,12 +191,16 @@ func (s *passwordResetService) VerifyCode(ctx context.Context, code string) (boo
 
 	s.mencache.DeleteVerificationCodeCache(ctx, res.Email)
 
-	htmlBody := emails.GenerateEmailHTML(map[string]string{
+	htmlBody, err := emails.GenerateEmailHTML(map[string]string{
 		"Title":   "Verification Success",
 		"Message": "Your account has been successfully verified. Click the button below to view or manage your card.",
 		"Button":  "Go to Dashboard",
 		"Link":    "https://sanedge.example.com/card/create",
 	})
+	if err != nil {
+		status = "error"
+		return sharederrorhandler.HandleError[bool](s.logger, err, method, span, zap.String("code", code))
+	}
 
 	emailPayload := map[string]any{
 		"email":   res.Email,

@@ -1,7 +1,8 @@
 package repository
 
 import (
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/transaction/database/schema"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/outbox"
 )
 
 type Repositories interface {
@@ -10,6 +11,8 @@ type Repositories interface {
 	CardRepository
 	TransactionQueryRepository
 	TransactionCommandRepository
+	IdempotencyRepository
+	OutboxRepository
 }
 
 // Repositories is a struct that contains all the repositories used in the transaction service.
@@ -19,6 +22,8 @@ type repositories struct {
 	CardRepository
 	TransactionQueryRepository
 	TransactionCommandRepository
+	IdempotencyRepository
+	OutboxRepository
 }
 
 // NewRepositories creates a new instance of Repositories with the provided database
@@ -38,10 +43,12 @@ func NewRepositories(
 ) Repositories {
 
 	return &repositories{
-		SaldoRepository:                  saldo,
-		MerchantRepository:               merchant,
-		CardRepository:                   card,
-		TransactionQueryRepository:       NewTransactionQueryRepository(db),
-		TransactionCommandRepository:     NewTransactionCommandRepository(db),
+		SaldoRepository:              saldo,
+		MerchantRepository:           merchant,
+		CardRepository:               card,
+		TransactionQueryRepository:   NewTransactionQueryRepository(db),
+		TransactionCommandRepository: NewTransactionCommandRepository(db),
+		IdempotencyRepository:        NewTransactionIdempotencyRepository(db),
+		OutboxRepository:             outbox.NewStore(db.InsertOutbox),
 	}
 }

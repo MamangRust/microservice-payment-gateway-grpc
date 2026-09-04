@@ -3,13 +3,13 @@ package service
 import (
 	"context"
 
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/database/schema"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
 	mencache "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/redis"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/card/repository"
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 	sharederrorhandler "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errorhandler"
-	card_errors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors/card_errors/service"
+	sharedErrors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/observability"
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
@@ -19,6 +19,7 @@ import (
 type cardQueryServiceDeps struct {
 	Cache               mencache.CardQueryCache
 	CardQueryRepository repository.CardQueryRepository
+	UserRepository      repository.UserRepository
 	Logger              logger.LoggerInterface
 	Observability       observability.TraceLoggerObservability
 }
@@ -27,6 +28,7 @@ type cardQueryServiceDeps struct {
 type cardQueryService struct {
 	cache               mencache.CardQueryCache
 	cardQueryRepository repository.CardQueryRepository
+	userRepository      repository.UserRepository
 	logger              logger.LoggerInterface
 	observability       observability.TraceLoggerObservability
 }
@@ -45,6 +47,7 @@ func NewCardQueryService(
 ) CardQueryService {
 	return &cardQueryService{
 		cardQueryRepository: params.CardQueryRepository,
+		userRepository:      params.UserRepository,
 		logger:              params.Logger,
 		observability:       params.Observability,
 		cache:               params.Cache,
@@ -70,7 +73,7 @@ func (s *cardQueryService) FindAll(ctx context.Context, req *requests.FindAllCar
 		attribute.String("search", req.Search))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	if data, total, found := s.cache.GetFindAllCache(ctx, req); found {
@@ -83,7 +86,7 @@ func (s *cardQueryService) FindAll(ctx context.Context, req *requests.FindAllCar
 		status = "error"
 		return sharederrorhandler.HandlerErrorPagination[[]*db.GetCardsRow](
 			s.logger,
-			card_errors.ErrFailedFindAllCards,
+			sharedErrors.ErrFailed("find all cards"),
 			method,
 			span,
 			zap.Int("page", req.Page),
@@ -131,7 +134,7 @@ func (s *cardQueryService) FindByActive(ctx context.Context, req *requests.FindA
 		attribute.String("search", search))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	if data, total, found := s.cache.GetByActiveCache(ctx, req); found {
@@ -144,7 +147,7 @@ func (s *cardQueryService) FindByActive(ctx context.Context, req *requests.FindA
 		status = "error"
 		return sharederrorhandler.HandlerErrorPagination[[]*db.GetActiveCardsWithCountRow](
 			s.logger,
-			card_errors.ErrFailedFindActiveCards,
+			sharedErrors.ErrFailed("find active cards"),
 			method,
 			span,
 
@@ -192,7 +195,7 @@ func (s *cardQueryService) FindByTrashed(ctx context.Context, req *requests.Find
 		attribute.String("search", search))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	if data, total, found := s.cache.GetByTrashedCache(ctx, req); found {
@@ -205,7 +208,7 @@ func (s *cardQueryService) FindByTrashed(ctx context.Context, req *requests.Find
 		status = "error"
 		return sharederrorhandler.HandlerErrorPagination[[]*db.GetTrashedCardsWithCountRow](
 			s.logger,
-			card_errors.ErrFailedFindTrashedCards,
+			sharedErrors.ErrFailed("find trashed cards"),
 			method,
 			span,
 
@@ -240,7 +243,7 @@ func (s *cardQueryService) FindById(ctx context.Context, card_id int) (*db.GetCa
 		attribute.Int("card_id", card_id))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	if data, found := s.cache.GetByIdCache(ctx, card_id); found {
@@ -253,7 +256,7 @@ func (s *cardQueryService) FindById(ctx context.Context, card_id int) (*db.GetCa
 		status = "error"
 		return sharederrorhandler.HandleError[*db.GetCardByIDRow](
 			s.logger,
-			card_errors.ErrFailedFindById,
+			err,
 			method,
 			span,
 
@@ -275,7 +278,7 @@ func (s *cardQueryService) FindByCardNumber(ctx context.Context, card_number str
 		attribute.String("card_number", card_number))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	if data, found := s.cache.GetByCardNumberCache(ctx, card_number); found {
@@ -286,9 +289,12 @@ func (s *cardQueryService) FindByCardNumber(ctx context.Context, card_number str
 	res, err := s.cardQueryRepository.FindCardByCardNumber(ctx, card_number)
 	if err != nil {
 		status = "error"
+		// Preserve the repository's domain/dependency error. Mapping every
+		// failure to not-found hid user/database outages as a misleading card
+		// lookup error and made financial commands return generic 500s.
 		return sharederrorhandler.HandleError[*db.GetCardByCardNumberRow](
 			s.logger,
-			card_errors.ErrCardNotFoundRes,
+			err,
 			method,
 			span,
 			zap.String("card_number", card_number),
@@ -309,7 +315,7 @@ func (s *cardQueryService) FindByUserID(ctx context.Context, user_id int) (*db.G
 		attribute.Int("user_id", user_id))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	if data, found := s.cache.GetByUserIDCache(ctx, user_id); found {
@@ -322,7 +328,7 @@ func (s *cardQueryService) FindByUserID(ctx context.Context, user_id int) (*db.G
 		status = "error"
 		return sharederrorhandler.HandleError[*db.GetCardByUserIDRow](
 			s.logger,
-			card_errors.ErrFailedFindByUserID,
+			err,
 			method,
 			span,
 
@@ -344,11 +350,22 @@ func (s *cardQueryService) FindUserCardByCardNumber(ctx context.Context, card_nu
 		attribute.String("card_number", card_number))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	if data, found := s.cache.GetUserCardByCardNumberCache(ctx, card_number); found {
-		logSuccess("Successfully fetched card records by user ID from cache", zap.String("card_number", card_number))
+		if data.Email != "" {
+			logSuccess("Successfully fetched card records by user ID from cache", zap.String("card_number", card_number))
+			return data, nil
+		}
+		// A pre-fix cache entry may contain card data without the user email.
+		// Re-enrich it instead of returning an unusable notification recipient.
+		if err := s.enrichUserEmail(ctx, data); err != nil {
+			status = "error"
+			return nil, err
+		}
+		s.cache.SetUserCardByCardNumberCache(ctx, card_number, data)
+		logSuccess("Successfully enriched cached card record", zap.String("card_number", card_number))
 		return data, nil
 	}
 
@@ -357,11 +374,18 @@ func (s *cardQueryService) FindUserCardByCardNumber(ctx context.Context, card_nu
 		status = "error"
 		return sharederrorhandler.HandleError[*db.GetUserEmailByCardNumberRow](
 			s.logger,
-			card_errors.ErrFailedFindByUserID,
+			sharedErrors.ErrFailed("find card by user ID"),
 			method,
 			span,
 			zap.String("card_number", card_number),
 		)
+	}
+
+	// User profiles live in the user service, not card_db. Enrich the card
+	// lookup through the existing gRPC repository instead of a cross-database SQL JOIN.
+	if err := s.enrichUserEmail(ctx, res); err != nil {
+		status = "error"
+		return nil, err
 	}
 
 	s.cache.SetUserCardByCardNumberCache(ctx, card_number, res)
@@ -382,6 +406,23 @@ func (s *cardQueryService) FindUserCardByCardNumber(ctx context.Context, card_nu
 // Returns:
 //   - The normalized page number.
 //   - The normalized page size.
+func (s *cardQueryService) enrichUserEmail(ctx context.Context, card *db.GetUserEmailByCardNumberRow) error {
+	if s.userRepository == nil {
+		return sharedErrors.ErrInternal.WithMessage("user repository is not configured")
+	}
+
+	user, err := s.userRepository.FindById(ctx, int(card.UserID))
+	if err != nil {
+		return err
+	}
+	if user == nil || user.Email == "" {
+		return sharedErrors.ErrNotFoundResponse("user").WithMessage("user email not found")
+	}
+
+	card.Email = user.Email
+	return nil
+}
+
 func (s *cardQueryService) normalizePagination(page, pageSize int) (int, int) {
 	if page <= 0 {
 		page = 1

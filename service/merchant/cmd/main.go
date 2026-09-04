@@ -14,7 +14,7 @@ func main() {
 		Port:           50054,
 		DBCluster:      "DB_B",
 		RedisCluster:   "REDIS_2",
-		MigrationPath:  "./migrations",
+		MigrationPath:  "./database/migration",
 	})
 
 	if err != nil {

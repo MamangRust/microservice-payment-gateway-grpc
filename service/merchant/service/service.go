@@ -87,6 +87,7 @@ func newMerchantDocumentQueryService(
 ) MerchantDocumentQueryService {
 	return NewMerchantDocumentQueryService(&merchantDocumentQueryDeps{
 		Repository:    deps.Repositories,
+		Cache:         cache,
 		Logger:        deps.Logger,
 		Observability: observability,
 	})

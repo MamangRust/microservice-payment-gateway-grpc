@@ -1,18 +1,20 @@
 package apps
 
 import (
-	"strings"
+	"context"
+	"fmt"
 	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb/role"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/kafka"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/server"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/role/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/role/handler"
+	myhandlerkafka "github.com/MamangRust/microservice-payment-gateway-grpc/service/role/kafka"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/role/repository"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/role/service"
 	"github.com/spf13/viper"
-	"context"
-	myhandlerkafka "github.com/MamangRust/microservice-payment-gateway-grpc/service/role/kafka"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"strings"
 )
 
 func NewServer(cfg *server.Config) (*server.GRPCServer, error) {
@@ -21,9 +23,14 @@ func NewServer(cfg *server.Config) (*server.GRPCServer, error) {
 		return nil, err
 	}
 
-	repos := repository.NewRepositories(srv.DB)
+	queries := db.New(srv.Pool)
+
+	repos := repository.NewRepositories(queries)
 	kafkaBrokers := strings.Split(viper.GetString("KAFKA_BROKERS"), ",")
-	mykafka := kafka.NewKafka(srv.Logger, kafkaBrokers)
+	mykafka, err := kafka.NewKafka(srv.Logger, kafkaBrokers)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Kafka producer: %w", err)
+	}
 
 	svc := service.NewService(&service.Deps{
 		Cache:        srv.CacheStore,

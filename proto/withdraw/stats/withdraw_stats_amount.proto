@@ -8,12 +8,12 @@ import "withdraw/withdraw.proto";
 
 message WithdrawMonthlyAmountResponse {
   string month = 1;
-  int32 total_amount = 2;
+  int64 total_amount = 2;
 }
 
 message WithdrawYearlyAmountResponse {
   string year = 1;
-  int32 total_amount = 2;
+  int64 total_amount = 2;
 }
 
 message ApiResponseWithdrawMonthAmount {

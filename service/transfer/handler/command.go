@@ -6,10 +6,10 @@ import (
 
 	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb/transfer"
 
+	"github.com/MamangRust/microservice-payment-gateway-grpc/service/transfer/service"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
 	transfer_errors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors/transfer_errors/grpc"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/service/transfer/service"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -31,6 +31,7 @@ func (s *transferCommandHandleGrpc) CreateTransfer(ctx context.Context, request 
 		TransferFrom:   request.GetTransferFrom(),
 		TransferTo:     request.GetTransferTo(),
 		TransferAmount: int(request.GetTransferAmount()),
+		IdempotencyKey: request.GetIdempotencyKey(),
 	}
 
 	if err := req.Validate(); err != nil {
@@ -51,7 +52,7 @@ func (s *transferCommandHandleGrpc) CreateTransfer(ctx context.Context, request 
 			TransferNo:     transfer.TransferNo.String(),
 			TransferFrom:   transfer.TransferFrom,
 			TransferTo:     transfer.TransferTo,
-			TransferAmount: int32(transfer.TransferAmount),
+			TransferAmount: int64(transfer.TransferAmount),
 			TransferTime:   transfer.TransferTime.Format(time.RFC3339),
 			CreatedAt:      transfer.CreatedAt.Time.Format(time.RFC3339),
 			UpdatedAt:      transfer.UpdatedAt.Time.Format(time.RFC3339),
@@ -91,7 +92,7 @@ func (s *transferCommandHandleGrpc) UpdateTransfer(ctx context.Context, request 
 			TransferNo:     transfer.TransferNo.String(),
 			TransferFrom:   transfer.TransferFrom,
 			TransferTo:     transfer.TransferTo,
-			TransferAmount: int32(transfer.TransferAmount),
+			TransferAmount: int64(transfer.TransferAmount),
 			TransferTime:   transfer.TransferTime.Format(time.RFC3339),
 			CreatedAt:      transfer.CreatedAt.Time.Format(time.RFC3339),
 			UpdatedAt:      transfer.UpdatedAt.Time.Format(time.RFC3339),
@@ -120,7 +121,7 @@ func (s *transferCommandHandleGrpc) TrashedTransfer(ctx context.Context, request
 			TransferNo:     transfer.TransferNo.String(),
 			TransferFrom:   transfer.TransferFrom,
 			TransferTo:     transfer.TransferTo,
-			TransferAmount: int32(transfer.TransferAmount),
+			TransferAmount: int64(transfer.TransferAmount),
 			TransferTime:   transfer.TransferTime.Format(time.RFC3339),
 			CreatedAt:      transfer.CreatedAt.Time.Format(time.RFC3339),
 			UpdatedAt:      transfer.UpdatedAt.Time.Format(time.RFC3339),
@@ -150,7 +151,7 @@ func (s *transferCommandHandleGrpc) RestoreTransfer(ctx context.Context, request
 			TransferNo:     transfer.TransferNo.String(),
 			TransferFrom:   transfer.TransferFrom,
 			TransferTo:     transfer.TransferTo,
-			TransferAmount: int32(transfer.TransferAmount),
+			TransferAmount: int64(transfer.TransferAmount),
 			TransferTime:   transfer.TransferTime.Format(time.RFC3339),
 			CreatedAt:      transfer.CreatedAt.Time.Format(time.RFC3339),
 			UpdatedAt:      transfer.UpdatedAt.Time.Format(time.RFC3339),

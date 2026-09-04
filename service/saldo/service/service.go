@@ -1,6 +1,7 @@
 package service
 
 import (
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/adapter"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/kafka"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
@@ -8,6 +9,7 @@ import (
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/repository"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/cache"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/observability"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/outbox"
 )
 
 type service struct {
@@ -26,6 +28,9 @@ type Deps struct {
 	Logger       logger.LoggerInterface
 	Cache        *cache.CacheStore
 	Kafka        *kafka.Kafka
+	// Outbox makes balance-change events durable. When nil (e.g. unit tests),
+	// balance changes still work; only the durable event is skipped.
+	Outbox outbox.Store[db.OutboxRecord]
 }
 
 func NewService(deps *Deps) Service {
@@ -55,5 +60,6 @@ func newSaldoCommandService(deps *Deps, observabilty observability.TraceLoggerOb
 		Logger:                 deps.Logger,
 		Observability:          observabilty,
 		Kafka:                  deps.Kafka,
+		Outbox:                 deps.Outbox,
 	})
 }

@@ -35,6 +35,10 @@ message CardResponse {
   string card_provider = 7;
   string created_at = 8;
   string updated_at = 9;
+  string status = 10;
+  int32 credit_limit = 11;
+  int32 outstanding_balance = 12;
+  int32 reward_points = 13;
 }
 
 message CardWithEmailResponse {
@@ -48,6 +52,10 @@ message CardWithEmailResponse {
   string card_provider = 8;
   string created_at = 9;
   string updated_at = 10;
+  string status = 11;
+  int32 credit_limit = 12;
+  int32 outstanding_balance = 13;
+  int32 reward_points = 14;
 }
 
 message CardResponseDeleteAt {
@@ -61,6 +69,10 @@ message CardResponseDeleteAt {
   string created_at = 8;
   string updated_at = 9;
   google.protobuf.StringValue deleted_at = 10;
+  string status = 11;
+  int32 credit_limit = 12;
+  int32 outstanding_balance = 13;
+  int32 reward_points = 14;
 }
 
 message ApiResponseCard {

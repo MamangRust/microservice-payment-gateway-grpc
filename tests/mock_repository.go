@@ -10,12 +10,12 @@ import (
 type MockRepository struct {
 	mu sync.RWMutex
 
-	MonthlyAmounts      []repository.MonthlyAmount
-	YearlyAmounts       []repository.YearlyAmount
-	MonthlyStatusStats  []repository.MonthlyStatusStats
-	YearlyStatusStats   []repository.YearlyStatusStats
-	MonthlyMethodStats  []repository.MonthlyMethodStats
-	YearlyMethodStats   []repository.YearlyMethodStats
+	MonthlyAmounts       []repository.MonthlyAmount
+	YearlyAmounts        []repository.YearlyAmount
+	MonthlyStatusStats   []repository.MonthlyStatusStats
+	YearlyStatusStats    []repository.YearlyStatusStats
+	MonthlyMethodStats   []repository.MonthlyMethodStats
+	YearlyMethodStats    []repository.YearlyMethodStats
 	MerchantTransactions []map[string]interface{}
 
 	Err error

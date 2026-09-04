@@ -11,7 +11,7 @@ import "common/api.proto";
 message MerchantTransactionResponse {
   int32 id = 1;
   string card_number = 2;
-  int32 amount = 3;
+  int64 amount = 3;
   string payment_method = 4;
   int32 merchant_id = 5;
   string merchant_name = 6;

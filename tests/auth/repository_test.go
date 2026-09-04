@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/auth/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/auth/repository"
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 	tests "github.com/MamangRust/microservice-payment-gateway-test"
 
@@ -95,7 +95,7 @@ func (s *AuthRepositoryTestSuite) Test4_RefreshToken() {
 
 	token := "test-refresh-token"
 	expiresAt := time.Now().Add(24 * time.Hour).Format("2006-01-02 15:04:05")
-	
+
 	req := &requests.CreateRefreshToken{
 		UserId:    s.userID,
 		Token:     token,
@@ -137,7 +137,7 @@ func (s *AuthRepositoryTestSuite) Test5_ResetToken() {
 	s.NoError(err)
 	s.NotNil(found)
 
-	err = s.repo.ResetToken.DeleteResetToken(ctx, s.userID)
+	err = s.repo.ResetToken.DeleteResetToken(ctx, int32(s.userID))
 	s.NoError(err)
 }
 

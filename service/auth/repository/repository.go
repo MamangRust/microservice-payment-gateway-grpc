@@ -3,7 +3,7 @@ package repository
 import (
 	pb_role "github.com/MamangRust/microservice-payment-gateway-grpc/pb/role"
 	pb_user "github.com/MamangRust/microservice-payment-gateway-grpc/pb/user"
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/auth/database/schema"
 )
 
 type Repositories struct {

@@ -10,14 +10,14 @@ message TopupMonthMethodResponse {
   string month = 1;
   string topup_method = 2;
   int32 total_topups = 3;
-  int32 total_amount = 4;
+  int64 total_amount = 4;
 }
 
 message TopupYearlyMethodResponse {
   string year = 1;
   string topup_method = 2;
   int32 total_topups = 3;
-  int32 total_amount = 4;
+  int64 total_amount = 4;
 }
 
 message ApiResponseTopupMonthMethod {

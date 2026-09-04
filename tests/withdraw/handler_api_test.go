@@ -5,6 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	carddb "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/database/schema"
+	saldodb "github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/database/schema"
+	userdb "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/database/schema"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -12,24 +15,24 @@ import (
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
-	withdrawhandler "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/handler/withdraw"
 	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb/withdraw"
 	pbStats "github.com/MamangRust/microservice-payment-gateway-grpc/pb/withdraw/stats"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/service/withdraw/repository"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/service/withdraw/service"
-	user_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/repository"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
+	withdrawhandler "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/handler/withdraw"
 	card_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/repository"
 	saldo_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/repository"
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
-	app_errors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/cache"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/observability"
-	"github.com/MamangRust/microservice-payment-gateway-test"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/service/withdraw/handler"
 	stats_handler "github.com/MamangRust/microservice-payment-gateway-grpc/service/stats-reader/handler"
 	stats_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/stats-reader/repository"
+	user_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/repository"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/withdraw/database/schema"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/service/withdraw/handler"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/service/withdraw/repository"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/service/withdraw/service"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/cache"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
+	app_errors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/observability"
+	"github.com/MamangRust/microservice-payment-gateway-test"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo/v4"
@@ -42,21 +45,22 @@ import (
 
 type WithdrawHandlerTestSuite struct {
 	suite.Suite
-	ts          *tests.TestSuite
-	dbPool      *pgxpool.Pool
-	redisClient redis.UniversalClient
-	chConn      clickhouse.Conn
-	grpcServer  *grpc.Server
+	ts            *tests.TestSuite
+	dbPool        *pgxpool.Pool
+	redisClient   redis.UniversalClient
+	chConn        clickhouse.Conn
+	grpcServer    *grpc.Server
 	commandClient pb.WithdrawCommandServiceClient
 	queryClient   pb.WithdrawQueryServiceClient
-	conn        *grpc.ClientConn
-	router      *echo.Echo
-	repos       repository.Repositories
-	userRepo    user_repo.UserCommandRepository
-	cardRepo    card_repo.CardCommandRepository
-	saldoRepo   saldo_repo.Repositories
+	conn          *grpc.ClientConn
+	router        *echo.Echo
+	repos         repository.Repositories
+	userRepo      user_repo.UserCommandRepository
+	cardRepo      card_repo.CardCommandRepository
+	saldoRepo     saldo_repo.Repositories
 
 	customerCardNumber string
+	customerUserID     int
 	withdrawID         int
 }
 
@@ -94,16 +98,22 @@ func (s *WithdrawHandlerTestSuite) SetupSuite() {
 	s.Require().NoError(err)
 
 	queries := db.New(pool)
-	
+
+	saldodbQueries := saldodb.New(pool)
+
+	carddbQueries := carddb.New(pool)
+
+	schemadbQueries := userdb.New(pool)
+
 	// Repositories for seeding and service dependencies
-	userRepos := user_repo.NewUserCommandRepository(queries)
-	cardRepos := card_repo.NewRepositories(queries, nil)
-	saldoRepos := saldo_repo.NewRepositories(queries, nil)
-	
+	userRepos := user_repo.NewUserCommandRepository(schemadbQueries)
+	cardRepos := card_repo.NewRepositories(carddbQueries, nil)
+	saldoRepos := saldo_repo.NewRepositories(saldodbQueries, nil)
+
 	s.userRepo = userRepos
 	s.cardRepo = cardRepos.CardCommand
 	s.saldoRepo = saldoRepos
-	
+
 	s.repos = repository.NewRepositories(queries, cardRepos.CardQuery, saldoRepos)
 
 	opts, err := redis.ParseURL(s.ts.RedisURL)
@@ -135,9 +145,10 @@ func (s *WithdrawHandlerTestSuite) SetupSuite() {
 		Password:  "password123",
 	})
 	s.Require().NoError(err)
+	s.customerUserID = int(customer.UserID)
 
 	card, err := s.cardRepo.CreateCard(context.Background(), &requests.CreateCardRequest{
-		UserID:       int(customer.UserID),
+		UserID:       s.customerUserID,
 		CardType:     "debit",
 		ExpireDate:   time.Now().AddDate(1, 0, 0),
 		CVV:          "999",
@@ -153,7 +164,7 @@ func (s *WithdrawHandlerTestSuite) SetupSuite() {
 	s.Require().NoError(err)
 
 	withdrawHandler := handler.NewHandler(withdrawService)
-	
+
 	// Stats Handler
 	chRepo := stats_repo.NewRepository(s.chConn)
 	withdrawStatsHandler := stats_handler.NewWithdrawStatsHandler(chRepo, log)
@@ -181,8 +192,17 @@ func (s *WithdrawHandlerTestSuite) SetupSuite() {
 
 	// Setup Echo
 	s.router = echo.New()
+	// Mimic the production JWT auth middleware (WebSecurityConfig): command
+	// handlers read c.Get("user_id") and reject with 401 when it is absent.
+	// The seeded card belongs to s.customerUserID, so assert ownership with it.
+	s.router.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			c.Set("user_id", fmt.Sprint(s.customerUserID))
+			return next(c)
+		}
+	})
 	apiErrorHandler := app_errors.NewApiHandler(obs, log)
-	
+
 	withdrawhandler.RegisterWithdrawHandler(&withdrawhandler.DepsWithdraw{
 		Client:      conn,
 		StatsClient: conn, // Using same conn for stats
@@ -224,6 +244,7 @@ func (s *WithdrawHandlerTestSuite) Test1_CreateWithdraw() {
 
 	request := httptest.NewRequest(http.MethodPost, "/api/withdraw-command/create", bytes.NewBuffer(body))
 	request.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	request.Header.Set("Idempotency-Key", "withdraw-create-handler-1")
 	rec := httptest.NewRecorder()
 
 	s.router.ServeHTTP(rec, request)
@@ -236,7 +257,7 @@ func (s *WithdrawHandlerTestSuite) Test1_CreateWithdraw() {
 
 	// Verify balance
 	customerSaldo, _ := s.saldoRepo.FindByCardNumber(context.Background(), s.customerCardNumber)
-	s.Equal(int32(900000), customerSaldo.TotalBalance)
+	s.Equal(int64(900000), customerSaldo.TotalBalance)
 }
 
 func (s *WithdrawHandlerTestSuite) Test2_FindWithdrawById() {
@@ -265,7 +286,7 @@ func (s *WithdrawHandlerTestSuite) Test4_UpdateWithdraw() {
 		WithdrawTime:   time.Now(),
 	}
 	body, _ := json.Marshal(req)
-	
+
 	request := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/withdraw-command/update/%d", s.withdrawID), bytes.NewBuffer(body))
 	request.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
@@ -274,7 +295,7 @@ func (s *WithdrawHandlerTestSuite) Test4_UpdateWithdraw() {
 
 	// Verify adjusted balance (900k - 50k = 850k)
 	customerSaldo, _ := s.saldoRepo.FindByCardNumber(context.Background(), s.customerCardNumber)
-	s.Equal(int32(850000), customerSaldo.TotalBalance)
+	s.Equal(int64(850000), customerSaldo.TotalBalance)
 }
 
 func (s *WithdrawHandlerTestSuite) Test5_TrashedWithdraw() {

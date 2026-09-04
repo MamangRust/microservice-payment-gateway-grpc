@@ -6,14 +6,16 @@ import (
 	"math/rand"
 	"time"
 
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
+	carddb "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/database/schema"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/transfer/database/schema"
 	"go.uber.org/zap"
 )
 
 // transferSeeder is a struct that represents a seeder for the transfers table.
 type transferSeeder struct {
 	db     *db.Queries
+	carddb *carddb.Queries
 	ctx    context.Context
 	logger logger.LoggerInterface
 }
@@ -28,9 +30,10 @@ type transferSeeder struct {
 //
 // Returns:
 // a pointer to the transferSeeder struct
-func NewTransferSeeder(db *db.Queries, ctx context.Context, logger logger.LoggerInterface) *transferSeeder {
+func NewTransferSeeder(db *db.Queries, carddb *carddb.Queries, ctx context.Context, logger logger.LoggerInterface) *transferSeeder {
 	return &transferSeeder{
 		db:     db,
+		carddb: carddb,
 		ctx:    ctx,
 		logger: logger,
 	}
@@ -53,9 +56,9 @@ func (r *transferSeeder) Seed() error {
 	active := 280
 	trashed := total - active
 
-	var cards []db.GetCardByUserIDRow
+	var cards []carddb.GetCardByUserIDRow
 	for i := 1; i <= total; i++ {
-		card, err := r.db.GetCardByUserID(r.ctx, int32(i))
+		card, err := r.carddb.GetCardByUserID(r.ctx, int32(i))
 		if err != nil {
 			r.logger.Debug("failed to get card for user", zap.Int("userID", i), zap.Error(err))
 			continue
@@ -87,7 +90,7 @@ func (r *transferSeeder) Seed() error {
 
 		transferFrom := cards[fromIndex].CardNumber
 		transferTo := cards[toIndex].CardNumber
-		amount := int32(rand.Intn(1000000) + 50000)
+		amount := amountToInt64(int64(rand.Intn(1000000) + 50000))
 		status := statusOptions[rand.Intn(len(statusOptions))]
 
 		monthIndex := i % 12

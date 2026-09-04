@@ -2,8 +2,9 @@ package service
 
 import (
 	"context"
+	"time"
 
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/transaction/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 )
 
@@ -26,4 +27,6 @@ type TransactionCommandService interface {
 
 	RestoreAllTransaction(ctx context.Context) (bool, error)
 	DeleteAllTransactionPermanent(ctx context.Context) (bool, error)
+	RecoverStuckOperations(ctx context.Context, olderThan time.Duration, maxRows int32) error
+	StartRecoveryWorker(ctx context.Context, interval, olderThan time.Duration, maxRows int32)
 }

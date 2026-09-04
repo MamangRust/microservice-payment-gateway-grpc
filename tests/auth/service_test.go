@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/auth/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/auth/repository"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/auth/service"
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 	tests "github.com/MamangRust/microservice-payment-gateway-test"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -135,7 +135,7 @@ func (s *AuthServiceTestSuite) Test4_LoginLockout() {
 
 func (s *AuthServiceTestSuite) Test3_ForgotPassword() {
 	ctx := context.Background()
-	
+
 	success, err := s.service.PasswordReset.ForgotPassword(ctx, s.email)
 	s.NoError(err)
 	s.True(success)

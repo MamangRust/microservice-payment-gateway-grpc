@@ -4,10 +4,10 @@ import (
 	"context"
 
 	apikey "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/api-key"
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
+	database "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/merchant/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 	sharedErrors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
-	merchant_errors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors/merchant_errors/repository"
 )
 
 type merchantCommandRepository struct {
@@ -37,7 +37,10 @@ func (r *merchantCommandRepository) CreateMerchant(ctx context.Context, request 
 	res, err := r.db.CreateMerchant(ctx, req)
 
 	if err != nil {
-		return nil, merchant_errors.ErrCreateMerchantFailed.WithInternal(err)
+		if database.IsUniqueViolation(err) {
+			return nil, sharedErrors.NewConflictError("merchant api key already exists").WithInternal(err)
+		}
+		return nil, sharedErrors.ErrFailed("create merchant").WithInternal(err)
 	}
 
 	return res, nil
@@ -54,7 +57,7 @@ func (r *merchantCommandRepository) UpdateMerchant(ctx context.Context, request 
 	res, err := r.db.UpdateMerchant(ctx, req)
 
 	if err != nil {
-		return nil, merchant_errors.ErrUpdateMerchantFailed.WithInternal(err)
+		return nil, sharedErrors.ErrNoRowsOrFailed(err, "merchant", "update merchant")
 	}
 
 	return res, nil
@@ -69,7 +72,7 @@ func (r *merchantCommandRepository) UpdateMerchantStatus(ctx context.Context, re
 	res, err := r.db.UpdateMerchantStatus(ctx, req)
 
 	if err != nil {
-		return nil, merchant_errors.ErrUpdateMerchantStatusFailed.WithInternal(err)
+		return nil, sharedErrors.ErrNoRowsOrFailed(err, "merchant", "update merchant status")
 	}
 
 	return res, nil
@@ -79,7 +82,7 @@ func (r *merchantCommandRepository) TrashedMerchant(ctx context.Context, merchan
 	res, err := r.db.TrashMerchant(ctx, int32(merchant_id))
 
 	if err != nil {
-		return nil, merchant_errors.ErrTrashedMerchantFailed.WithInternal(err)
+		return nil, sharedErrors.ErrNoRowsOrFailed(err, "merchant", "trash merchant")
 	}
 
 	return res, nil
@@ -89,7 +92,7 @@ func (r *merchantCommandRepository) RestoreMerchant(ctx context.Context, merchan
 	res, err := r.db.RestoreMerchant(ctx, int32(merchant_id))
 
 	if err != nil {
-		return nil, merchant_errors.ErrRestoreMerchantFailed.WithInternal(err)
+		return nil, sharedErrors.ErrNoRowsOrFailed(err, "merchant", "restore merchant")
 	}
 
 	return res, nil
@@ -99,7 +102,7 @@ func (r *merchantCommandRepository) DeleteMerchantPermanent(ctx context.Context,
 	err := r.db.DeleteMerchantPermanently(ctx, int32(merchant_id))
 
 	if err != nil {
-		return false, merchant_errors.ErrDeleteMerchantPermanentFailed.WithInternal(err)
+		return false, sharedErrors.ErrNoRowsOrFailed(err, "merchant", "delete merchant permanently")
 	}
 
 	return true, nil
@@ -109,7 +112,7 @@ func (r *merchantCommandRepository) RestoreAllMerchant(ctx context.Context) (boo
 	err := r.db.RestoreAllMerchants(ctx)
 
 	if err != nil {
-		return false, merchant_errors.ErrRestoreAllMerchantFailed.WithInternal(err)
+		return false, sharedErrors.ErrFailed("restore all merchants").WithInternal(err)
 	}
 
 	return true, nil
@@ -119,7 +122,7 @@ func (r *merchantCommandRepository) DeleteAllMerchantPermanent(ctx context.Conte
 	err := r.db.DeleteAllPermanentMerchants(ctx)
 
 	if err != nil {
-		return false, merchant_errors.ErrDeleteAllMerchantPermanentFailed.WithInternal(err)
+		return false, sharedErrors.ErrFailed("delete all merchants permanently").WithInternal(err)
 	}
 
 	return true, nil

@@ -6,14 +6,16 @@ import (
 
 	"math/rand"
 
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
+	carddb "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/database/schema"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/database/schema"
 	"go.uber.org/zap"
 )
 
 // saldoSeeder is a struct that represents a seeder for the saldos table.
 type saldoSeeder struct {
 	db     *db.Queries
+	carddb *carddb.Queries
 	ctx    context.Context
 	logger logger.LoggerInterface
 }
@@ -28,9 +30,10 @@ type saldoSeeder struct {
 //
 // Returns:
 // a pointer to the saldoSeeder struct
-func NewSaldoSeeder(db *db.Queries, ctx context.Context, logger logger.LoggerInterface) *saldoSeeder {
+func NewSaldoSeeder(db *db.Queries, carddb *carddb.Queries, ctx context.Context, logger logger.LoggerInterface) *saldoSeeder {
 	return &saldoSeeder{
 		db:     db,
+		carddb: carddb,
 		ctx:    ctx,
 		logger: logger,
 	}
@@ -51,9 +54,9 @@ func (r *saldoSeeder) Seed() error {
 	activeSaldos := 90
 	trashedSaldos := totalSaldos - activeSaldos
 
-	var cards []db.GetCardByUserIDRow
+	var cards []carddb.GetCardByUserIDRow
 	for i := 1; i <= totalSaldos; i++ {
-		card, err := r.db.GetCardByUserID(r.ctx, int32(i))
+		card, err := r.carddb.GetCardByUserID(r.ctx, int32(i))
 		if err != nil {
 			r.logger.Error("failed to get card for user", zap.Int("userID", i), zap.Error(err))
 			return fmt.Errorf("failed to get card for user %d: %w", i, err)
@@ -71,9 +74,10 @@ func (r *saldoSeeder) Seed() error {
 	}
 
 	for i, card := range cards {
+		totalBalance := amountToInt64(int64(rand.Intn(9_000_000) + 1_000_000))
 		request := db.CreateSaldoParams{
 			CardNumber:   card.CardNumber,
-			TotalBalance: int32(rand.Intn(9_000_000) + 1_000_000),
+			TotalBalance: totalBalance,
 		}
 
 		saldo, err := r.db.CreateSaldo(r.ctx, request)

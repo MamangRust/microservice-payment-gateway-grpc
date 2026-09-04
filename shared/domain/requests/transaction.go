@@ -62,6 +62,7 @@ type CreateTransactionRequest struct {
 	PaymentMethod   string    `json:"payment_method" validate:"required"`    // Payment method used (e.g., "credit", "debit")
 	MerchantID      *int      `json:"merchant_id" validate:"required,min=1"` // ID of merchant receiving payment
 	TransactionTime time.Time `json:"transaction_time" validate:"required"`  // Timestamp of transaction
+	IdempotencyKey  string    `json:"-"`                                     // Client retry key; transported through gRPC metadata field
 }
 
 // UpdateTransactionRequest represents the payload for updating a transaction record.

@@ -2,10 +2,10 @@ package transaction_test
 
 import (
 	"context"
+	carddb "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/database/schema"
 
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
-	card_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/repository"
 	pbAISecurity "github.com/MamangRust/microservice-payment-gateway-grpc/pb/ai_security"
+	card_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/repository"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 )
 
@@ -28,15 +28,15 @@ type transactionCardRepo struct {
 	command card_repo.CardCommandRepository
 }
 
-func (r *transactionCardRepo) FindCardByUserId(ctx context.Context, user_id int) (*db.GetCardByUserIDRow, error) {
+func (r *transactionCardRepo) FindCardByUserId(ctx context.Context, user_id int) (*carddb.GetCardByUserIDRow, error) {
 	return r.query.FindCardByUserId(ctx, user_id)
 }
-func (r *transactionCardRepo) FindUserCardByCardNumber(ctx context.Context, card_number string) (*db.GetUserEmailByCardNumberRow, error) {
+func (r *transactionCardRepo) FindUserCardByCardNumber(ctx context.Context, card_number string) (*carddb.GetUserEmailByCardNumberRow, error) {
 	return r.query.FindUserCardByCardNumber(ctx, card_number)
 }
-func (r *transactionCardRepo) FindCardByCardNumber(ctx context.Context, card_number string) (*db.GetCardByCardNumberRow, error) {
+func (r *transactionCardRepo) FindCardByCardNumber(ctx context.Context, card_number string) (*carddb.GetCardByCardNumberRow, error) {
 	return r.query.FindCardByCardNumber(ctx, card_number)
 }
-func (r *transactionCardRepo) UpdateCard(ctx context.Context, request *requests.UpdateCardRequest) (*db.UpdateCardRow, error) {
+func (r *transactionCardRepo) UpdateCard(ctx context.Context, request *requests.UpdateCardRequest) (*carddb.UpdateCardRow, error) {
 	return r.command.UpdateCard(ctx, request)
 }

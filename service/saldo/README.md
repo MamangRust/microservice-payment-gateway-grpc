@@ -68,6 +68,13 @@ All services use:
 |-------------|---------|----------------|
 | `saldo-service-topic-create-saldo` | Triggers saldo creation when a new card is issued | `saldo-service-group` |
 
+When a saldo account is created via `CreateSaldo`, the service publishes a "Saldo Account Created"
+email notification (best-effort) to the email service:
+
+| Kafka Topic | Purpose | Consumer Group |
+|-------------|---------|----------------|
+| `email-service-topic-saldo-create` | Notify user that a saldo account was created | `email-service-group` |
+
 ---
 
 ### 📊 Monitoring & Observability

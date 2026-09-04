@@ -3,9 +3,10 @@ package repository
 import (
 	"context"
 
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
+	database "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
-	user_errors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors/user_errors/repository"
+	sharedErrors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
 	"github.com/google/uuid"
 )
 
@@ -38,7 +39,10 @@ func (r *userCommandRepository) CreateUser(ctx context.Context, request *request
 	user, err := r.db.CreateUser(ctx, req)
 
 	if err != nil {
-		return nil, user_errors.ErrCreateUser.WithInternal(err)
+		if database.IsUniqueViolation(err) {
+			return nil, sharedErrors.NewConflictError("email already exists").WithInternal(err)
+		}
+		return nil, sharedErrors.ErrFailed("create user").WithInternal(err)
 	}
 
 	return user, nil
@@ -57,7 +61,10 @@ func (r *userCommandRepository) UpdateUser(ctx context.Context, request *request
 	res, err := r.db.UpdateUser(ctx, req)
 
 	if err != nil {
-		return nil, user_errors.ErrUpdateUser.WithInternal(err)
+		if database.IsUniqueViolation(err) {
+			return nil, sharedErrors.NewConflictError("email already exists").WithInternal(err)
+		}
+		return nil, sharedErrors.ErrNoRowsOrFailed(err, "user", "update user")
 	}
 
 	return res, nil
@@ -68,7 +75,7 @@ func (r *userCommandRepository) TrashedUser(ctx context.Context, user_id int) (*
 	res, err := r.db.TrashUser(ctx, int32(user_id))
 
 	if err != nil {
-		return nil, user_errors.ErrTrashedUser.WithInternal(err)
+		return nil, sharedErrors.ErrNoRowsOrFailed(err, "user", "trash user")
 	}
 
 	return res, nil
@@ -79,7 +86,7 @@ func (r *userCommandRepository) RestoreUser(ctx context.Context, user_id int) (*
 	res, err := r.db.RestoreUser(ctx, int32(user_id))
 
 	if err != nil {
-		return nil, user_errors.ErrRestoreUser.WithInternal(err)
+		return nil, sharedErrors.ErrNoRowsOrFailed(err, "user", "restore user")
 	}
 
 	return res, nil
@@ -90,7 +97,7 @@ func (r *userCommandRepository) DeleteUserPermanent(ctx context.Context, user_id
 	err := r.db.DeleteUserPermanently(ctx, int32(user_id))
 
 	if err != nil {
-		return false, user_errors.ErrDeleteUserPermanent.WithInternal(err)
+		return false, sharedErrors.ErrNoRowsOrFailed(err, "user", "delete user permanently")
 	}
 
 	return true, nil
@@ -101,7 +108,7 @@ func (r *userCommandRepository) RestoreAllUser(ctx context.Context) (bool, error
 	err := r.db.RestoreAllUsers(ctx)
 
 	if err != nil {
-		return false, user_errors.ErrRestoreAllUsers.WithInternal(err)
+		return false, sharedErrors.ErrFailed("restore all users").WithInternal(err)
 	}
 
 	return true, nil
@@ -112,7 +119,7 @@ func (r *userCommandRepository) DeleteAllUserPermanent(ctx context.Context) (boo
 	err := r.db.DeleteAllPermanentUsers(ctx)
 
 	if err != nil {
-		return false, user_errors.ErrDeleteAllUsers.WithInternal(err)
+		return false, sharedErrors.ErrFailed("delete all users permanently").WithInternal(err)
 	}
 	return true, nil
 }
@@ -124,7 +131,7 @@ func (r *userCommandRepository) UpdateIsVerified(ctx context.Context, userID int
 	})
 
 	if err != nil {
-		return nil, user_errors.ErrUpdateUser.WithInternal(err)
+		return nil, sharedErrors.ErrNoRowsOrFailed(err, "user", "update user")
 	}
 
 	return res, nil
@@ -137,7 +144,7 @@ func (r *userCommandRepository) UpdatePassword(ctx context.Context, userID int, 
 	})
 
 	if err != nil {
-		return nil, user_errors.ErrUpdateUser.WithInternal(err)
+		return nil, sharedErrors.ErrNoRowsOrFailed(err, "user", "update user")
 	}
 
 	return res, nil

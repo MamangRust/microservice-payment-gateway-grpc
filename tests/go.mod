@@ -13,6 +13,7 @@ require (
 	github.com/MamangRust/microservice-payment-gateway-grpc/service/role v0.0.0-00010101000000-000000000000
 	github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo v0.0.0-00010101000000-000000000000
 	github.com/MamangRust/microservice-payment-gateway-grpc/service/stats-reader v0.0.0-00010101000000-000000000000
+	github.com/MamangRust/microservice-payment-gateway-grpc/service/stats-writer v0.0.0-00010101000000-000000000000
 	github.com/MamangRust/microservice-payment-gateway-grpc/service/topup v0.0.0-00010101000000-000000000000
 	github.com/MamangRust/microservice-payment-gateway-grpc/service/transaction v0.0.0-00010101000000-000000000000
 	github.com/MamangRust/microservice-payment-gateway-grpc/service/transfer v0.0.0-00010101000000-000000000000
@@ -23,12 +24,14 @@ require (
 	github.com/labstack/echo/v4 v4.15.0
 	github.com/pressly/goose/v3 v3.27.0
 	github.com/redis/go-redis/v9 v9.17.3
+	github.com/spf13/viper v1.21.0
 	github.com/stretchr/testify v1.11.1
 	github.com/testcontainers/testcontainers-go v0.42.0
 	github.com/testcontainers/testcontainers-go/modules/clickhouse v0.42.0
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.42.0
 	github.com/testcontainers/testcontainers-go/modules/redis v0.42.0
 	go.opentelemetry.io/otel/sdk/log v0.19.0
+	go.uber.org/zap v1.27.1
 	google.golang.org/grpc v1.79.1
 	google.golang.org/protobuf v1.36.11
 )
@@ -118,7 +121,6 @@ require (
 	github.com/spf13/afero v1.15.0 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
-	github.com/spf13/viper v1.21.0 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/tklauser/go-sysconf v0.3.16 // indirect
 	github.com/tklauser/numcpus v0.11.0 // indirect
@@ -133,7 +135,6 @@ require (
 	go.opentelemetry.io/otel/sdk v1.43.0 // indirect
 	go.opentelemetry.io/otel/trace v1.43.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	go.uber.org/zap v1.27.1 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/crypto v0.50.0 // indirect
 	golang.org/x/net v0.53.0 // indirect

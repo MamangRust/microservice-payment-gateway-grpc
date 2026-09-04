@@ -27,9 +27,29 @@ generate-proto:
         --go-grpc_out={{OUTDIR_PROTO}} --go-grpc_opt=paths=source_relative \
         $(find {{PROTO_DIR}} -name "*.proto")
 
-# Generate sqlc code
+# Generate sqlc code for every service from its own database/sqlc.yaml.
+# Each service generates into its own database/schema package.
 generate-sql:
-    sqlc generate
+    @for svc in auth user role card merchant saldo topup transaction transfer withdraw; do \
+        echo "🔨 sqlc generate: $${svc}"; \
+        (cd service/$${svc}/database && sqlc generate) || exit 1; \
+    done
+    @echo "✅ All sqlc regenerated (per-service database/sqlc.yaml)."
+
+# Verify generated code is up to date: regenerate into the working tree and
+# fail on any diff. Requires pinned tools matching the generated headers:
+#   sqlc  v1.30.0   (see .github/workflows/build_and_push.yaml)
+#   protoc 3.21.12 + protoc-gen-go v1.36.11 + protoc-gen-go-grpc v1.6.2
+generate-check:
+    @echo "🔍 Checking generated code is up to date..."
+    just generate-sql
+    just generate-proto
+    @if ! git diff --exit-code -- pb/ 'service/*/database/schema/' >/dev/null; then \
+        echo "❌ Generated code is out of date. Run 'just generate-sql && just generate-proto' and commit the regenerated files."; \
+        git diff --stat -- pb/ 'service/*/database/schema/'; \
+        exit 1; \
+    fi
+    @echo "✅ Generated code is up to date."
 
 # Generate swagger documentation
 generate-swagger:

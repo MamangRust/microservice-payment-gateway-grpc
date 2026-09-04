@@ -1,7 +1,7 @@
 POST http://localhost:5000/api/auth/login
 Content-Type: application/json
 {
-  "email": "john.doe@hellodota.com",
+  "email": "john.{{unique_suffix}}@hellodota.com",
   "password": "password123"
 }
 HTTP 200

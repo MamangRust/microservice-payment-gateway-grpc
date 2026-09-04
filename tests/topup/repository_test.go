@@ -3,16 +3,19 @@ package topup_test
 import (
 	"context"
 	"fmt"
+	carddb "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/database/schema"
+	saldodb "github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/database/schema"
+	userdb "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/database/schema"
 	"testing"
 	"time"
 
 	card_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/repository"
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
-	tests "github.com/MamangRust/microservice-payment-gateway-test"
+	saldo_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/repository"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/topup/database/schema"
 	topup_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/topup/repository"
 	user_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/repository"
-	saldo_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/repository"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
+	tests "github.com/MamangRust/microservice-payment-gateway-test"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/suite"
 )
@@ -22,7 +25,7 @@ type TopupRepositoryTestSuite struct {
 	ts     *tests.TestSuite
 	dbPool *pgxpool.Pool
 	repo   topup_repo.Repositories
-	
+
 	userRepo  user_repo.UserCommandRepository
 	cardRepo  card_repo.CardCommandRepository
 	saldoRepo saldo_repo.Repositories
@@ -42,12 +45,18 @@ func (s *TopupRepositoryTestSuite) SetupSuite() {
 	s.dbPool = pool
 
 	queries := db.New(pool)
-	
+
+	saldodbQueries := saldodb.New(pool)
+
+	carddbQueries := carddb.New(pool)
+
+	userdbQueries := userdb.New(pool)
+
 	// Initialize repos from their modules
-	userRepos := user_repo.NewRepositories(queries)
-	cardRepos := card_repo.NewRepositories(queries, nil)
-	saldoRepos := saldo_repo.NewRepositories(queries, nil)
-	
+	userRepos := user_repo.NewRepositories(userdbQueries)
+	cardRepos := card_repo.NewRepositories(carddbQueries, nil)
+	saldoRepos := saldo_repo.NewRepositories(saldodbQueries, nil)
+
 	// Match topup repository interfaces
 	cardAdapter := &topupCardRepoAdapter{
 		CardQueryRepository:   cardRepos.CardQuery,
@@ -67,7 +76,7 @@ func (s *TopupRepositoryTestSuite) SetupSuite() {
 		Password:  "password123",
 	})
 	s.Require().NoError(err)
-	
+
 	card, err := s.cardRepo.CreateCard(ctx, &requests.CreateCardRequest{
 		UserID:       int(user.UserID),
 		CardType:     "debit",
@@ -113,7 +122,7 @@ func (s *TopupRepositoryTestSuite) TestCreateTopup() {
 	topup, err := s.repo.CreateTopup(ctx, req)
 	s.NoError(err)
 	s.NotNil(topup)
-	s.Equal(int32(req.TopupAmount), topup.TopupAmount)
+	s.Equal(int64(req.TopupAmount), topup.TopupAmount)
 }
 
 func (s *TopupRepositoryTestSuite) TestFindAllTopups() {
@@ -205,7 +214,7 @@ func (s *TopupRepositoryTestSuite) TestUpdateTopup() {
 	updated, err := s.repo.UpdateTopup(ctx, req)
 	s.NoError(err)
 	s.NotNil(updated)
-	s.Equal(int32(75000), updated.TopupAmount)
+	s.Equal(int64(75000), updated.TopupAmount)
 }
 
 func (s *TopupRepositoryTestSuite) TestUpdateStatus() {

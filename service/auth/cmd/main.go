@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/MamangRust/microservice-payment-gateway-grpc/service/auth/apps"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/server"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/service/auth/apps"
 )
 
 func main() {
@@ -14,7 +14,7 @@ func main() {
 		Port:           50051,
 		DBCluster:      "DB_A",
 		RedisCluster:   "REDIS_1",
-		MigrationPath:  "./migrations",
+		MigrationPath:  "./database/migration",
 	})
 
 	if err != nil {

@@ -1,7 +1,7 @@
 package repository
 
 import (
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/role/database/schema"
 )
 
 // Repositories is a struct containing role command and query repositories.

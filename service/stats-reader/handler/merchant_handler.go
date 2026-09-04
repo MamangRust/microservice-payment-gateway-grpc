@@ -14,6 +14,7 @@ type MerchantRepository interface {
 	GetYearlyAmounts(ctx context.Context, table string, filterField string, filterValue interface{}, startYear, endYear int) ([]repository.YearlyAmount, error)
 	GetMonthlyMethodStats(ctx context.Context, table string, filterField string, filterValue interface{}, year int) ([]repository.MonthlyMethodStats, error)
 	FindMerchantTransactions(ctx context.Context, merchantID int32) ([]map[string]interface{}, error)
+	FindMerchantTransactionsByApikey(ctx context.Context, apiKey string) ([]map[string]interface{}, error)
 }
 
 type MerchantStatsHandler struct {
@@ -59,7 +60,7 @@ func (h *MerchantStatsHandler) FindAllTransactionByMerchant(ctx context.Context,
 }
 
 func (h *MerchantStatsHandler) FindAllTransactionByApikey(ctx context.Context, req *merchant.FindAllMerchantApikey) (*merchant.ApiResponsePaginationMerchantTransaction, error) {
-	data, err := h.repo.FindMerchantTransactions(ctx, 0)
+	data, err := h.repo.FindMerchantTransactionsByApikey(ctx, req.ApiKey)
 	if err != nil {
 		return nil, err
 	}
@@ -261,11 +262,13 @@ func (h *MerchantStatsHandler) mapToMerchantTransactions(data []map[string]inter
 		id, _ := d["id"].(uint64)
 		amount, _ := d["amount"].(int64)
 
+		method, _ := d["method"].(string)
+		createdAt, _ := d["created_at"].(string)
 		results = append(results, &merchant.MerchantTransactionResponse{
 			Id:              int32(id),
-			Amount:          int32(amount),
-			PaymentMethod:   d["method"].(string),
-			TransactionTime: d["created_at"].(string),
+			Amount:          int64(amount),
+			PaymentMethod:   method,
+			TransactionTime: createdAt,
 		})
 	}
 	return results

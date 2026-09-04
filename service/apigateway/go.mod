@@ -106,33 +106,3 @@ replace github.com/MamangRust/microservice-payment-gateway-grpc/pb => ../../pb
 replace github.com/MamangRust/microservice-payment-gateway-grpc/pkg => ../../pkg
 
 replace github.com/MamangRust/microservice-payment-gateway-grpc/shared => ../../shared
-
-replace github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway => ./
-
-replace github.com/MamangRust/microservice-payment-gateway-grpc/service/auth => ../../service/auth
-
-replace github.com/MamangRust/microservice-payment-gateway-grpc/service/card => ../../service/card
-
-replace github.com/MamangRust/microservice-payment-gateway-grpc/service/email => ../../service/email
-
-replace github.com/MamangRust/microservice-payment-gateway-grpc/service/merchant => ../../service/merchant
-
-replace github.com/MamangRust/microservice-payment-gateway-grpc/service/migrate => ../../service/migrate
-
-replace github.com/MamangRust/microservice-payment-gateway-grpc/service/role => ../../service/role
-
-replace github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo => ../../service/saldo
-
-replace github.com/MamangRust/microservice-payment-gateway-grpc/service/topup => ../../service/topup
-
-replace github.com/MamangRust/microservice-payment-gateway-grpc/service/transaction => ../../service/transaction
-
-replace github.com/MamangRust/microservice-payment-gateway-grpc/service/transfer => ../../service/transfer
-
-replace github.com/MamangRust/microservice-payment-gateway-grpc/service/user => ../../service/user
-
-replace github.com/MamangRust/microservice-payment-gateway-grpc/service/withdraw => ../../service/withdraw
-
-replace github.com/MamangRust/microservice-payment-gateway-grpc/service/stats-reader => ../../service/stats-reader
-
-replace github.com/MamangRust/microservice-payment-gateway-grpc/service/stats-writer => ../../service/stats-writer

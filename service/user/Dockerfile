@@ -12,8 +12,8 @@ RUN find service -type f ! -name "go.mod" ! -name "go.sum" -delete
 
 WORKDIR /app/service/user
 
-RUN --mount=type=cache,target=/go/pkg/mod \
-    --mount=type=cache,target=/root/.cache/go-build \
+RUN --mount=type=cache,target=/go/pkg/mod,id=gomod,sharing=locked \
+    --mount=type=cache,target=/root/.cache/go-build,id=gobuild,sharing=locked \
     go mod download
 
 WORKDIR /app
@@ -26,14 +26,15 @@ COPY service/ ./service/
 
 WORKDIR /app/service/user
 
-RUN --mount=type=cache,target=/go/pkg/mod \
-    --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /app/user_bin ./cmd/main.go
+RUN --mount=type=cache,target=/go/pkg/mod,id=gomod,sharing=locked \
+    --mount=type=cache,target=/root/.cache/go-build,id=gobuild,sharing=shared \
+    GOMAXPROCS=2 CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /app/user_bin ./cmd/main.go
 
 
-FROM alpine:latest
+FROM alpine:3.21
 
-RUN apk --no-cache add ca-certificates
+# Copy ca-certificates from builder (avoids apk network dependency)
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
 RUN addgroup -g 1000 appuser && \
     adduser -D -s /bin/sh -u 1000 -G appuser appuser
@@ -43,7 +44,7 @@ WORKDIR /app
 RUN mkdir -p /var/log/app && chown -R 1000:1000 /var/log/app
 
 COPY --from=builder /app/user_bin ./user
-COPY service/user/migrations ./migrations
+COPY service/user/database/migration ./migrations
 
 RUN chown -R 1000:1000 ./user ./migrations
 

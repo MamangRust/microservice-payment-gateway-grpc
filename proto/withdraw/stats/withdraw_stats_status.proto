@@ -10,26 +10,26 @@ message WithdrawMonthStatusSuccessResponse {
   string year = 1;
   string month = 2;
   int32 total_success = 3;
-  int32 total_amount = 4;
+  int64 total_amount = 4;
 }
 
 message WithdrawYearStatusSuccessResponse {
   string year = 1;
   int32 total_success = 2;
-  int32 total_amount = 4;
+  int64 total_amount = 4;
 }
 
 message WithdrawMonthStatusFailedResponse {
   string year = 1;
   string month = 2;
   int32 total_failed = 3;
-  int32 total_amount = 4;
+  int64 total_amount = 4;
 }
 
 message WithdrawYearStatusFailedResponse {
   string year = 1;
   int32 total_failed = 2;
-  int32 total_amount = 4;
+  int64 total_amount = 4;
 }
 
 message ApiResponseWithdrawMonthStatusSuccess {

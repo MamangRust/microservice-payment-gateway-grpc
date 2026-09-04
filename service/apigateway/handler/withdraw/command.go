@@ -5,15 +5,17 @@ import (
 	"net/http"
 	"strconv"
 
-	withdraw_cache "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/redis/api/withdraw"
 	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb/withdraw"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
+	withdraw_cache "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/redis/api/withdraw"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/idempotency"
 	apimapper "github.com/MamangRust/microservice-payment-gateway-grpc/shared/mapper/withdraw"
 	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -92,12 +94,23 @@ func (h *withdrawCommandHandleApi) Create(c echo.Context) error {
 		return errors.NewValidationError(validations)
 	}
 
+	key := c.Request().Header.Get("Idempotency-Key")
+	if err := idempotency.ValidateKey(key); err != nil {
+		return err
+	}
+
 	ctx := c.Request().Context()
+	userID, ok := c.Get("user_id").(string)
+	if !ok || userID == "" {
+		return errors.ErrUnauthorized
+	}
+	ctx = metadata.AppendToOutgoingContext(ctx, "x-user-id", userID)
 
 	res, err := h.client.CreateWithdraw(ctx, &pb.CreateWithdrawRequest{
 		CardNumber:     body.CardNumber,
-		WithdrawAmount: int32(body.WithdrawAmount),
+		WithdrawAmount: int64(body.WithdrawAmount),
 		WithdrawTime:   timestamppb.New(body.WithdrawTime),
+		IdempotencyKey: key,
 	})
 
 	if err != nil {
@@ -146,7 +159,7 @@ func (h *withdrawCommandHandleApi) Update(c echo.Context) error {
 	res, err := h.client.UpdateWithdraw(ctx, &pb.UpdateWithdrawRequest{
 		WithdrawId:     int32(id),
 		CardNumber:     body.CardNumber,
-		WithdrawAmount: int32(body.WithdrawAmount),
+		WithdrawAmount: int64(body.WithdrawAmount),
 		WithdrawTime:   timestamppb.New(body.WithdrawTime),
 	})
 

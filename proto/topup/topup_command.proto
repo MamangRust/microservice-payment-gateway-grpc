@@ -10,14 +10,15 @@ import "google/protobuf/empty.proto";
 message CreateTopupRequest {
   string card_number = 1;
   string topup_no = 2;
-  int32 topup_amount = 3;
+  int64 topup_amount = 3;
   string topup_method = 4;
+  string idempotency_key = 5;
 }
 
 message UpdateTopupRequest {
   int32 topup_id = 1;
   string card_number = 2;
-  int32 topup_amount = 3;
+  int64 topup_amount = 3;
   string topup_method = 4;
 }
 

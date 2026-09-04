@@ -3,11 +3,11 @@ package service
 import (
 	"context"
 
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/transfer/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/errorhandler"
-	transfer_errors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors/transfer_errors/service"
+	sharedErrors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/observability"
 
 	mencache "github.com/MamangRust/microservice-payment-gateway-grpc/service/transfer/redis"
@@ -63,7 +63,7 @@ func (s *transferQueryService) FindAll(ctx context.Context, req *requests.FindAl
 		attribute.String("search", search))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	if data, total, found := s.cache.GetCachedTransfersCache(ctx, req); found {
@@ -76,7 +76,7 @@ func (s *transferQueryService) FindAll(ctx context.Context, req *requests.FindAl
 		status = "error"
 		return errorhandler.HandlerErrorPagination[[]*db.GetTransfersRow](
 			s.logger,
-			transfer_errors.ErrFailedFindAllTransfers,
+			sharedErrors.ErrFailed("find all transfers"),
 			method,
 			span,
 
@@ -111,7 +111,7 @@ func (s *transferQueryService) FindById(ctx context.Context, transferId int) (*d
 		attribute.Int("transfer_id", transferId))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	if data, found := s.cache.GetCachedTransferCache(ctx, transferId); found {
@@ -125,7 +125,7 @@ func (s *transferQueryService) FindById(ctx context.Context, transferId int) (*d
 		status = "error"
 		return errorhandler.HandleError[*db.GetTransferByIDRow](
 			s.logger,
-			transfer_errors.ErrTransferNotFound,
+			sharedErrors.ErrNotFoundResponse("Transfer"),
 			method,
 			span,
 
@@ -151,7 +151,7 @@ func (s *transferQueryService) FindByActive(ctx context.Context, req *requests.F
 		attribute.String("search", search))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	if data, total, found := s.cache.GetCachedTransferActiveCache(ctx, req); found {
@@ -165,7 +165,7 @@ func (s *transferQueryService) FindByActive(ctx context.Context, req *requests.F
 		status = "error"
 		return errorhandler.HandlerErrorPagination[[]*db.GetActiveTransfersRow](
 			s.logger,
-			transfer_errors.ErrFailedFindActiveTransfers,
+			sharedErrors.ErrFailed("find active transfers"),
 			method,
 			span,
 
@@ -205,7 +205,7 @@ func (s *transferQueryService) FindByTrashed(ctx context.Context, req *requests.
 		attribute.String("search", search))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	if data, total, found := s.cache.GetCachedTransferTrashedCache(ctx, req); found {
@@ -218,7 +218,7 @@ func (s *transferQueryService) FindByTrashed(ctx context.Context, req *requests.
 		status = "error"
 		return errorhandler.HandlerErrorPagination[[]*db.GetTrashedTransfersRow](
 			s.logger,
-			transfer_errors.ErrFailedFindTrashedTransfers,
+			sharedErrors.ErrFailed("find trashed transfers"),
 			method,
 			span,
 
@@ -253,7 +253,7 @@ func (s *transferQueryService) FindTransferByTransferFrom(ctx context.Context, t
 		attribute.String("transfer_from", transfer_from))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	if data, found := s.cache.GetCachedTransferByFrom(ctx, transfer_from); found {
@@ -267,7 +267,7 @@ func (s *transferQueryService) FindTransferByTransferFrom(ctx context.Context, t
 		status = "error"
 		return errorhandler.HandleError[[]*db.GetTransfersBySourceCardRow](
 			s.logger,
-			transfer_errors.ErrTransferNotFound,
+			sharedErrors.ErrNotFoundResponse("Transfer"),
 			method,
 			span,
 
@@ -289,7 +289,7 @@ func (s *transferQueryService) FindTransferByTransferTo(ctx context.Context, tra
 		attribute.String("transfer_to", transfer_to))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	if data, found := s.cache.GetCachedTransferByTo(ctx, transfer_to); found {
@@ -303,7 +303,7 @@ func (s *transferQueryService) FindTransferByTransferTo(ctx context.Context, tra
 		status = "error"
 		return errorhandler.HandleError[[]*db.GetTransfersByDestinationCardRow](
 			s.logger,
-			transfer_errors.ErrTransferNotFound,
+			sharedErrors.ErrNotFoundResponse("Transfer"),
 			method,
 			span,
 

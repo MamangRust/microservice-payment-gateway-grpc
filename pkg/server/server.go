@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log"
 	"net"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 	"os"
 	"os/signal"
 	"strings"
@@ -12,11 +14,10 @@ import (
 	"time"
 
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database"
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/dotenv"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
-	otel_pkg "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/otel"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/middleware"
+	otel_pkg "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/otel"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/resilience"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/cache"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/observability"
@@ -32,12 +33,14 @@ import (
 )
 
 type GRPCServer struct {
-	Logger     logger.LoggerInterface
-	DB         *db.Queries
-	Ctx        context.Context
-	Cancel     context.CancelFunc
-	CacheStore *cache.CacheStore
-	Redis      redis.UniversalClient
+	Logger logger.LoggerInterface
+	// Pool is the underlying pgx pool. Services build their own generated
+	// per-service db.Queries from it (database/schema is per-service).
+	Pool             *pgxpool.Pool
+	Ctx              context.Context
+	Cancel           context.CancelFunc
+	CacheStore       *cache.CacheStore
+	Redis            redis.UniversalClient
 	Telemetry        *otel_pkg.Telemetry
 	Config           *Config
 	RegisterServices func(*grpc.Server)
@@ -78,8 +81,6 @@ func New(cfg *Config) (*GRPCServer, error) {
 		}
 	}
 
-	queries := db.New(dbConn)
-
 	ctx, cancel := context.WithCancel(context.Background())
 
 	redisClient, err := initRedisServer(ctx, l, cfg)
@@ -92,7 +93,7 @@ func New(cfg *Config) (*GRPCServer, error) {
 
 	return &GRPCServer{
 		Logger:     l,
-		DB:         queries,
+		Pool:       dbConn,
 		Ctx:        ctx,
 		Cancel:     cancel,
 		CacheStore: cacheStore,
@@ -295,16 +296,24 @@ func initRedisServer(ctx context.Context, logger logger.LoggerInterface, cfg *Co
 		addrs = strings.Split(val, ",")
 	} else {
 		host := viper.GetString(hostKey)
-		if host == "" { host = viper.GetString("REDIS_HOST") }
+		if host == "" {
+			host = viper.GetString("REDIS_HOST")
+		}
 		port := viper.GetString(portKey)
-		if port == "" { port = viper.GetString("REDIS_PORT") }
+		if port == "" {
+			port = viper.GetString("REDIS_PORT")
+		}
 		addrs = []string{fmt.Sprintf("%s:%s", host, port)}
 	}
 
 	password := viper.GetString(passKey)
-	if password == "" { password = viper.GetString("REDIS_PASSWORD") }
+	if password == "" {
+		password = viper.GetString("REDIS_PASSWORD")
+	}
 	db := viper.GetInt(dbKey)
-	if !viper.IsSet(dbKey) { db = viper.GetInt("REDIS_DB") }
+	if !viper.IsSet(dbKey) {
+		db = viper.GetInt("REDIS_DB")
+	}
 
 	client := redis.NewUniversalClient(&redis.UniversalOptions{
 		Addrs:        addrs,

@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	apikey "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/api-key"
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/merchant/database/schema"
 	"go.uber.org/zap"
 )
 

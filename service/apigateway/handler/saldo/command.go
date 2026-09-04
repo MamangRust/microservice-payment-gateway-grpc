@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"strconv"
 
-	saldo_cache "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/redis/api/saldo"
 	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb/saldo"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
+	saldo_cache "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/redis/api/saldo"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
 	apimapper "github.com/MamangRust/microservice-payment-gateway-grpc/shared/mapper/saldo"
@@ -63,6 +63,8 @@ func NewSaldoCommandHandleApi(params *saldoCommandHandleDeps) *saldoCommandHandl
 
 	routerSaldo.POST("/restore/all", params.apiHandler.Handle("restore-all-saldo", saldoHandler.RestoreAllSaldo))
 	routerSaldo.POST("/permanent/all", params.apiHandler.Handle("delete-all-saldo-permanent", saldoHandler.DeleteAllSaldoPermanent))
+	routerSaldo.POST("/adjustment", params.apiHandler.Handle("apply-saldo-adjustment", saldoHandler.ApplyAdjustment))
+	routerSaldo.POST("/reconciliation/:queue_id/resolve", params.apiHandler.Handle("resolve-reconciliation", saldoHandler.ResolveReconciliation))
 
 	return saldoHandler
 }
@@ -94,7 +96,7 @@ func (h *saldoCommandHandleApi) Create(c echo.Context) error {
 
 	res, err := h.saldo.CreateSaldo(ctx, &pb.CreateSaldoRequest{
 		CardNumber:   body.CardNumber,
-		TotalBalance: int32(body.TotalBalance),
+		TotalBalance: int64(body.TotalBalance),
 	})
 
 	if err != nil {
@@ -143,7 +145,7 @@ func (h *saldoCommandHandleApi) Update(c echo.Context) error {
 	res, err := h.saldo.UpdateSaldo(ctx, &pb.UpdateSaldoRequest{
 		SaldoId:      int32(idint),
 		CardNumber:   body.CardNumber,
-		TotalBalance: int32(body.TotalBalance),
+		TotalBalance: int64(body.TotalBalance),
 	})
 
 	if err != nil {
@@ -329,6 +331,51 @@ func (h *saldoCommandHandleApi) DeleteAllSaldoPermanent(c echo.Context) error {
 	so := h.mapper.ToApiResponseSaldoAll(res)
 
 	return c.JSON(http.StatusOK, so)
+}
+
+type saldoAdjustmentBody struct {
+	CardNumber  string `json:"card_number"`
+	Delta       int64  `json:"delta"`
+	OperationID string `json:"operation_id"`
+	SourceType  string `json:"source_type"`
+	SourceID    string `json:"source_id,omitempty"`
+	Note        string `json:"note"`
+}
+
+func (h *saldoCommandHandleApi) ApplyAdjustment(c echo.Context) error {
+	var body saldoAdjustmentBody
+	if err := c.Bind(&body); err != nil {
+		return errors.NewBadRequestError("invalid adjustment request")
+	}
+	res, err := h.saldo.ApplySaldoAdjustment(c.Request().Context(), &pb.ApplySaldoAdjustmentRequest{
+		CardNumber: body.CardNumber, Delta: body.Delta, OperationId: body.OperationID,
+		SourceType: body.SourceType, SourceId: body.SourceID, Note: body.Note,
+	})
+	if err != nil {
+		return errors.ParseGrpcError(err)
+	}
+	return c.JSON(http.StatusOK, res)
+}
+
+func (h *saldoCommandHandleApi) ResolveReconciliation(c echo.Context) error {
+	queueID, err := strconv.ParseInt(c.Param("queue_id"), 10, 64)
+	if err != nil || queueID <= 0 {
+		return errors.NewBadRequestError("queue_id is required")
+	}
+	var body struct {
+		OperationID string `json:"operation_id"`
+		Note        string `json:"note"`
+	}
+	if err := c.Bind(&body); err != nil {
+		return errors.NewBadRequestError("invalid resolve request")
+	}
+	res, err := h.saldo.ResolveReconciliation(c.Request().Context(), &pb.ResolveReconciliationRequest{
+		QueueId: queueID, OperationId: body.OperationID, Note: body.Note,
+	})
+	if err != nil {
+		return errors.ParseGrpcError(err)
+	}
+	return c.JSON(http.StatusOK, res)
 }
 
 func (h *saldoCommandHandleApi) parseValidationErrors(err error) []errors.ValidationError {

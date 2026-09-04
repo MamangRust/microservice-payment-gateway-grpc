@@ -8,8 +8,8 @@ import (
 
 	mencache "github.com/MamangRust/microservice-payment-gateway-grpc/service/auth/redis"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/auth/repository"
+	userdb "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/database/schema"
 
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/email"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/hash"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/kafka"
@@ -74,19 +74,19 @@ func NewRegisterService(params *RegisterServiceDeps) *registerService {
 	}
 }
 
-func (s *registerService) Register(ctx context.Context, request *requests.RegisterRequest) (*db.CreateUserRow, error) {
+func (s *registerService) Register(ctx context.Context, request *requests.RegisterRequest) (*userdb.CreateUserRow, error) {
 	const method = "Register"
 
 	ctx, span, end, status, logSuccess := s.observability.StartTracingAndLogging(ctx, method, attribute.String("email", request.Email))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	existingUser, err := s.user.FindByEmail(ctx, request.Email)
 	if err == nil && existingUser != nil {
 		status = "error"
-		return sharederrorhandler.HandleError[*db.CreateUserRow](
+		return sharederrorhandler.HandleError[*userdb.CreateUserRow](
 			s.logger,
 			user_errors.ErrUserEmailAlready,
 			method,
@@ -99,7 +99,7 @@ func (s *registerService) Register(ctx context.Context, request *requests.Regist
 	// passwordHash, err := s.hash.HashPassword(request.Password)
 	// if err != nil {
 	// 	status = "error"
-	// 	return sharederrorhandler.HandleError[*db.CreateUserRow](s.logger, err, method, span)
+	// 	return sharederrorhandler.HandleError[*userdb.CreateUserRow](s.logger, err, method, span)
 	// }
 	// request.Password = passwordHash
 
@@ -107,13 +107,13 @@ func (s *registerService) Register(ctx context.Context, request *requests.Regist
 	role, err := s.role.FindByName(ctx, defaultRoleName)
 	if err != nil || role == nil {
 		status = "error"
-		return sharederrorhandler.HandleError[*db.CreateUserRow](s.logger, err, method, span, zap.String("role_name", defaultRoleName))
+		return sharederrorhandler.HandleError[*userdb.CreateUserRow](s.logger, err, method, span, zap.String("role_name", defaultRoleName))
 	}
 
 	random, err := randomstring.GenerateRandomString(10)
 	if err != nil {
 		status = "error"
-		return sharederrorhandler.HandleError[*db.CreateUserRow](s.logger, err, method, span)
+		return sharederrorhandler.HandleError[*userdb.CreateUserRow](s.logger, err, method, span)
 	}
 	request.VerifiedCode = random
 	request.IsVerified = false
@@ -121,16 +121,20 @@ func (s *registerService) Register(ctx context.Context, request *requests.Regist
 	newUser, err := s.user.CreateUser(ctx, request)
 	if err != nil {
 		status = "error"
-		return sharederrorhandler.HandleError[*db.CreateUserRow](s.logger, err, method, span)
+		return sharederrorhandler.HandleError[*userdb.CreateUserRow](s.logger, err, method, span)
 	}
 
 	go func() {
-		htmlBody := email.GenerateEmailHTML(map[string]string{
+		htmlBody, err := email.GenerateEmailHTML(map[string]string{
 			"Title":   "Welcome to SanEdge",
 			"Message": "Your account has been successfully created.",
 			"Button":  "Verify Now",
 			"Link":    "https://sanedge.example.com/login?verify_code=" + request.VerifiedCode,
 		})
+		if err != nil {
+			s.logger.Error("failed to generate register email HTML", zap.Error(err))
+			return
+		}
 
 		emailPayload := map[string]any{
 			"email":   request.Email,
@@ -158,7 +162,7 @@ func (s *registerService) Register(ctx context.Context, request *requests.Regist
 	})
 	if err != nil {
 		status = "error"
-		return sharederrorhandler.HandleError[*db.CreateUserRow](s.logger, err, method, span, zap.Int("user.id", int(newUser.UserID)))
+		return sharederrorhandler.HandleError[*userdb.CreateUserRow](s.logger, err, method, span, zap.Int("user.id", int(newUser.UserID)))
 	}
 
 	s.mencache.SetVerificationCodeCache(ctx, request.Email, random, 15*time.Minute)

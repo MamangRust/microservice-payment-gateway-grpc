@@ -17,7 +17,7 @@ type cardmencache struct {
 func NewCardMencache(cacheStore *cache.CacheStore) CardMencache {
 
 	return &cardmencache{
-		CardCommandCache:     NewCardCommandCache(cacheStore),
-		CardQueryCache:       NewCardQueryCache(cacheStore),
+		CardCommandCache: NewCardCommandCache(cacheStore),
+		CardQueryCache:   NewCardQueryCache(cacheStore),
 	}
 }

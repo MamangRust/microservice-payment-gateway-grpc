@@ -6,10 +6,10 @@ import (
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/cache"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/observability"
 
+	"github.com/MamangRust/microservice-payment-gateway-grpc/pb/ai_security"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/adapter"
 	mencache "github.com/MamangRust/microservice-payment-gateway-grpc/service/transfer/redis"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/transfer/repository"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/pb/ai_security"
 )
 
 type Service interface {
@@ -63,6 +63,8 @@ func newTransferCommandService(deps *Deps, observability observability.TraceLogg
 			SaldoAdapter:              deps.SaldoAdapter,
 			TransferQueryRepository:   deps.Repositories,
 			TransferCommandRepository: deps.Repositories,
+			IdempotencyStore:          deps.Repositories,
+			OutboxStore:               deps.Repositories,
 			Logger:                    deps.Logger,
 			Observability:             observability,
 			AISecurityClient:          deps.AISecurityClient,

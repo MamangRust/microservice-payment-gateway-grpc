@@ -5,6 +5,7 @@ go 1.25.1
 require (
 	github.com/IBM/sarama v1.46.3
 	github.com/MamangRust/microservice-payment-gateway-grpc/pkg v0.0.0
+	github.com/MamangRust/microservice-payment-gateway-grpc/shared v0.0.0
 	github.com/prometheus/client_golang v1.20.5
 	github.com/spf13/viper v1.21.0
 	go.opentelemetry.io/otel v1.43.0

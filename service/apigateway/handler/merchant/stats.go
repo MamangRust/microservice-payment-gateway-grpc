@@ -6,11 +6,11 @@ import (
 	"strconv"
 
 	pbMerchant "github.com/MamangRust/microservice-payment-gateway-grpc/pb/merchant"
-	stats_cache "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/redis/api/stats"
+	pbMerchantStats "github.com/MamangRust/microservice-payment-gateway-grpc/pb/merchant/stats"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
+	stats_cache "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/redis/api/stats"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
 	merchantapimapper "github.com/MamangRust/microservice-payment-gateway-grpc/shared/mapper/merchant"
-	pbMerchantStats "github.com/MamangRust/microservice-payment-gateway-grpc/pb/merchant/stats"
 	"github.com/labstack/echo/v4"
 )
 
@@ -179,7 +179,7 @@ func (h *merchantStatsHandleApi) FindMonthlyMerchantAmount(c echo.Context) error
 	if cached, found := h.cache.GetCache(ctx, cacheKey); found {
 		return c.JSON(http.StatusOK, cached)
 	}
-	
+
 	res, err := h.merchantAmount.FindMonthlyAmountMerchant(ctx, &pbMerchant.FindYearMerchant{Year: int32(year)})
 	if err != nil {
 		return errors.ParseGrpcError(err)
@@ -209,7 +209,7 @@ func (h *merchantStatsHandleApi) FindYearlyMerchantAmount(c echo.Context) error 
 	if cached, found := h.cache.GetCache(ctx, cacheKey); found {
 		return c.JSON(http.StatusOK, cached)
 	}
-	
+
 	res, err := h.merchantAmount.FindYearlyAmountMerchant(ctx, &pbMerchant.FindYearMerchant{Year: int32(year)})
 	if err != nil {
 		return errors.ParseGrpcError(err)
@@ -241,7 +241,7 @@ func (h *merchantStatsHandleApi) FindMonthlyAmountByMerchants(c echo.Context) er
 	if cached, found := h.cache.GetCache(ctx, cacheKey); found {
 		return c.JSON(http.StatusOK, cached)
 	}
-	
+
 	res, err := h.merchantAmount.FindMonthlyAmountByMerchants(ctx, &pbMerchant.FindYearMerchantById{Year: int32(year), MerchantId: int32(merchantID)})
 	if err != nil {
 		return errors.ParseGrpcError(err)
@@ -273,7 +273,7 @@ func (h *merchantStatsHandleApi) FindYearlyAmountByMerchants(c echo.Context) err
 	if cached, found := h.cache.GetCache(ctx, cacheKey); found {
 		return c.JSON(http.StatusOK, cached)
 	}
-	
+
 	res, err := h.merchantAmount.FindYearlyAmountByMerchants(ctx, &pbMerchant.FindYearMerchantById{Year: int32(year), MerchantId: int32(merchantID)})
 	if err != nil {
 		return errors.ParseGrpcError(err)
@@ -305,7 +305,7 @@ func (h *merchantStatsHandleApi) FindMonthlyAmountByApikey(c echo.Context) error
 	if cached, found := h.cache.GetCache(ctx, cacheKey); found {
 		return c.JSON(http.StatusOK, cached)
 	}
-	
+
 	res, err := h.merchantAmount.FindMonthlyAmountByApikey(ctx, &pbMerchant.FindYearMerchantByApikey{Year: int32(year), ApiKey: apiKey})
 	if err != nil {
 		return errors.ParseGrpcError(err)
@@ -337,7 +337,7 @@ func (h *merchantStatsHandleApi) FindYearlyAmountByApikey(c echo.Context) error 
 	if cached, found := h.cache.GetCache(ctx, cacheKey); found {
 		return c.JSON(http.StatusOK, cached)
 	}
-	
+
 	res, err := h.merchantAmount.FindYearlyAmountByApikey(ctx, &pbMerchant.FindYearMerchantByApikey{Year: int32(year), ApiKey: apiKey})
 	if err != nil {
 		return errors.ParseGrpcError(err)
@@ -367,7 +367,7 @@ func (h *merchantStatsHandleApi) FindYearlyTotalAmountMerchant(c echo.Context) e
 	if cached, found := h.cache.GetCache(ctx, cacheKey); found {
 		return c.JSON(http.StatusOK, cached)
 	}
-	
+
 	res, err := h.merchantTotal.FindYearlyTotalAmountMerchant(ctx, &pbMerchant.FindYearMerchant{Year: int32(year)})
 	if err != nil {
 		return errors.ParseGrpcError(err)
@@ -397,7 +397,7 @@ func (h *merchantStatsHandleApi) FindMonthlyTotalAmountMerchant(c echo.Context) 
 	if cached, found := h.cache.GetCache(ctx, cacheKey); found {
 		return c.JSON(http.StatusOK, cached)
 	}
-	
+
 	res, err := h.merchantTotal.FindMonthlyTotalAmountMerchant(ctx, &pbMerchant.FindYearMerchant{Year: int32(year)})
 	if err != nil {
 		return errors.ParseGrpcError(err)
@@ -429,7 +429,7 @@ func (h *merchantStatsHandleApi) FindMonthlyTotalAmountByMerchants(c echo.Contex
 	if cached, found := h.cache.GetCache(ctx, cacheKey); found {
 		return c.JSON(http.StatusOK, cached)
 	}
-	
+
 	res, err := h.merchantTotal.FindMonthlyTotalAmountByMerchants(ctx, &pbMerchant.FindYearMerchantById{Year: int32(year), MerchantId: int32(merchantID)})
 	if err != nil {
 		return errors.ParseGrpcError(err)
@@ -461,7 +461,7 @@ func (h *merchantStatsHandleApi) FindYearlyTotalAmountByMerchants(c echo.Context
 	if cached, found := h.cache.GetCache(ctx, cacheKey); found {
 		return c.JSON(http.StatusOK, cached)
 	}
-	
+
 	res, err := h.merchantTotal.FindYearlyTotalAmountByMerchants(ctx, &pbMerchant.FindYearMerchantById{Year: int32(year), MerchantId: int32(merchantID)})
 	if err != nil {
 		return errors.ParseGrpcError(err)
@@ -493,7 +493,7 @@ func (h *merchantStatsHandleApi) FindMonthlyTotalAmountByApikey(c echo.Context) 
 	if cached, found := h.cache.GetCache(ctx, cacheKey); found {
 		return c.JSON(http.StatusOK, cached)
 	}
-	
+
 	res, err := h.merchantTotal.FindMonthlyTotalAmountByApikey(ctx, &pbMerchant.FindYearMerchantByApikey{Year: int32(year), ApiKey: apiKey})
 	if err != nil {
 		return errors.ParseGrpcError(err)
@@ -525,7 +525,7 @@ func (h *merchantStatsHandleApi) FindYearlyTotalAmountByApikey(c echo.Context) e
 	if cached, found := h.cache.GetCache(ctx, cacheKey); found {
 		return c.JSON(http.StatusOK, cached)
 	}
-	
+
 	res, err := h.merchantTotal.FindYearlyTotalAmountByApikey(ctx, &pbMerchant.FindYearMerchantByApikey{Year: int32(year), ApiKey: apiKey})
 	if err != nil {
 		return errors.ParseGrpcError(err)
@@ -555,7 +555,7 @@ func (h *merchantStatsHandleApi) FindMonthlyMerchantMethod(c echo.Context) error
 	if cached, found := h.cache.GetCache(ctx, cacheKey); found {
 		return c.JSON(http.StatusOK, cached)
 	}
-	
+
 	res, err := h.merchantMethod.FindMonthlyPaymentMethodsMerchant(ctx, &pbMerchant.FindYearMerchant{Year: int32(year)})
 	if err != nil {
 		return errors.ParseGrpcError(err)
@@ -585,7 +585,7 @@ func (h *merchantStatsHandleApi) FindYearlyMerchantMethod(c echo.Context) error 
 	if cached, found := h.cache.GetCache(ctx, cacheKey); found {
 		return c.JSON(http.StatusOK, cached)
 	}
-	
+
 	res, err := h.merchantMethod.FindYearlyPaymentMethodMerchant(ctx, &pbMerchant.FindYearMerchant{Year: int32(year)})
 	if err != nil {
 		return errors.ParseGrpcError(err)
@@ -617,7 +617,7 @@ func (h *merchantStatsHandleApi) FindMonthlyMethodByMerchants(c echo.Context) er
 	if cached, found := h.cache.GetCache(ctx, cacheKey); found {
 		return c.JSON(http.StatusOK, cached)
 	}
-	
+
 	res, err := h.merchantMethod.FindMonthlyPaymentMethodByMerchants(ctx, &pbMerchant.FindYearMerchantById{Year: int32(year), MerchantId: int32(merchantID)})
 	if err != nil {
 		return errors.ParseGrpcError(err)
@@ -649,7 +649,7 @@ func (h *merchantStatsHandleApi) FindYearlyMethodByMerchants(c echo.Context) err
 	if cached, found := h.cache.GetCache(ctx, cacheKey); found {
 		return c.JSON(http.StatusOK, cached)
 	}
-	
+
 	res, err := h.merchantMethod.FindYearlyPaymentMethodByMerchants(ctx, &pbMerchant.FindYearMerchantById{Year: int32(year), MerchantId: int32(merchantID)})
 	if err != nil {
 		return errors.ParseGrpcError(err)
@@ -681,7 +681,7 @@ func (h *merchantStatsHandleApi) FindMonthlyMethodByApikey(c echo.Context) error
 	if cached, found := h.cache.GetCache(ctx, cacheKey); found {
 		return c.JSON(http.StatusOK, cached)
 	}
-	
+
 	res, err := h.merchantMethod.FindMonthlyPaymentMethodByApikey(ctx, &pbMerchant.FindYearMerchantByApikey{Year: int32(year), ApiKey: apiKey})
 	if err != nil {
 		return errors.ParseGrpcError(err)
@@ -713,7 +713,7 @@ func (h *merchantStatsHandleApi) FindYearlyMethodByApikey(c echo.Context) error 
 	if cached, found := h.cache.GetCache(ctx, cacheKey); found {
 		return c.JSON(http.StatusOK, cached)
 	}
-	
+
 	res, err := h.merchantMethod.FindYearlyPaymentMethodByApikey(ctx, &pbMerchant.FindYearMerchantByApikey{Year: int32(year), ApiKey: apiKey})
 	if err != nil {
 		return errors.ParseGrpcError(err)

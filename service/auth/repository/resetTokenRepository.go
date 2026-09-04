@@ -4,10 +4,10 @@ import (
 	"context"
 	"time"
 
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
+	database "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/auth/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 	sharedErrors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
-	refresh_errors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors/refresh_token_errors/repository"
 )
 
 // resetTokenRepository is a struct that implements the ResetTokenRepository interface
@@ -38,21 +38,24 @@ func (r *resetTokenRepository) CreateResetToken(ctx context.Context, req *reques
 		return nil, sharedErrors.ErrInternal.WithInternal(err)
 	}
 	res, err := r.db.CreateResetToken(ctx, db.CreateResetTokenParams{
-		UserID:     int64(req.UserID),
+		UserID:     int32(req.UserID),
 		Token:      req.ResetToken,
 		ExpiryDate: expiryDate,
 	})
 	if err != nil {
-		return nil, refresh_errors.ErrCreateRefreshToken.WithInternal(err)
+		if database.IsUniqueViolation(err) {
+			return nil, sharedErrors.NewConflictError("reset token already exists").WithInternal(err)
+		}
+		return nil, sharedErrors.ErrFailed("create reset token").WithInternal(err)
 	}
 	return res, nil
 }
 
 // DeleteResetToken removes the reset token associated with the given user ID.
-func (r *resetTokenRepository) DeleteResetToken(ctx context.Context, user_id int) error {
-	err := r.db.DeleteResetToken(ctx, int64(user_id))
+func (r *resetTokenRepository) DeleteResetToken(ctx context.Context, user_id int32) error {
+	err := r.db.DeleteResetToken(ctx, user_id)
 	if err != nil {
-		return refresh_errors.ErrDeleteByUserID.WithInternal(err)
+		return sharedErrors.ErrFailed("delete reset token").WithInternal(err)
 	}
 	return nil
 }

@@ -6,16 +6,20 @@ import (
 	"math/rand"
 	"time"
 
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
+	carddb "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/database/schema"
+	merchantdb "github.com/MamangRust/microservice-payment-gateway-grpc/service/merchant/database/schema"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/transaction/database/schema"
 	"go.uber.org/zap"
 )
 
 // transactionSeeder is a struct that represents a seeder for the transactions table.
 type transactionSeeder struct {
-	db     *db.Queries
-	ctx    context.Context
-	logger logger.LoggerInterface
+	db         *db.Queries
+	carddb     *carddb.Queries
+	merchantdb *merchantdb.Queries
+	ctx        context.Context
+	logger     logger.LoggerInterface
 }
 
 // NewTransactionSeeder creates a new instance of the transactionSeeder, which is
@@ -28,11 +32,13 @@ type transactionSeeder struct {
 //
 // Returns:
 // a pointer to the transactionSeeder struct
-func NewTransactionSeeder(db *db.Queries, ctx context.Context, logger logger.LoggerInterface) *transactionSeeder {
+func NewTransactionSeeder(db *db.Queries, carddb *carddb.Queries, merchantdb *merchantdb.Queries, ctx context.Context, logger logger.LoggerInterface) *transactionSeeder {
 	return &transactionSeeder{
-		db:     db,
-		ctx:    ctx,
-		logger: logger,
+		db:         db,
+		carddb:     carddb,
+		merchantdb: merchantdb,
+		ctx:        ctx,
+		logger:     logger,
 	}
 }
 
@@ -55,9 +61,9 @@ func (r *transactionSeeder) Seed() error {
 	paymentMethods := []string{"Bank Alpha", "Bank Beta", "Bank Gamma"}
 	statusOptions := []string{"pending", "success", "failed"}
 
-	var cards []db.GetCardByUserIDRow
+	var cards []carddb.GetCardByUserIDRow
 	for i := 1; i <= total; i++ {
-		card, err := r.db.GetCardByUserID(r.ctx, int32(i))
+		card, err := r.carddb.GetCardByUserID(r.ctx, int32(i))
 		if err != nil {
 			r.logger.Error("failed to get card for user", zap.Int("userID", i), zap.Error(err))
 			return fmt.Errorf("failed to get card for user %d: %w", i, err)
@@ -74,7 +80,7 @@ func (r *transactionSeeder) Seed() error {
 		return fmt.Errorf("not enough cards for transaction seeding: required %d, got %d", total, len(cards))
 	}
 
-	merchants, err := r.db.GetMerchants(r.ctx, db.GetMerchantsParams{
+	merchants, err := r.merchantdb.GetMerchants(r.ctx, merchantdb.GetMerchantsParams{
 		Column1: "",
 		Limit:   int32(total),
 		Offset:  0,
@@ -104,9 +110,10 @@ func (r *transactionSeeder) Seed() error {
 		monthIndex := i % 12
 		transactionTime := months[monthIndex].Add(time.Duration(rand.Intn(28)) * 24 * time.Hour)
 
+		amount := amountToInt64(int64(rand.Intn(1000000-50000) + 50000))
 		request := db.CreateTransactionParams{
 			CardNumber:      card.CardNumber,
-			Amount:          int32(rand.Intn(1000000-50000) + 50000),
+			Amount:          amount,
 			PaymentMethod:   paymentMethod,
 			MerchantID:      merchant.MerchantID,
 			TransactionTime: transactionTime,

@@ -56,9 +56,9 @@ func (s *saldoQueryHandleGrpc) FindAllSaldo(ctx context.Context, req *pb.FindAll
 		protoSaldos[i] = &pb.SaldoResponse{
 			SaldoId:        int32(saldo.SaldoID),
 			CardNumber:     saldo.CardNumber,
-			TotalBalance:   saldo.TotalBalance,
+			TotalBalance:   int64(saldo.TotalBalance),
 			WithdrawTime:   saldo.WithdrawTime.Time.Format(time.RFC3339),
-			WithdrawAmount: Int32Value(saldo.WithdrawAmount),
+			WithdrawAmount: Int64Value(saldo.WithdrawAmount),
 			CreatedAt:      saldo.CreatedAt.Time.Format(time.RFC3339),
 			UpdatedAt:      saldo.UpdatedAt.Time.Format(time.RFC3339),
 		}
@@ -94,9 +94,9 @@ func (s *saldoQueryHandleGrpc) FindByIdSaldo(ctx context.Context, req *pb.FindBy
 	protoSaldo := &pb.SaldoResponse{
 		SaldoId:        int32(saldo.SaldoID),
 		CardNumber:     saldo.CardNumber,
-		TotalBalance:   saldo.TotalBalance,
+		TotalBalance:   int64(saldo.TotalBalance),
 		WithdrawTime:   saldo.WithdrawTime.Time.Format(time.RFC3339),
-		WithdrawAmount: Int32Value(saldo.WithdrawAmount),
+		WithdrawAmount: Int64Value(saldo.WithdrawAmount),
 		CreatedAt:      saldo.CreatedAt.Time.Format(time.RFC3339),
 		UpdatedAt:      saldo.UpdatedAt.Time.Format(time.RFC3339),
 	}
@@ -122,9 +122,9 @@ func (s *saldoQueryHandleGrpc) FindByCardNumber(ctx context.Context, req *pbcard
 	protoSaldo := &pb.SaldoResponse{
 		SaldoId:        int32(saldo.SaldoID),
 		CardNumber:     saldo.CardNumber,
-		TotalBalance:   saldo.TotalBalance,
+		TotalBalance:   int64(saldo.TotalBalance),
 		WithdrawTime:   saldo.WithdrawTime.Time.Format(time.RFC3339),
-		WithdrawAmount: Int32Value(saldo.WithdrawAmount),
+		WithdrawAmount: Int64Value(saldo.WithdrawAmount),
 		CreatedAt:      saldo.CreatedAt.Time.Format(time.RFC3339),
 		UpdatedAt:      saldo.UpdatedAt.Time.Format(time.RFC3339),
 	}
@@ -164,9 +164,9 @@ func (s *saldoQueryHandleGrpc) FindByActive(ctx context.Context, req *pb.FindAll
 		protoSaldos[i] = &pb.SaldoResponseDeleteAt{
 			SaldoId:        int32(saldo.SaldoID),
 			CardNumber:     saldo.CardNumber,
-			TotalBalance:   saldo.TotalBalance,
+			TotalBalance:   int64(saldo.TotalBalance),
 			WithdrawTime:   saldo.WithdrawTime.Time.Format(time.RFC3339),
-			WithdrawAmount: Int32Value(saldo.WithdrawAmount),
+			WithdrawAmount: Int64Value(saldo.WithdrawAmount),
 			CreatedAt:      saldo.CreatedAt.Time.Format(time.RFC3339),
 			UpdatedAt:      saldo.UpdatedAt.Time.Format(time.RFC3339),
 			DeletedAt:      wrapperspb.String(saldo.DeletedAt.Time.Format(time.RFC3339)),
@@ -217,9 +217,9 @@ func (s *saldoQueryHandleGrpc) FindByTrashed(ctx context.Context, req *pb.FindAl
 		protoSaldos[i] = &pb.SaldoResponseDeleteAt{
 			SaldoId:        int32(saldo.SaldoID),
 			CardNumber:     saldo.CardNumber,
-			TotalBalance:   saldo.TotalBalance,
+			TotalBalance:   int64(saldo.TotalBalance),
 			WithdrawTime:   saldo.WithdrawTime.Time.Format(time.RFC3339),
-			WithdrawAmount: Int32Value(saldo.WithdrawAmount),
+			WithdrawAmount: Int64Value(saldo.WithdrawAmount),
 			CreatedAt:      saldo.CreatedAt.Time.Format(time.RFC3339),
 			UpdatedAt:      saldo.UpdatedAt.Time.Format(time.RFC3339),
 			DeletedAt:      wrapperspb.String(saldo.DeletedAt.Time.Format(time.RFC3339)),
@@ -242,10 +242,73 @@ func (s *saldoQueryHandleGrpc) FindByTrashed(ctx context.Context, req *pb.FindAl
 	}, nil
 }
 
+func (s *saldoQueryHandleGrpc) ListReconciliationQueue(ctx context.Context, req *pb.ListReconciliationRequest) (*pb.ApiResponseReconciliation, error) {
+	items, err := s.service.ListReconciliationQueue(ctx, req.GetStatus(), req.GetLimit())
+	if err != nil {
+		return nil, errors.ToGrpcError(err)
+	}
+	data := make([]*pb.ReconciliationQueueItem, 0, len(items))
+	for _, item := range items {
+		row := &pb.ReconciliationQueueItem{
+			QueueId: item.QueueID, SaldoId: item.SaldoID, CardNumber: item.CardNumber,
+			CurrentBalance: item.CurrentBalance, LedgerBalance: item.LedgerBalance,
+			Difference: item.Difference, LedgerEntries: item.LedgerEntries,
+			Status: item.Status, MismatchCount: item.MismatchCount,
+			FirstSeenAt: item.FirstSeenAt.Format(time.RFC3339), LastSeenAt: item.LastSeenAt.Format(time.RFC3339),
+		}
+		if item.ResolvedAt != nil {
+			row.ResolvedAt = item.ResolvedAt.Format(time.RFC3339)
+		}
+		if item.ResolutionOperationID != nil {
+			row.ResolutionOperationId = *item.ResolutionOperationID
+		}
+		if item.ResolutionNote != nil {
+			row.ResolutionNote = *item.ResolutionNote
+		}
+		data = append(data, row)
+	}
+	return &pb.ApiResponseReconciliation{Status: "success", Message: "Successfully fetched reconciliation queue", Data: data}, nil
+}
+
+func (s *saldoQueryHandleGrpc) ListLedgerEntries(ctx context.Context, req *pb.ListLedgerEntriesRequest) (*pb.ApiResponseLedger, error) {
+	items, err := s.service.ListLedgerEntries(ctx, req.GetCardNumber(), req.GetLimit())
+	if err != nil {
+		return nil, errors.ToGrpcError(err)
+	}
+	data := make([]*pb.LedgerEntryResponse, 0, len(items))
+	for _, item := range items {
+		sourceID := ""
+		if item.SourceID != nil {
+			sourceID = *item.SourceID
+		}
+		data = append(data, &pb.LedgerEntryResponse{
+			EntryId: item.EntryID, OperationId: item.OperationID, CardNumber: item.CardNumber,
+			Direction: item.Direction, Amount: item.Amount, Delta: item.Delta,
+			BalanceBefore: item.BalanceBefore, BalanceAfter: item.BalanceAfter,
+			SourceType: item.SourceType, SourceId: sourceID, CreatedAt: item.CreatedAt.Format(time.RFC3339),
+		})
+	}
+	return &pb.ApiResponseLedger{Status: "success", Message: "Successfully fetched ledger entries", Data: data}, nil
+}
+
 func Int32Value(v *int32) int32 {
 	if v == nil {
 		return 0
 	}
 
 	return *v
+}
+
+func Int64Value(v interface{}) int64 {
+	switch value := v.(type) {
+	case *int32:
+		if value != nil {
+			return int64(*value)
+		}
+	case *int64:
+		if value != nil {
+			return *value
+		}
+	}
+	return 0
 }

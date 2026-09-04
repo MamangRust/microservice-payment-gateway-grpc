@@ -62,3 +62,26 @@ CREATE TABLE IF NOT EXISTS saldo_events (
 ) ENGINE = MergeTree()
 PARTITION BY toYYYYMM(created_at)
 ORDER BY (card_number, created_at);
+
+CREATE TABLE IF NOT EXISTS card_events (
+    card_id UInt64,
+    user_id UInt64,
+    card_number String,
+    card_type String,
+    card_provider String,
+    status String,
+    created_at DateTime DEFAULT now()
+) ENGINE = MergeTree()
+PARTITION BY toYYYYMM(created_at)
+ORDER BY (user_id, created_at);
+
+CREATE TABLE IF NOT EXISTS merchant_events (
+    merchant_id UInt64,
+    user_id UInt64,
+    name String,
+    email String,
+    status String,
+    created_at DateTime DEFAULT now()
+) ENGINE = MergeTree()
+PARTITION BY toYYYYMM(created_at)
+ORDER BY (user_id, created_at);

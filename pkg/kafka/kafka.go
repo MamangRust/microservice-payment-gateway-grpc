@@ -2,11 +2,12 @@ package kafka
 
 import (
 	"context"
-	"log"
+	"fmt"
 	"time"
 
 	"github.com/IBM/sarama"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
+	"go.uber.org/zap"
 )
 
 // SyncProducer is an interface that represents a Kafka producer.
@@ -24,10 +25,10 @@ type Kafka struct {
 
 // NewKafka initializes a new Kafka struct.
 //
-// It takes a logger and a list of broker addresses as inputs and returns a pointer to the Kafka struct.
-// It creates a new Kafka producer with the given configuration, and logs a message indicating if the connection is successful.
-// If the connection fails, it logs an error message and exits.
-func NewKafka(logger logger.LoggerInterface, brokers []string) *Kafka {
+// It takes a logger and a list of broker addresses as inputs and returns a pointer to the Kafka struct and an error.
+// It creates a new Kafka producer with the given configuration.
+// If the connection fails, it returns an error.
+func NewKafka(logger logger.LoggerInterface, brokers []string) (*Kafka, error) {
 	config := sarama.NewConfig()
 	config.Producer.RequiredAcks = sarama.WaitForAll
 	config.Producer.Retry.Max = 5
@@ -35,16 +36,16 @@ func NewKafka(logger logger.LoggerInterface, brokers []string) *Kafka {
 
 	producer, err := sarama.NewSyncProducer(brokers, config)
 	if err != nil {
-		log.Fatalf("Failed to create Kafka producer: %v", err)
+		return nil, fmt.Errorf("failed to create Kafka producer: %w", err)
 	}
 
-	log.Println("Kafka producer connected successfully")
+	logger.Info("Kafka producer connected successfully")
 
 	return &Kafka{
 		producer: producer,
 		brokers:  brokers,
 		logger:   logger,
-	}
+	}, nil
 }
 
 // GetBrokers returns a list of the Kafka broker addresses that the producer is connected to.
@@ -68,7 +69,11 @@ func (k *Kafka) SendMessage(topic string, key string, value []byte) error {
 		return err
 	}
 
-	log.Printf("Message is stored in topic(%s)/partition(%d)/offset(%d)\n", topic, partition, offset)
+	k.logger.Debug("Message sent to Kafka",
+		zap.String("topic", topic),
+		zap.Int32("partition", partition),
+		zap.Int64("offset", offset),
+	)
 	return nil
 }
 
@@ -96,11 +101,15 @@ func (k *Kafka) StartConsumers(topics []string, groupID string, handler sarama.C
 		for {
 			err := consumerGroup.Consume(ctx, topics, handler)
 			if err != nil {
-				log.Printf("Error from consumer: %v", err)
+				k.logger.Error("Error from Kafka consumer", zap.Error(err))
 				retries++
 				if retries >= maxRetries {
-					log.Fatalf("Max retries reached for consumer group. Exiting.")
-				}
+			k.logger.Error("Max retries reached for Kafka consumer group — stopping consumer",
+				zap.String("group_id", groupID),
+				zap.Int("retries", retries),
+			)
+			return
+		}
 				time.Sleep(30 * time.Second)
 				continue
 			}
@@ -110,7 +119,7 @@ func (k *Kafka) StartConsumers(topics []string, groupID string, handler sarama.C
 
 	go func() {
 		for err := range consumerGroup.Errors() {
-			log.Printf("Consumer group error: %v", err)
+			k.logger.Error("Kafka consumer group error", zap.Error(err))
 		}
 	}()
 

@@ -23,9 +23,9 @@ message FindByIdSaldoRequest { int32 saldo_id = 1; }
 message SaldoResponse {
   int32 saldo_id = 1;
   string card_number = 2;
-  int32 total_balance = 3;
+  int64 total_balance = 3;
   string withdraw_time = 4;
-  int32 withdraw_amount = 5;
+  int64 withdraw_amount = 5;
   string created_at = 6;
   string updated_at = 7;
 }
@@ -33,9 +33,9 @@ message SaldoResponse {
 message SaldoResponseDeleteAt {
   int32 saldo_id = 1;
   string card_number = 2;
-  int32 total_balance = 3;
+  int64 total_balance = 3;
   string withdraw_time = 4;
-  int32 withdraw_amount = 5;
+  int64 withdraw_amount = 5;
   string created_at = 6;
   string updated_at = 7;
   google.protobuf.StringValue deleted_at = 8;

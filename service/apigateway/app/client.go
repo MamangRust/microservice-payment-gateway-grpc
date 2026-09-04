@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -11,14 +10,14 @@ import (
 	"syscall"
 	"time"
 
-	_ "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/docs"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/handler"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/middlewares"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/auth"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/dotenv"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/kafka"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
 	otel_pkg "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/otel"
+	_ "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/docs"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/handler"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/middlewares"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/cache"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/observability"
 	"github.com/grafana/pyroscope-go"
@@ -34,10 +33,13 @@ import (
 )
 
 const (
-	defaultServerPort             = ":5000"
-	defaultWindowSizeClient       = 16 * 1024 * 1024
-	defaultKeepaliveTimeClient    = 20 * time.Second
-	defaultKeepaliveTimeoutClient = 5 * time.Second
+	defaultServerPort       = ":5000"
+	defaultWindowSizeClient = 16 * 1024 * 1024
+	// Keepalive is intentionally conservative: backend gRPC servers commonly
+	// enforce a minimum ping interval and may send ENHANCE_YOUR_CALM when idle
+	// connections ping too frequently. Do not ping while no RPC is active.
+	defaultKeepaliveTimeClient    = 5 * time.Minute
+	defaultKeepaliveTimeoutClient = 20 * time.Second
 
 	monitoringInterval     = 30 * time.Second
 	cleanupInterval        = 5 * time.Minute
@@ -236,22 +238,36 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 	}
 
 	if err := initPyroscope(); err != nil {
-		log.Fatal("Failed to initialize pyroscope:", err)
+		return nil, fmt.Errorf("failed to initialize pyroscope: %w", err)
 	}
 
 	loadedCfg, err := loadClientConfig()
 	if err != nil {
-		log.Fatal(err)
+		return nil, fmt.Errorf("failed to load client config: %w", err)
 	}
 
 	// Merge passed config with loaded config
-	if cfg.ServiceName == "" { cfg.ServiceName = loadedCfg.ServiceName }
-	if cfg.ServiceVersion == "" { cfg.ServiceVersion = loadedCfg.ServiceVersion }
-	if cfg.Environment == "" { cfg.Environment = loadedCfg.Environment }
-	if cfg.OtelEndpoint == "" { cfg.OtelEndpoint = loadedCfg.OtelEndpoint }
-	if cfg.ServerPort == "" { cfg.ServerPort = loadedCfg.ServerPort }
-	if len(cfg.AllowedOrigins) == 0 { cfg.AllowedOrigins = loadedCfg.AllowedOrigins }
-	if cfg.RedisCluster == "" { cfg.RedisCluster = loadedCfg.RedisCluster }
+	if cfg.ServiceName == "" {
+		cfg.ServiceName = loadedCfg.ServiceName
+	}
+	if cfg.ServiceVersion == "" {
+		cfg.ServiceVersion = loadedCfg.ServiceVersion
+	}
+	if cfg.Environment == "" {
+		cfg.Environment = loadedCfg.Environment
+	}
+	if cfg.OtelEndpoint == "" {
+		cfg.OtelEndpoint = loadedCfg.OtelEndpoint
+	}
+	if cfg.ServerPort == "" {
+		cfg.ServerPort = loadedCfg.ServerPort
+	}
+	if len(cfg.AllowedOrigins) == 0 {
+		cfg.AllowedOrigins = loadedCfg.AllowedOrigins
+	}
+	if cfg.RedisCluster == "" {
+		cfg.RedisCluster = loadedCfg.RedisCluster
+	}
 
 	telemetry, err := initTelemetry(cfg)
 	if err != nil {
@@ -295,7 +311,10 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 	}
 
 	kafkaBrokers := strings.Split(viper.GetString("KAFKA_BROKERS"), ",")
-	myKafka := kafka.NewKafka(logger, kafkaBrokers)
+	myKafka, err := kafka.NewKafka(logger, kafkaBrokers)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Kafka producer: %w", err)
+	}
 
 	cacheStore := cache.NewCacheStore(redisClient, logger, cacheMetrics)
 
@@ -482,21 +501,25 @@ func initRedisClient(ctx context.Context, logger logger.LoggerInterface, cfg *Cl
 		addrs = strings.Split(val, ",")
 	} else {
 		host := viper.GetString(hostKey)
-		if host == "" { host = viper.GetString("REDIS_HOST_APIGATEWAY") }
+		if host == "" {
+			host = viper.GetString("REDIS_HOST_APIGATEWAY")
+		}
 		port := viper.GetString(portKey)
-		if port == "" { port = viper.GetString("REDIS_PORT_APIGATEWAY") }
+		if port == "" {
+			port = viper.GetString("REDIS_PORT_APIGATEWAY")
+		}
 		addrs = []string{fmt.Sprintf("%s:%s", host, port)}
 	}
 
 	password := viper.GetString(passKey)
-	if password == "" { 
+	if password == "" {
 		password = viper.GetString("REDIS_PASSWORD")
 		if password == "" {
 			password = viper.GetString("REDIS_PASSWORD_APIGATEWAY")
 		}
 	}
 	db := viper.GetInt(dbKey)
-	if !viper.IsSet(dbKey) { 
+	if !viper.IsSet(dbKey) {
 		db = viper.GetInt("REDIS_DB")
 		if !viper.IsSet("REDIS_DB") {
 			db = viper.GetInt("REDIS_DB_APIGATEWAY")
@@ -598,10 +621,10 @@ func createCORSMiddleware(allowedOrigins []string) echo.MiddlewareFunc {
 
 func createSecureMiddleware() echo.MiddlewareFunc {
 	return middleware.SecureWithConfig(middleware.SecureConfig{
-		XSSProtection:      "1; mode=block",
-		ContentTypeNosniff: "nosniff",
-		XFrameOptions:      "SAMEORIGIN",
-		HSTSMaxAge:         31536000,
+		XSSProtection:         "1; mode=block",
+		ContentTypeNosniff:    "nosniff",
+		XFrameOptions:         "SAMEORIGIN",
+		HSTSMaxAge:            31536000,
 		HSTSExcludeSubdomains: false,
 		HSTSPreloadEnabled:    true,
 		ReferrerPolicy:        "strict-origin-when-cross-origin",
@@ -709,7 +732,7 @@ func createConnection(address, serviceName string, logger logger.LoggerInterface
 		grpc.WithKeepaliveParams(keepalive.ClientParameters{
 			Time:                defaultKeepaliveTimeClient,
 			Timeout:             defaultKeepaliveTimeoutClient,
-			PermitWithoutStream: true,
+			PermitWithoutStream: false,
 		}),
 	)
 	if err != nil {

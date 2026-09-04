@@ -14,6 +14,8 @@ type UseCase interface {
 	SaveSaldoEvent(ctx context.Context, event events.SaldoEvent) error
 	SaveMerchantEvent(ctx context.Context, event events.MerchantEvent) error
 	SaveCardEvent(ctx context.Context, event events.CardEvent) error
+
+	Close() error
 }
 
 type statsUseCase struct {
@@ -52,4 +54,8 @@ func (u *statsUseCase) SaveMerchantEvent(ctx context.Context, event events.Merch
 
 func (u *statsUseCase) SaveCardEvent(ctx context.Context, event events.CardEvent) error {
 	return u.repo.InsertCardEvent(ctx, event)
+}
+
+func (u *statsUseCase) Close() error {
+	return u.repo.Close()
 }

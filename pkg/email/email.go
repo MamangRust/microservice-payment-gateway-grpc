@@ -2,7 +2,7 @@ package email
 
 import (
 	"bytes"
-	"log"
+	"fmt"
 	"text/template"
 )
 
@@ -17,7 +17,7 @@ import (
 //   - Link: The URL for the call-to-action button
 //
 // The generated HTML will be responsive and have a basic CSS style.
-func GenerateEmailHTML(data map[string]string) string {
+func GenerateEmailHTML(data map[string]string) (string, error) {
 	const emailTemplate = `
 	<!DOCTYPE html>
 	<html lang="en">
@@ -113,13 +113,13 @@ func GenerateEmailHTML(data map[string]string) string {
 
 	tmpl, err := template.New("email").Parse(emailTemplate)
 	if err != nil {
-		log.Fatalf("failed to parse template: %v", err)
+		return "", fmt.Errorf("failed to parse email template: %w", err)
 	}
 
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, data); err != nil {
-		log.Fatalf("failed to execute template: %v", err)
+		return "", fmt.Errorf("failed to execute email template: %w", err)
 	}
 
-	return buf.String()
+	return buf.String(), nil
 }

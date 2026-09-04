@@ -185,7 +185,7 @@ func (h *WithdrawStatsHandler) mapToWithdrawMonthAmountData(data []repository.Mo
 	for _, d := range data {
 		results = append(results, &pbWithdrawStats.WithdrawMonthlyAmountResponse{
 			Month:       d.Month,
-			TotalAmount: int32(d.TotalAmount),
+			TotalAmount: d.TotalAmount,
 		})
 	}
 	return results
@@ -196,7 +196,7 @@ func (h *WithdrawStatsHandler) mapToWithdrawYearAmountData(data []repository.Yea
 	for _, d := range data {
 		results = append(results, &pbWithdrawStats.WithdrawYearlyAmountResponse{
 			Year:        d.Year,
-			TotalAmount: int32(d.TotalAmount),
+			TotalAmount: d.TotalAmount,
 		})
 	}
 	return results
@@ -209,7 +209,7 @@ func (h *WithdrawStatsHandler) mapToWithdrawMonthStatusSuccessData(data []reposi
 			Year:         d.Year,
 			Month:        d.Month,
 			TotalSuccess: int32(d.TotalTransactions),
-			TotalAmount:  int32(d.TotalAmount),
+			TotalAmount:  d.TotalAmount,
 		})
 	}
 	return results
@@ -221,7 +221,7 @@ func (h *WithdrawStatsHandler) mapToWithdrawYearStatusSuccessData(data []reposit
 		results = append(results, &pbWithdrawStats.WithdrawYearStatusSuccessResponse{
 			Year:         d.Year,
 			TotalSuccess: int32(d.TotalTransactions),
-			TotalAmount:  int32(d.TotalAmount),
+			TotalAmount:  d.TotalAmount,
 		})
 	}
 	return results
@@ -234,7 +234,7 @@ func (h *WithdrawStatsHandler) mapToWithdrawMonthStatusFailedData(data []reposit
 			Year:        d.Year,
 			Month:       d.Month,
 			TotalFailed: int32(d.TotalTransactions),
-			TotalAmount: int32(d.TotalAmount),
+			TotalAmount: d.TotalAmount,
 		})
 	}
 	return results
@@ -246,7 +246,7 @@ func (h *WithdrawStatsHandler) mapToWithdrawYearStatusFailedData(data []reposito
 		results = append(results, &pbWithdrawStats.WithdrawYearStatusFailedResponse{
 			Year:        d.Year,
 			TotalFailed: int32(d.TotalTransactions),
-			TotalAmount: int32(d.TotalAmount),
+			TotalAmount: d.TotalAmount,
 		})
 	}
 	return results

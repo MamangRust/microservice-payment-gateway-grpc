@@ -2,11 +2,11 @@ package repository
 
 import (
 	"context"
+	sharedErrors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
 
 	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb/role"
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/auth/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
-	userrole_errors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors/user_role_errors/repository"
 )
 
 // userRoleRepository is a struct that implements the UserRoleRepository interface
@@ -29,7 +29,7 @@ func (r *userRoleRepository) AssignRoleToUser(ctx context.Context, req *requests
 	})
 
 	if err != nil {
-		return nil, userrole_errors.ErrAssignRoleToUser
+		return nil, sharedErrors.ErrFailed("assign role to user").WithInternal(err)
 	}
 
 	// Mapping back to db.UserRole (Note: UserRoleID might be lost or we just return a dummy if not critical)
@@ -47,7 +47,7 @@ func (r *userRoleRepository) RemoveRoleFromUser(ctx context.Context, req *reques
 	})
 
 	if err != nil {
-		return userrole_errors.ErrRemoveRole
+		return sharedErrors.ErrFailed("remove role from user").WithInternal(err)
 	}
 
 	return nil

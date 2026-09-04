@@ -4,9 +4,10 @@ import (
 	"context"
 	"time"
 
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
+	database "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/auth/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
-	refreshtoken_errors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors/refresh_token_errors/repository"
+	sharedErrors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
 )
 
 // refreshTokenRepository is a struct that implements the RefreshTokenRepository interface
@@ -26,7 +27,7 @@ func (r *refreshTokenRepository) FindByToken(ctx context.Context, token string) 
 	res, err := r.db.FindRefreshTokenByToken(ctx, token)
 
 	if err != nil {
-		return nil, refreshtoken_errors.ErrTokenNotFound.WithInternal(err)
+		return nil, sharedErrors.ErrTokenNotFound.WithInternal(err)
 	}
 
 	return res, nil
@@ -37,7 +38,7 @@ func (r *refreshTokenRepository) FindByUserId(ctx context.Context, user_id int) 
 	res, err := r.db.FindRefreshTokenByUserId(ctx, int32(user_id))
 
 	if err != nil {
-		return nil, refreshtoken_errors.ErrFindByUserID.WithInternal(err)
+		return nil, sharedErrors.ErrFindByUserID.WithInternal(err)
 	}
 
 	return res, nil
@@ -48,7 +49,7 @@ func (r *refreshTokenRepository) CreateRefreshToken(ctx context.Context, req *re
 	layout := "2006-01-02 15:04:05"
 	expirationTime, err := time.Parse(layout, req.ExpiresAt)
 	if err != nil {
-		return nil, refreshtoken_errors.ErrParseDate.WithInternal(err)
+		return nil, sharedErrors.ErrParseDate.WithInternal(err)
 	}
 
 	res, err := r.db.CreateRefreshToken(ctx, db.CreateRefreshTokenParams{
@@ -58,7 +59,10 @@ func (r *refreshTokenRepository) CreateRefreshToken(ctx context.Context, req *re
 	})
 
 	if err != nil {
-		return nil, refreshtoken_errors.ErrCreateRefreshToken.WithInternal(err)
+		if database.IsUniqueViolation(err) {
+			return nil, sharedErrors.NewConflictError("refresh token already exists").WithInternal(err)
+		}
+		return nil, sharedErrors.ErrFailed("create refresh token").WithInternal(err)
 	}
 
 	return res, nil
@@ -69,7 +73,7 @@ func (r *refreshTokenRepository) UpdateRefreshToken(ctx context.Context, req *re
 	layout := "2006-01-02 15:04:05"
 	expirationTime, err := time.Parse(layout, req.ExpiresAt)
 	if err != nil {
-		return nil, refreshtoken_errors.ErrParseDate.WithInternal(err)
+		return nil, sharedErrors.ErrParseDate.WithInternal(err)
 	}
 
 	res, err := r.db.UpdateRefreshTokenByUserId(ctx, db.UpdateRefreshTokenByUserIdParams{
@@ -78,7 +82,10 @@ func (r *refreshTokenRepository) UpdateRefreshToken(ctx context.Context, req *re
 		Expiration: expirationTime,
 	})
 	if err != nil {
-		return nil, refreshtoken_errors.ErrUpdateRefreshToken.WithInternal(err)
+		if database.IsUniqueViolation(err) {
+			return nil, sharedErrors.NewConflictError("refresh token already exists").WithInternal(err)
+		}
+		return nil, sharedErrors.ErrFailed("update refresh token").WithInternal(err)
 	}
 
 	return res, nil
@@ -89,7 +96,7 @@ func (r *refreshTokenRepository) DeleteRefreshToken(ctx context.Context, token s
 	err := r.db.DeleteRefreshToken(ctx, token)
 
 	if err != nil {
-		return refreshtoken_errors.ErrDeleteRefreshToken.WithInternal(err)
+		return sharedErrors.ErrFailed("delete refresh token").WithInternal(err)
 	}
 
 	return nil
@@ -100,7 +107,7 @@ func (r *refreshTokenRepository) DeleteRefreshTokenByUserId(ctx context.Context,
 	err := r.db.DeleteRefreshTokenByUserId(ctx, int32(user_id))
 
 	if err != nil {
-		return refreshtoken_errors.ErrDeleteByUserID.WithInternal(err)
+		return sharedErrors.ErrFailed("delete refresh token by user ID").WithInternal(err)
 	}
 
 	return nil

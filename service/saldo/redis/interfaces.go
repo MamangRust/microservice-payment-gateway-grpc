@@ -3,7 +3,7 @@ package mencache
 import (
 	"context"
 
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 )
 
@@ -26,4 +26,9 @@ type SaldoQueryCache interface {
 
 type SaldoCommandCache interface {
 	DeleteSaldoCache(ctx context.Context, saldo_id int)
+	// DeleteSaldoCacheByCardNumber removes the card-number key, which is the
+	// entry the financial flows read through FindByCardNumber. Mutations must
+	// invalidate it alongside the by-id key to avoid stale balance reads up to
+	// the TTL.
+	DeleteSaldoCacheByCardNumber(ctx context.Context, card_number string)
 }

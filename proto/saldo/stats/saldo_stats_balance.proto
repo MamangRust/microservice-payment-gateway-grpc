@@ -8,12 +8,12 @@ import "saldo/saldo.proto";
 
 message SaldoMonthBalanceResponse {
   string month = 1;
-  int32 total_balance = 2;
+  int64 total_balance = 2;
 }
 
 message SaldoYearBalanceResponse {
   string year = 1;
-  int32 total_balance = 2;
+  int64 total_balance = 2;
 }
 
 message ApiResponseMonthSaldoBalances {

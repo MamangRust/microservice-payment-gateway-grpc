@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/auth/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/auth/handler"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/auth/repository"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/auth/service"
@@ -25,6 +26,8 @@ func NewServer(cfg *server.Config) (*server.GRPCServer, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	queries := db.New(srv.Pool)
 
 	tokenManager, err := auth.NewManager(viper.GetString("SECRET_KEY"))
 	if err != nil {
@@ -49,7 +52,7 @@ func NewServer(cfg *server.Config) (*server.GRPCServer, error) {
 
 	hasher := hash.NewHashingPassword()
 	repositories := repository.NewRepositories(&repository.RepositoriesDeps{
-		DB:                srv.DB,
+		DB:                queries,
 		UserQueryClient:   userQueryClient,
 		UserCommandClient: userCommandClient,
 		RoleQueryClient:   roleQueryClient,
@@ -57,7 +60,10 @@ func NewServer(cfg *server.Config) (*server.GRPCServer, error) {
 	})
 
 	kafkaBrokers := strings.Split(viper.GetString("KAFKA_BROKERS"), ",")
-	myKafka := kafka.NewKafka(srv.Logger, kafkaBrokers)
+	myKafka, err := kafka.NewKafka(srv.Logger, kafkaBrokers)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Kafka producer: %w", err)
+	}
 
 	services := service.NewService(&service.Deps{
 		Cache:        srv.CacheStore,

@@ -40,7 +40,7 @@ message TopupResponse {
   int32 id = 1;
   string card_number = 2;
   string topup_no = 3;
-  int32 topup_amount = 4;
+  int64 topup_amount = 4;
   string topup_method = 5;
   string topup_time = 6;
   string created_at = 7;
@@ -51,7 +51,7 @@ message TopupResponseDeleteAt {
   int32 id = 1;
   string card_number = 2;
   string topup_no = 3;
-  int32 topup_amount = 4;
+  int64 topup_amount = 4;
   string topup_method = 5;
   string topup_time = 6;
   string created_at = 7;

@@ -7,8 +7,8 @@ import (
 
 	pbCard "github.com/MamangRust/microservice-payment-gateway-grpc/pb/card"
 	pbCardStats "github.com/MamangRust/microservice-payment-gateway-grpc/pb/card/stats"
-	stats_cache "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/redis/api/stats"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
+	stats_cache "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/redis/api/stats"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
 	cardapimapper "github.com/MamangRust/microservice-payment-gateway-grpc/shared/mapper/card"
 	"github.com/labstack/echo/v4"
@@ -31,7 +31,7 @@ type cardStatsHandleApi struct {
 }
 
 type cardStatsHandleApiDeps struct {
-	client     pbCard.CardDashboardServiceClient // Fallback/Main card client if needed, but we use specific ones below
+	client      pbCard.CardDashboardServiceClient          // Fallback/Main card client if needed, but we use specific ones below
 	statsClient *pbCardStats.CardStatsBalanceServiceClient // Example, but we'll use deps.StatsClient directly in constructor
 }
 
@@ -133,7 +133,7 @@ func (h *cardStatsHandleApi) DashboardCardNumber(c echo.Context) error {
 	if cached, found := h.cache.GetCache(ctx, cacheKey); found {
 		return c.JSON(http.StatusOK, cached)
 	}
-	
+
 	res, err := h.cardDashboard.DashboardCardNumber(ctx, &pbCard.FindByCardNumberRequest{
 		CardNumber: cardNumber,
 	})
@@ -165,7 +165,7 @@ func (h *cardStatsHandleApi) FindMonthlyCardBalance(c echo.Context) error {
 	if cached, found := h.cache.GetCache(ctx, cacheKey); found {
 		return c.JSON(http.StatusOK, cached)
 	}
-	
+
 	res, err := h.cardBalance.FindMonthlyBalance(ctx, &pbCardStats.FindYearBalance{Year: int32(year)})
 	if err != nil {
 		return errors.ParseGrpcError(err)
@@ -195,7 +195,7 @@ func (h *cardStatsHandleApi) FindYearlyCardBalance(c echo.Context) error {
 	if cached, found := h.cache.GetCache(ctx, cacheKey); found {
 		return c.JSON(http.StatusOK, cached)
 	}
-	
+
 	res, err := h.cardBalance.FindYearlyBalance(ctx, &pbCardStats.FindYearBalance{Year: int32(year)})
 	if err != nil {
 		return errors.ParseGrpcError(err)
@@ -227,7 +227,7 @@ func (h *cardStatsHandleApi) FindMonthlyCardBalanceByCardNumber(c echo.Context) 
 	if cached, found := h.cache.GetCache(ctx, cacheKey); found {
 		return c.JSON(http.StatusOK, cached)
 	}
-	
+
 	res, err := h.cardBalance.FindMonthlyBalanceByCardNumber(ctx, &pbCardStats.FindYearBalanceCardNumber{Year: int32(year), CardNumber: cardNumber})
 	if err != nil {
 		return errors.ParseGrpcError(err)
@@ -259,7 +259,7 @@ func (h *cardStatsHandleApi) FindYearlyCardBalanceByCardNumber(c echo.Context) e
 	if cached, found := h.cache.GetCache(ctx, cacheKey); found {
 		return c.JSON(http.StatusOK, cached)
 	}
-	
+
 	res, err := h.cardBalance.FindYearlyBalanceByCardNumber(ctx, &pbCardStats.FindYearBalanceCardNumber{Year: int32(year), CardNumber: cardNumber})
 	if err != nil {
 		return errors.ParseGrpcError(err)
@@ -289,7 +289,7 @@ func (h *cardStatsHandleApi) FindMonthlyCardTopup(c echo.Context) error {
 	if cached, found := h.cache.GetCache(ctx, cacheKey); found {
 		return c.JSON(http.StatusOK, cached)
 	}
-	
+
 	res, err := h.cardTopup.FindMonthlyTopupAmount(ctx, &pbCard.FindYearAmount{Year: int32(year)})
 	if err != nil {
 		return errors.ParseGrpcError(err)
@@ -319,7 +319,7 @@ func (h *cardStatsHandleApi) FindYearlyCardTopup(c echo.Context) error {
 	if cached, found := h.cache.GetCache(ctx, cacheKey); found {
 		return c.JSON(http.StatusOK, cached)
 	}
-	
+
 	res, err := h.cardTopup.FindYearlyTopupAmount(ctx, &pbCard.FindYearAmount{Year: int32(year)})
 	if err != nil {
 		return errors.ParseGrpcError(err)
@@ -351,7 +351,7 @@ func (h *cardStatsHandleApi) FindMonthlyCardTopupByCardNumber(c echo.Context) er
 	if cached, found := h.cache.GetCache(ctx, cacheKey); found {
 		return c.JSON(http.StatusOK, cached)
 	}
-	
+
 	res, err := h.cardTopup.FindMonthlyTopupAmountByCardNumber(ctx, &pbCard.FindYearAmountCardNumber{Year: int32(year), CardNumber: cardNumber})
 	if err != nil {
 		return errors.ParseGrpcError(err)
@@ -383,7 +383,7 @@ func (h *cardStatsHandleApi) FindYearlyCardTopupByCardNumber(c echo.Context) err
 	if cached, found := h.cache.GetCache(ctx, cacheKey); found {
 		return c.JSON(http.StatusOK, cached)
 	}
-	
+
 	res, err := h.cardTopup.FindYearlyTopupAmountByCardNumber(ctx, &pbCard.FindYearAmountCardNumber{Year: int32(year), CardNumber: cardNumber})
 	if err != nil {
 		return errors.ParseGrpcError(err)
@@ -413,7 +413,7 @@ func (h *cardStatsHandleApi) FindMonthlyCardTransaction(c echo.Context) error {
 	if cached, found := h.cache.GetCache(ctx, cacheKey); found {
 		return c.JSON(http.StatusOK, cached)
 	}
-	
+
 	res, err := h.cardTrans.FindMonthlyTransactionAmount(ctx, &pbCard.FindYearAmount{Year: int32(year)})
 	if err != nil {
 		return errors.ParseGrpcError(err)
@@ -443,7 +443,7 @@ func (h *cardStatsHandleApi) FindYearlyCardTransaction(c echo.Context) error {
 	if cached, found := h.cache.GetCache(ctx, cacheKey); found {
 		return c.JSON(http.StatusOK, cached)
 	}
-	
+
 	res, err := h.cardTrans.FindYearlyTransactionAmount(ctx, &pbCard.FindYearAmount{Year: int32(year)})
 	if err != nil {
 		return errors.ParseGrpcError(err)
@@ -475,7 +475,7 @@ func (h *cardStatsHandleApi) FindMonthlyCardTransactionByCardNumber(c echo.Conte
 	if cached, found := h.cache.GetCache(ctx, cacheKey); found {
 		return c.JSON(http.StatusOK, cached)
 	}
-	
+
 	res, err := h.cardTrans.FindMonthlyTransactionAmountByCardNumber(ctx, &pbCard.FindYearAmountCardNumber{Year: int32(year), CardNumber: cardNumber})
 	if err != nil {
 		return errors.ParseGrpcError(err)
@@ -507,7 +507,7 @@ func (h *cardStatsHandleApi) FindYearlyCardTransactionByCardNumber(c echo.Contex
 	if cached, found := h.cache.GetCache(ctx, cacheKey); found {
 		return c.JSON(http.StatusOK, cached)
 	}
-	
+
 	res, err := h.cardTrans.FindYearlyTransactionAmountByCardNumber(ctx, &pbCard.FindYearAmountCardNumber{Year: int32(year), CardNumber: cardNumber})
 	if err != nil {
 		return errors.ParseGrpcError(err)
@@ -537,7 +537,7 @@ func (h *cardStatsHandleApi) FindMonthlyCardTransferSender(c echo.Context) error
 	if cached, found := h.cache.GetCache(ctx, cacheKey); found {
 		return c.JSON(http.StatusOK, cached)
 	}
-	
+
 	res, err := h.cardTransfer.FindMonthlyTransferSenderAmount(ctx, &pbCard.FindYearAmount{Year: int32(year)})
 	if err != nil {
 		return errors.ParseGrpcError(err)
@@ -567,7 +567,7 @@ func (h *cardStatsHandleApi) FindYearlyCardTransferSender(c echo.Context) error 
 	if cached, found := h.cache.GetCache(ctx, cacheKey); found {
 		return c.JSON(http.StatusOK, cached)
 	}
-	
+
 	res, err := h.cardTransfer.FindYearlyTransferSenderAmount(ctx, &pbCard.FindYearAmount{Year: int32(year)})
 	if err != nil {
 		return errors.ParseGrpcError(err)
@@ -597,7 +597,7 @@ func (h *cardStatsHandleApi) FindMonthlyCardTransferReceiver(c echo.Context) err
 	if cached, found := h.cache.GetCache(ctx, cacheKey); found {
 		return c.JSON(http.StatusOK, cached)
 	}
-	
+
 	res, err := h.cardTransfer.FindMonthlyTransferReceiverAmount(ctx, &pbCard.FindYearAmount{Year: int32(year)})
 	if err != nil {
 		return errors.ParseGrpcError(err)
@@ -627,7 +627,7 @@ func (h *cardStatsHandleApi) FindYearlyCardTransferReceiver(c echo.Context) erro
 	if cached, found := h.cache.GetCache(ctx, cacheKey); found {
 		return c.JSON(http.StatusOK, cached)
 	}
-	
+
 	res, err := h.cardTransfer.FindYearlyTransferReceiverAmount(ctx, &pbCard.FindYearAmount{Year: int32(year)})
 	if err != nil {
 		return errors.ParseGrpcError(err)
@@ -659,7 +659,7 @@ func (h *cardStatsHandleApi) FindMonthlyCardTransferSenderByCardNumber(c echo.Co
 	if cached, found := h.cache.GetCache(ctx, cacheKey); found {
 		return c.JSON(http.StatusOK, cached)
 	}
-	
+
 	res, err := h.cardTransfer.FindMonthlyTransferSenderAmountByCardNumber(ctx, &pbCard.FindYearAmountCardNumber{Year: int32(year), CardNumber: cardNumber})
 	if err != nil {
 		return errors.ParseGrpcError(err)
@@ -691,7 +691,7 @@ func (h *cardStatsHandleApi) FindYearlyCardTransferSenderByCardNumber(c echo.Con
 	if cached, found := h.cache.GetCache(ctx, cacheKey); found {
 		return c.JSON(http.StatusOK, cached)
 	}
-	
+
 	res, err := h.cardTransfer.FindYearlyTransferSenderAmountByCardNumber(ctx, &pbCard.FindYearAmountCardNumber{Year: int32(year), CardNumber: cardNumber})
 	if err != nil {
 		return errors.ParseGrpcError(err)
@@ -723,7 +723,7 @@ func (h *cardStatsHandleApi) FindMonthlyCardTransferReceiverByCardNumber(c echo.
 	if cached, found := h.cache.GetCache(ctx, cacheKey); found {
 		return c.JSON(http.StatusOK, cached)
 	}
-	
+
 	res, err := h.cardTransfer.FindMonthlyTransferReceiverAmountByCardNumber(ctx, &pbCard.FindYearAmountCardNumber{Year: int32(year), CardNumber: cardNumber})
 	if err != nil {
 		return errors.ParseGrpcError(err)
@@ -755,7 +755,7 @@ func (h *cardStatsHandleApi) FindYearlyCardTransferReceiverByCardNumber(c echo.C
 	if cached, found := h.cache.GetCache(ctx, cacheKey); found {
 		return c.JSON(http.StatusOK, cached)
 	}
-	
+
 	res, err := h.cardTransfer.FindYearlyTransferReceiverAmountByCardNumber(ctx, &pbCard.FindYearAmountCardNumber{Year: int32(year), CardNumber: cardNumber})
 	if err != nil {
 		return errors.ParseGrpcError(err)
@@ -785,7 +785,7 @@ func (h *cardStatsHandleApi) FindMonthlyCardWithdraw(c echo.Context) error {
 	if cached, found := h.cache.GetCache(ctx, cacheKey); found {
 		return c.JSON(http.StatusOK, cached)
 	}
-	
+
 	res, err := h.cardWithdraw.FindMonthlyWithdrawAmount(ctx, &pbCard.FindYearAmount{Year: int32(year)})
 	if err != nil {
 		return errors.ParseGrpcError(err)
@@ -815,7 +815,7 @@ func (h *cardStatsHandleApi) FindYearlyCardWithdraw(c echo.Context) error {
 	if cached, found := h.cache.GetCache(ctx, cacheKey); found {
 		return c.JSON(http.StatusOK, cached)
 	}
-	
+
 	res, err := h.cardWithdraw.FindYearlyWithdrawAmount(ctx, &pbCard.FindYearAmount{Year: int32(year)})
 	if err != nil {
 		return errors.ParseGrpcError(err)
@@ -847,7 +847,7 @@ func (h *cardStatsHandleApi) FindMonthlyCardWithdrawByCardNumber(c echo.Context)
 	if cached, found := h.cache.GetCache(ctx, cacheKey); found {
 		return c.JSON(http.StatusOK, cached)
 	}
-	
+
 	res, err := h.cardWithdraw.FindMonthlyWithdrawAmountByCardNumber(ctx, &pbCard.FindYearAmountCardNumber{Year: int32(year), CardNumber: cardNumber})
 	if err != nil {
 		return errors.ParseGrpcError(err)
@@ -879,7 +879,7 @@ func (h *cardStatsHandleApi) FindYearlyCardWithdrawByCardNumber(c echo.Context) 
 	if cached, found := h.cache.GetCache(ctx, cacheKey); found {
 		return c.JSON(http.StatusOK, cached)
 	}
-	
+
 	res, err := h.cardWithdraw.FindYearlyWithdrawAmountByCardNumber(ctx, &pbCard.FindYearAmountCardNumber{Year: int32(year), CardNumber: cardNumber})
 	if err != nil {
 		return errors.ParseGrpcError(err)

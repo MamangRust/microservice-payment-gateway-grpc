@@ -3,30 +3,38 @@ package response
 // CardResponse represents the basic card information returned in API responses.
 // Used for non-sensitive card data display in most endpoints.
 type CardResponse struct {
-	ID           int    `json:"id"`            // Unique card identifier
-	UserID       int    `json:"user_id"`       // ID of the card owner
-	CardNumber   string `json:"card_number"`   // Masked card number (e.g., "4242********4242")
-	CardType     string `json:"card_type"`     // Type of card ("credit" or "debit")
-	ExpireDate   string `json:"expire_date"`   // Card expiration date (MM/YY format)
-	CVV          string `json:"cvv"`           // Masked CVV (typically "***")
-	CardProvider string `json:"card_provider"` // Card issuer (e.g., "Visa", "MasterCard")
-	CreatedAt    string `json:"created_at"`    // Timestamp when card was added (RFC3339 format)
-	UpdatedAt    string `json:"updated_at"`    // Timestamp when card was last updated
+	ID                 int    `json:"id"`            // Unique card identifier
+	UserID             int    `json:"user_id"`       // ID of the card owner
+	CardNumber         string `json:"card_number"`   // Masked card number (e.g., "4242********4242")
+	CardType           string `json:"card_type"`     // Type of card ("credit" or "debit")
+	ExpireDate         string `json:"expire_date"`   // Card expiration date (MM/YY format)
+	CVV                string `json:"cvv"`           // Masked CVV (typically "***")
+	CardProvider       string `json:"card_provider"` // Card issuer (e.g., "Visa", "MasterCard")
+	CreatedAt          string `json:"created_at"`    // Timestamp when card was added (RFC3339 format)
+	UpdatedAt          string `json:"updated_at"`    // Timestamp when card was last updated
+	Status             string `json:"status,omitempty"`
+	CreditLimit        int    `json:"credit_limit,omitempty"`
+	OutstandingBalance int    `json:"outstanding_balance,omitempty"`
+	RewardPoints       int    `json:"reward_points,omitempty"`
 }
 
 // CardResponseDeleteAt extends CardResponse with deletion information.
 // Used in administrative interfaces showing soft-deleted cards.
 type CardResponseDeleteAt struct {
-	ID           int     `json:"id"`            // Unique card identifier
-	UserID       int     `json:"user_id"`       // ID of the card owner
-	CardNumber   string  `json:"card_number"`   // Masked card number
-	CardType     string  `json:"card_type"`     // Type of card
-	ExpireDate   string  `json:"expire_date"`   // Card expiration date
-	CVV          string  `json:"cvv"`           // Masked CVV
-	CardProvider string  `json:"card_provider"` // Card issuer
-	CreatedAt    string  `json:"created_at"`    // Creation timestamp
-	UpdatedAt    string  `json:"updated_at"`    // Last update timestamp
-	DeletedAt    *string `json:"deleted_at"`    // Deletion timestamp (nil if not deleted)
+	ID                 int     `json:"id"`            // Unique card identifier
+	UserID             int     `json:"user_id"`       // ID of the card owner
+	CardNumber         string  `json:"card_number"`   // Masked card number
+	CardType           string  `json:"card_type"`     // Type of card
+	ExpireDate         string  `json:"expire_date"`   // Card expiration date
+	CVV                string  `json:"cvv"`           // Masked CVV
+	CardProvider       string  `json:"card_provider"` // Card issuer
+	CreatedAt          string  `json:"created_at"`    // Creation timestamp
+	UpdatedAt          string  `json:"updated_at"`    // Last update timestamp
+	DeletedAt          *string `json:"deleted_at"`    // Deletion timestamp (nil if not deleted)
+	Status             string  `json:"status,omitempty"`
+	CreditLimit        int     `json:"credit_limit,omitempty"`
+	OutstandingBalance int     `json:"outstanding_balance,omitempty"`
+	RewardPoints       int     `json:"reward_points,omitempty"`
 }
 
 // DashboardCard represents aggregated card statistics for dashboard display.

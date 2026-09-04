@@ -56,9 +56,11 @@ type FindAllWithdrawCardNumber struct {
 // CreateWithdrawRequest represents the payload for creating a new withdrawal.
 // Used when processing cash withdrawals from cards/accounts.
 type CreateWithdrawRequest struct {
-	CardNumber     string    `json:"card_number" validate:"required,min=1"`         // Card/account number for withdrawal
-	WithdrawAmount int       `json:"withdraw_amount" validate:"required,min=50000"` // Amount to withdraw (minimum 50,000 in smallest unit)
-	WithdrawTime   time.Time `json:"withdraw_time" validate:"required"`             // Timestamp of withdrawal
+	CardNumber          string    `json:"card_number" validate:"required,min=1"`         // Card/account number for withdrawal
+	WithdrawAmount      int       `json:"withdraw_amount" validate:"required,min=50000"` // Amount to withdraw (minimum 50,000 in smallest unit)
+	WithdrawTime        time.Time `json:"withdraw_time" validate:"required"`             // Timestamp of withdrawal
+	IdempotencyKey      string    `json:"-"`                                             // Client retry key; transported through gRPC metadata field
+	AuthenticatedUserID int       `json:"-"`                                             // User identity asserted by the authenticated gateway
 }
 
 // UpdateWithdrawRequest represents the payload for modifying a withdrawal record.

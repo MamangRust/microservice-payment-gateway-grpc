@@ -1,6 +1,7 @@
 package middlewares
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -28,8 +29,7 @@ func WebSecurityConfig(e *echo.Echo) {
 			user := c.Get("user").(*jwt.Token)
 
 			if claims, ok := user.Claims.(jwt.MapClaims); ok {
-				subject := claims["sub"]
-				c.Set("userId", subject)
+				c.Set("user_id", fmt.Sprint(claims["sub"]))
 			}
 		},
 		ErrorHandler: func(c echo.Context, err error) error {

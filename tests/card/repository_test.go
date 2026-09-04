@@ -3,14 +3,15 @@ package card_test
 import (
 	"context"
 	"fmt"
+	userdb "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/database/schema"
 	"testing"
 	"time"
 
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
-	tests "github.com/MamangRust/microservice-payment-gateway-test"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/card/repository"
 	user_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/repository"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
+	tests "github.com/MamangRust/microservice-payment-gateway-test"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/suite"
@@ -35,8 +36,10 @@ func (s *CardRepositoryTestSuite) SetupSuite() {
 	s.Require().NoError(err)
 
 	queries := db.New(pool)
+
+	userdbQueries := userdb.New(pool)
 	s.repo = repository.NewRepositories(queries, nil)
-	s.userRepo = user_repo.NewRepositories(queries)
+	s.userRepo = user_repo.NewRepositories(userdbQueries)
 
 	// Create a user for card ownership
 	user, err := s.userRepo.UserCommand().CreateUser(context.Background(), &requests.CreateUserRequest{

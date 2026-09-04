@@ -2,20 +2,27 @@ package topup_test
 
 import (
 	"context"
+	"errors"
+	carddb "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/database/schema"
+	saldodb "github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/database/schema"
+	userdb "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/database/schema"
+	"net/http"
+	"sync"
 	"testing"
 	"time"
 
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/cache"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/observability"
-	tests "github.com/MamangRust/microservice-payment-gateway-test"
 	card_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/repository"
 	saldo_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/repository"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/topup/database/schema"
 	topup_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/topup/repository"
-	user_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/repository"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/topup/service"
+	user_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/repository"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/cache"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
+	app_errors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/observability"
+	tests "github.com/MamangRust/microservice-payment-gateway-test"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/suite"
@@ -51,12 +58,18 @@ func (s *TopupServiceTestSuite) SetupSuite() {
 	s.redisClient = redis.NewClient(opts)
 
 	queries := db.New(pool)
-	
+
+	saldodbQueries := saldodb.New(s.dbPool)
+
+	carddbQueries := carddb.New(s.dbPool)
+
+	userdbQueries := userdb.New(s.dbPool)
+
 	// Initialize repos from their modules
-	userRepos := user_repo.NewRepositories(queries)
-	cardRepos := card_repo.NewRepositories(queries, nil)
-	saldoRepos := saldo_repo.NewRepositories(queries, nil)
-	
+	userRepos := user_repo.NewRepositories(userdbQueries)
+	cardRepos := card_repo.NewRepositories(carddbQueries, nil)
+	saldoRepos := saldo_repo.NewRepositories(saldodbQueries, nil)
+
 	// Match topup repository interfaces
 	cardAdapter := &topupCardRepoAdapter{
 		CardQueryRepository:   cardRepos.CardQuery,
@@ -92,7 +105,7 @@ func (s *TopupServiceTestSuite) SetupSuite() {
 		Password:  "password123",
 	})
 	s.Require().NoError(err)
-	
+
 	card, err := s.cardRepo.CreateCard(ctx, &requests.CreateCardRequest{
 		UserID:       int(user.UserID),
 		CardType:     "debit",
@@ -133,7 +146,7 @@ func (s *TopupServiceTestSuite) Test1_CreateTopup() {
 	topup, err := s.topupService.CreateTopup(ctx, req)
 	s.NoError(err)
 	s.NotNil(topup)
-	s.Equal(int32(req.TopupAmount), topup.TopupAmount)
+	s.Equal(int64(req.TopupAmount), topup.TopupAmount)
 	s.topupID = topup.TopupID
 }
 
@@ -144,7 +157,7 @@ func (s *TopupServiceTestSuite) Test2_FindById() {
 	found, err := s.topupService.FindById(ctx, int(s.topupID))
 	s.NoError(err)
 	s.NotNil(found)
-	s.Equal(int32(100000), found.TopupAmount)
+	s.Equal(int64(100000), found.TopupAmount)
 }
 
 func (s *TopupServiceTestSuite) Test3_FindAll() {
@@ -173,7 +186,7 @@ func (s *TopupServiceTestSuite) Test4_UpdateTopup() {
 	updated, err := s.topupService.UpdateTopup(ctx, req)
 	s.NoError(err)
 	s.NotNil(updated)
-	s.Equal(int32(150000), updated.TopupAmount)
+	s.Equal(int64(150000), updated.TopupAmount)
 }
 
 func (s *TopupServiceTestSuite) Test5_TrashAndRestore() {
@@ -208,6 +221,113 @@ func (s *TopupServiceTestSuite) Test7_BulkOperations() {
 	success, err = s.topupService.DeleteAllTopupPermanent(ctx)
 	s.NoError(err)
 	s.True(success)
+}
+
+func (s *TopupServiceTestSuite) Test8_Idempotency_SameKeyReplaysWithoutDoubleCredit() {
+	ctx := context.Background()
+
+	// Fresh card with an empty balance so balance assertions stay deterministic.
+	user, err := s.userRepo.CreateUser(ctx, &requests.CreateUserRequest{
+		FirstName: "Idem", LastName: "Topup", Email: "idem.topup@example.com", Password: "password123",
+	})
+	s.Require().NoError(err)
+	card, err := s.cardRepo.CreateCard(ctx, &requests.CreateCardRequest{
+		UserID:       int(user.UserID),
+		CardType:     "debit",
+		ExpireDate:   time.Now().AddDate(1, 0, 0),
+		CVV:          "555",
+		CardProvider: "visa",
+	})
+	s.Require().NoError(err)
+	_, err = s.saldoRepo.CreateSaldo(ctx, &requests.CreateSaldoRequest{CardNumber: card.CardNumber, TotalBalance: 0})
+	s.Require().NoError(err)
+
+	req := &requests.CreateTopupRequest{
+		CardNumber:     card.CardNumber,
+		TopupAmount:    50000,
+		TopupMethod:    "visa",
+		IdempotencyKey: "topup-idem-key-1",
+	}
+
+	// First call executes and credits the balance once.
+	first, err := s.topupService.CreateTopup(ctx, req)
+	s.Require().NoError(err)
+	s.Require().NotNil(first)
+
+	// Retry with the exact same key + payload must replay, not re-execute.
+	replay, err := s.topupService.CreateTopup(ctx, req)
+	s.Require().NoError(err)
+	s.Require().NotNil(replay)
+	s.Equal(first.TopupID, replay.TopupID, "replay must return the original record")
+
+	bal, err := saldodb.New(s.dbPool).GetSaldoByCardNumber(ctx, card.CardNumber)
+	s.Require().NoError(err)
+	s.Equal(int64(50000), bal.TotalBalance, "balance must be credited exactly once")
+
+	// Same key with a different payload must be rejected with a conflict.
+	conflictReq := &requests.CreateTopupRequest{
+		CardNumber:     card.CardNumber,
+		TopupAmount:    75000,
+		TopupMethod:    "visa",
+		IdempotencyKey: "topup-idem-key-1",
+	}
+	_, err = s.topupService.CreateTopup(ctx, conflictReq)
+	s.Require().Error(err)
+	var appErr *app_errors.AppError
+	s.True(errors.As(err, &appErr), "conflict must surface as an AppError")
+	s.Equal(http.StatusConflict, appErr.Code)
+
+	// Balance is still credited exactly once after the rejected retry.
+	bal, err = saldodb.New(s.dbPool).GetSaldoByCardNumber(ctx, card.CardNumber)
+	s.Require().NoError(err)
+	s.Equal(int64(50000), bal.TotalBalance)
+}
+
+func (s *TopupServiceTestSuite) Test9_Idempotency_ConcurrentSameKeyCreditsOnce() {
+	ctx := context.Background()
+
+	// Fresh card with an empty balance so balance assertions stay deterministic.
+	user, err := s.userRepo.CreateUser(ctx, &requests.CreateUserRequest{
+		FirstName: "Idem", LastName: "Concurrent", Email: "idem.concurrent@example.com", Password: "password123",
+	})
+	s.Require().NoError(err)
+	card, err := s.cardRepo.CreateCard(ctx, &requests.CreateCardRequest{
+		UserID:       int(user.UserID),
+		CardType:     "debit",
+		ExpireDate:   time.Now().AddDate(1, 0, 0),
+		CVV:          "999",
+		CardProvider: "visa",
+	})
+	s.Require().NoError(err)
+	_, err = s.saldoRepo.CreateSaldo(ctx, &requests.CreateSaldoRequest{CardNumber: card.CardNumber, TotalBalance: 0})
+	s.Require().NoError(err)
+
+	req := &requests.CreateTopupRequest{
+		CardNumber:     card.CardNumber,
+		TopupAmount:    50000,
+		TopupMethod:    "visa",
+		IdempotencyKey: "topup-concurrent-key-1",
+	}
+
+	const workers = 5
+	var wg sync.WaitGroup
+	results := make([]error, workers)
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			_, err := s.topupService.CreateTopup(ctx, req)
+			results[idx] = err
+		}(i)
+	}
+	wg.Wait()
+
+	// Exactly one goroutine may succeed; the rest must be replay or "still
+	// processing" conflicts. No request may succeed more than once because the
+	// balance must reflect a single credit.
+	bal, err := saldodb.New(s.dbPool).GetSaldoByCardNumber(ctx, card.CardNumber)
+	s.Require().NoError(err)
+	s.Equal(int64(50000), bal.TotalBalance, "balance must be credited exactly once under concurrency")
 }
 
 func TestTopupServiceSuite(t *testing.T) {

@@ -16,7 +16,7 @@ type transactionmencache struct {
 
 func NewTransactionMencache(cacheStore *cache.CacheStore) TransactionMencache {
 	return &transactionmencache{
-		TransactionQueryCache:       NewTransactionQueryCache(cacheStore),
-		TransactionCommandCache:     NewTransactionCommandCache(cacheStore),
+		TransactionQueryCache:   NewTransactionQueryCache(cacheStore),
+		TransactionCommandCache: NewTransactionCommandCache(cacheStore),
 	}
 }

@@ -1,7 +1,7 @@
 package repository
 
 import (
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/database/schema"
 )
 
 type Repositories interface {

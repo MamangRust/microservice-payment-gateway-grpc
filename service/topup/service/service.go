@@ -1,13 +1,13 @@
 package service
 
 import (
+	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/adapter"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/kafka"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
+	mencache "github.com/MamangRust/microservice-payment-gateway-grpc/service/topup/redis"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/service/topup/repository"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/cache"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/observability"
-	mencache "github.com/MamangRust/microservice-payment-gateway-grpc/service/topup/redis"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/adapter"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/service/topup/repository"
 )
 
 type Service interface {
@@ -57,6 +57,8 @@ func newTopupCommandService(deps *Deps, observability observability.TraceLoggerO
 		TopupQueryRepository:   deps.Repositories,
 		TopupCommandRepository: deps.Repositories,
 		SaldoAdapter:           deps.SaldoAdapter,
+		IdempotencyStore:       deps.Repositories,
+		OutboxStore:            deps.Repositories,
 		Logger:                 deps.Logger,
 		Observability:          observability,
 	})

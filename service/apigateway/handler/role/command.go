@@ -4,14 +4,11 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"time"
 
-	"github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/middlewares"
-	mencache "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/redis"
-	role_cache "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/redis/api/role"
 	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb/role"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/kafka"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/middlewares"
+	role_cache "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/redis/api/role"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
 	apimapper "github.com/MamangRust/microservice-payment-gateway-grpc/shared/mapper/role"
@@ -22,8 +19,6 @@ import (
 )
 
 type roleCommandHandleApi struct {
-	kafka *kafka.Kafka
-
 	role pb.RoleCommandServiceClient
 
 	logger logger.LoggerInterface
@@ -44,9 +39,7 @@ type roleCommandHandleDeps struct {
 
 	mapper apimapper.RoleCommandResponseMapper
 
-	kafka *kafka.Kafka
-
-	cache_role mencache.RoleCache
+	roleValidator *middlewares.RoleValidator
 
 	cache role_cache.RoleMencache
 
@@ -60,15 +53,14 @@ func NewRoleCommandHandleApi(params *roleCommandHandleDeps) *roleCommandHandleAp
 		mapper:     params.mapper,
 		cache:      params.cache,
 		apiHandler: params.apiHandler,
-		kafka:      params.kafka,
 	}
 
-	roleMiddleware := middlewares.NewRoleValidator(params.kafka, "request-role", "response-role", 5*time.Second, params.logger, params.cache_role)
+	roleMiddleware := params.roleValidator
 
 	routerRole := params.router.Group("/api/role")
 
 	roleMiddlewareChain := roleMiddleware.Middleware()
-	requireAdmin := middlewares.RequireRoles("Admin_Admin_14")
+	requireAdmin := middlewares.RequireRoles("ROLE_ADMIN")
 
 	routerRole.POST(
 		"",
@@ -83,6 +75,14 @@ func NewRoleCommandHandleApi(params *roleCommandHandleDeps) *roleCommandHandleAp
 		params.apiHandler.Handle(
 			"update-role",
 			roleMiddlewareChain(requireAdmin(roleHandler.Update)),
+		),
+	)
+
+	routerRole.POST(
+		"/trashed/:id",
+		params.apiHandler.Handle(
+			"trashed-role",
+			roleMiddlewareChain(requireAdmin(roleHandler.Trashed)),
 		),
 	)
 

@@ -10,6 +10,7 @@ import (
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
 	role_errors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors/role_errors/grpc"
+	"github.com/jackc/pgx/v5/pgtype"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
@@ -99,15 +100,18 @@ func (s *roleQueryHandleGrpc) FindByActive(ctx context.Context, req *pb.FindAllR
 		return nil, errors.ToGrpcError(err)
 	}
 
-	protoRoles := make([]*pb.RoleResponseDeleteAt, len(roles))
-	for i, role := range roles {
-		protoRoles[i] = &pb.RoleResponseDeleteAt{
-			Id:        int32(role.RoleID),
-			Name:      role.RoleName,
-			CreatedAt: role.CreatedAt.Time.Format("2006-01-02"),
-			UpdatedAt: role.UpdatedAt.Time.Format("2006-01-02"),
-			DeletedAt: wrapperspb.String(role.DeletedAt.Time.Format("2006-01-02")),
+	protoRoles := make([]*pb.RoleResponseDeleteAt, 0, len(roles))
+	for _, role := range roles {
+		if role == nil {
+			continue
 		}
+		protoRoles = append(protoRoles, mapRoleResponseDeleteAt(
+			role.RoleID,
+			role.RoleName,
+			role.CreatedAt,
+			role.UpdatedAt,
+			role.DeletedAt,
+		))
 	}
 
 	totalPages := int(math.Ceil(float64(*totalRecords) / float64(pageSize)))
@@ -151,15 +155,18 @@ func (s *roleQueryHandleGrpc) FindByTrashed(ctx context.Context, req *pb.FindAll
 		return nil, errors.ToGrpcError(err)
 	}
 
-	protoRoles := make([]*pb.RoleResponseDeleteAt, len(roles))
-	for i, role := range roles {
-		protoRoles[i] = &pb.RoleResponseDeleteAt{
-			Id:        int32(role.RoleID),
-			Name:      role.RoleName,
-			CreatedAt: role.CreatedAt.Time.Format("2006-01-02"),
-			UpdatedAt: role.UpdatedAt.Time.Format("2006-01-02"),
-			DeletedAt: wrapperspb.String(role.DeletedAt.Time.Format("2006-01-02")),
+	protoRoles := make([]*pb.RoleResponseDeleteAt, 0, len(roles))
+	for _, role := range roles {
+		if role == nil {
+			continue
 		}
+		protoRoles = append(protoRoles, mapRoleResponseDeleteAt(
+			role.RoleID,
+			role.RoleName,
+			role.CreatedAt,
+			role.UpdatedAt,
+			role.DeletedAt,
+		))
 	}
 
 	totalPages := int(math.Ceil(float64(*totalRecords) / float64(pageSize)))
@@ -177,6 +184,21 @@ func (s *roleQueryHandleGrpc) FindByTrashed(ctx context.Context, req *pb.FindAll
 		Data:           protoRoles,
 		PaginationMeta: paginationMeta,
 	}, nil
+}
+
+func mapRoleResponseDeleteAt(id int32, name string, createdAt, updatedAt, deletedAt pgtype.Timestamp) *pb.RoleResponseDeleteAt {
+	response := &pb.RoleResponseDeleteAt{
+		Id:        id,
+		Name:      name,
+		CreatedAt: createdAt.Time.Format("2006-01-02"),
+		UpdatedAt: updatedAt.Time.Format("2006-01-02"),
+	}
+
+	if deletedAt.Valid {
+		response.DeletedAt = wrapperspb.String(deletedAt.Time.Format("2006-01-02"))
+	}
+
+	return response
 }
 
 func (s *roleQueryHandleGrpc) FindByIdRole(ctx context.Context, req *pb.FindByIdRoleRequest) (*pb.ApiResponseRole, error) {

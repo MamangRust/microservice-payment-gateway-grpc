@@ -3,14 +3,15 @@ package merchant_test
 import (
 	"context"
 	"fmt"
+	userdb "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/database/schema"
 	"testing"
 	"time"
 
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
-	tests "github.com/MamangRust/microservice-payment-gateway-test"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/merchant/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/merchant/repository"
 	user_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/repository"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
+	tests "github.com/MamangRust/microservice-payment-gateway-test"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/suite"
@@ -18,12 +19,12 @@ import (
 
 type MerchantRepositoryTestSuite struct {
 	suite.Suite
-	ts         *tests.TestSuite
-	dbPool     *pgxpool.Pool
-	repo       repository.MerchantCommandRepository
-	queryRepo  repository.MerchantQueryRepository
-	userRepo   user_repo.UserCommandRepository
-	userID     int
+	ts        *tests.TestSuite
+	dbPool    *pgxpool.Pool
+	repo      repository.MerchantCommandRepository
+	queryRepo repository.MerchantQueryRepository
+	userRepo  user_repo.UserCommandRepository
+	userID    int
 }
 
 func (s *MerchantRepositoryTestSuite) SetupSuite() {
@@ -38,9 +39,11 @@ func (s *MerchantRepositoryTestSuite) SetupSuite() {
 	s.dbPool = pool
 
 	queries := db.New(pool)
+
+	userdbQueries := userdb.New(pool)
 	s.repo = repository.NewMerchantCommandRepository(queries)
 	s.queryRepo = repository.NewMerchantQueryRepository(queries)
-	s.userRepo = user_repo.NewUserCommandRepository(queries)
+	s.userRepo = user_repo.NewUserCommandRepository(userdbQueries)
 
 	// Seed User
 	user, err := s.userRepo.CreateUser(context.Background(), &requests.CreateUserRequest{

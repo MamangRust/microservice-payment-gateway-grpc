@@ -4,8 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/MamangRust/microservice-payment-gateway-grpc/service/card/service"
 	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb/card"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/database/schema"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/service/card/service"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
 	card_errors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors/card_errors/grpc"
@@ -44,14 +45,15 @@ func (s *cardCommandService) CreateCard(ctx context.Context, req *pb.CreateCardR
 	}
 
 	protoCard := &pb.CardResponse{
-		Id:         int32(res.CardID),
-		UserId:     int32(res.UserID),
-		CardNumber: res.CardNumber,
-		CardType:   res.CardType,
-		Cvv:        res.Cvv,
-		ExpireDate: res.ExpireDate.Time.Format(time.RFC3339),
-		CreatedAt:  res.CreatedAt.Time.Format(time.RFC3339),
-		UpdatedAt:  res.UpdatedAt.Time.Format(time.RFC3339),
+		Id:           int32(res.CardID),
+		UserId:       int32(res.UserID),
+		CardNumber:   res.CardNumber,
+		CardType:     res.CardType,
+		CardProvider: res.CardProvider,
+		Cvv:          res.Cvv,
+		ExpireDate:   res.ExpireDate.Time.Format(time.RFC3339),
+		CreatedAt:    res.CreatedAt.Time.Format(time.RFC3339),
+		UpdatedAt:    res.UpdatedAt.Time.Format(time.RFC3339),
 	}
 
 	return &pb.ApiResponseCard{
@@ -81,14 +83,15 @@ func (s *cardCommandService) UpdateCard(ctx context.Context, req *pb.UpdateCardR
 	}
 
 	protoCard := &pb.CardResponse{
-		Id:         int32(res.CardID),
-		UserId:     int32(res.UserID),
-		CardNumber: res.CardNumber,
-		CardType:   res.CardType,
-		Cvv:        res.Cvv,
-		ExpireDate: res.ExpireDate.Time.Format(time.RFC3339),
-		CreatedAt:  res.CreatedAt.Time.Format(time.RFC3339),
-		UpdatedAt:  res.UpdatedAt.Time.Format(time.RFC3339),
+		Id:           int32(res.CardID),
+		UserId:       int32(res.UserID),
+		CardNumber:   res.CardNumber,
+		CardType:     res.CardType,
+		CardProvider: res.CardProvider,
+		Cvv:          res.Cvv,
+		ExpireDate:   res.ExpireDate.Time.Format(time.RFC3339),
+		CreatedAt:    res.CreatedAt.Time.Format(time.RFC3339),
+		UpdatedAt:    res.UpdatedAt.Time.Format(time.RFC3339),
 	}
 
 	return &pb.ApiResponseCard{
@@ -197,4 +200,96 @@ func (s *cardCommandService) DeleteAllCardPermanent(ctx context.Context, _ *empt
 		Status:  "success",
 		Message: "Successfully delete card permanent",
 	}, nil
+}
+
+func cardMutationResponse(res *db.UpdateCardStatusRow, message string) *pb.ApiResponseCard {
+	return &pb.ApiResponseCard{
+		Status:  "success",
+		Message: message,
+		Data: &pb.CardResponse{
+			Id:                 res.CardID,
+			UserId:             res.UserID,
+			CardNumber:         res.CardNumber,
+			CardType:           res.CardType,
+			ExpireDate:         res.ExpireDate.Time.Format(time.RFC3339),
+			Cvv:                res.Cvv,
+			CardProvider:       res.CardProvider,
+			Status:             res.Status,
+			CreditLimit:        res.CreditLimit,
+			OutstandingBalance: res.OutstandingBalance,
+			RewardPoints:       res.RewardPoints,
+			CreatedAt:          res.CreatedAt.Time.Format(time.RFC3339),
+			UpdatedAt:          res.UpdatedAt.Time.Format(time.RFC3339),
+		},
+	}
+}
+
+func (s *cardCommandService) ToggleCardStatus(ctx context.Context, req *pb.ToggleCardStatusRequest) (*pb.ApiResponseCard, error) {
+	if req.GetCardId() <= 0 {
+		return nil, card_errors.ErrGrpcInvalidCardID
+	}
+	request := &requests.ToggleCardStatusRequest{CardID: int(req.GetCardId())}
+	if err := request.Validate(); err != nil {
+		return nil, card_errors.ErrGrpcValidateToggleCardStatus
+	}
+	res, err := s.cardCommand.ToggleCardStatus(ctx, request)
+	if err != nil {
+		return nil, errors.ToGrpcError(err)
+	}
+	return cardMutationResponse(res, "Successfully toggled card status"), nil
+}
+
+func (s *cardCommandService) UpdateCreditLimit(ctx context.Context, req *pb.UpdateCreditLimitRequest) (*pb.ApiResponseCard, error) {
+	if req.GetCardId() <= 0 {
+		return nil, card_errors.ErrGrpcInvalidCardID
+	}
+	request := &requests.UpdateCreditLimitRequest{
+		CardID:      int(req.GetCardId()),
+		CreditLimit: int(req.GetCreditLimit()),
+	}
+	if err := request.Validate(); err != nil {
+		return nil, card_errors.ErrGrpcValidateUpdateCreditLimit
+	}
+	res, err := s.cardCommand.UpdateCreditLimit(ctx, request)
+	if err != nil {
+		return nil, errors.ToGrpcError(err)
+	}
+	return cardMutationResponse(&db.UpdateCardStatusRow{
+		CardID: res.CardID, UserID: res.UserID, CardNumber: res.CardNumber,
+		CardType: res.CardType, ExpireDate: res.ExpireDate, Cvv: res.Cvv,
+		CardProvider: res.CardProvider, Status: res.Status,
+		CreditLimit: res.CreditLimit, OutstandingBalance: res.OutstandingBalance,
+		RewardPoints: res.RewardPoints, CreatedAt: res.CreatedAt, UpdatedAt: res.UpdatedAt,
+	}, "Successfully updated credit limit"), nil
+}
+
+func (s *cardCommandService) RedeemPoints(ctx context.Context, req *pb.RedeemPointsRequest) (*pb.ApiResponseCard, error) {
+	if req.GetCardId() <= 0 {
+		return nil, card_errors.ErrGrpcInvalidCardID
+	}
+	request := &requests.RedeemPointsRequest{
+		CardID: int(req.GetCardId()),
+		Points: int(req.GetPoints()),
+	}
+	if err := request.Validate(); err != nil {
+		return nil, card_errors.ErrGrpcValidateRedeemPoints
+	}
+	res, err := s.cardCommand.RedeemPoints(ctx, request)
+	if err != nil {
+		return nil, errors.ToGrpcError(err)
+	}
+	return cardMutationResponse(&db.UpdateCardStatusRow{
+		CardID: res.CardID, UserID: res.UserID, CardNumber: res.CardNumber,
+		CardType: res.CardType, ExpireDate: res.ExpireDate, Cvv: res.Cvv,
+		CardProvider: res.CardProvider, Status: res.Status,
+		CreditLimit: res.CreditLimit, OutstandingBalance: res.OutstandingBalance,
+		RewardPoints: res.RewardPoints, CreatedAt: res.CreatedAt, UpdatedAt: res.UpdatedAt,
+	}, "Successfully redeemed reward points"), nil
+}
+
+func (s *cardCommandService) ProcessBillingCycles(ctx context.Context, _ *emptypb.Empty) (*emptypb.Empty, error) {
+	if err := s.cardCommand.ProcessBillingCycles(ctx); err != nil {
+		return nil, errors.ToGrpcError(err)
+	}
+	return &emptypb.Empty{}, nil
 }

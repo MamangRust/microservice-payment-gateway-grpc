@@ -16,7 +16,7 @@ type transfermencache struct {
 
 func NewTransferMencache(cacheStore *cache.CacheStore) TransferMencache {
 	return &transfermencache{
-		TransferQueryCache:       NewTransferQueryCache(cacheStore),
-		TransferCommandCache:     NewTransferCommandCache(cacheStore),
+		TransferQueryCache:   NewTransferQueryCache(cacheStore),
+		TransferCommandCache: NewTransferCommandCache(cacheStore),
 	}
 }

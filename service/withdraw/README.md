@@ -2,7 +2,7 @@
 
 ## Overview
 
-`WithdrawService` is a monolith responsible for managing withdrawal transactions. It provides monthly and yearly statistics categorized by status, amount, and card number. The service is designed with high observability using Prometheus, OpenTelemetry, and Zap Logger.
+`WithdrawService` is a microservice responsible for managing withdrawal transactions. It provides monthly and yearly statistics categorized by status, amount, and card number. The service is designed with high observability using Prometheus, OpenTelemetry, and Zap Logger.
 
 
 ### 🔄 Service Architecture
@@ -97,5 +97,20 @@ The WithdrawService publishes withdrawal events to Kafka to enable asynchronous 
 
 | Kafka Topic                                            | Purpose                                                               | Consumer Group        |
 | ------------------------------------------------------ | --------------------------------------------------------------------- | --------------------- |
-| `email-service-topic-withdraw-created`                 | Notify user when a new withdraw is successfully created               | `email-service-group` |
+| `email-service-topic-withdraw-create`                 | Notify user when a new withdraw is successfully created               | `email-service-group` |
+| `email-service-topic-withdraw-update`                  | Notify user when a withdraw record is updated                         | `email-service-group` |
+----
+
+### 📏 Daily Withdrawal Limit
+
+Each card has a per-day withdrawal cap, enforced before any balance mutation:
+
+- **Env:** `WITHDRAW_DAILY_LIMIT` (smallest currency unit, default `10_000_000`)
+- **Rule:** `sum(today's successful withdrawals) + new amount <= limit`; otherwise the
+  request is rejected with `400 Bad Request: Daily withdrawal limit exceeded` and the
+  balance is left untouched.
+- **Enforced in:** `CreateWithdraw` and the positive-delta path of `UpdateWithdraw`.
+- **Query:** `GetTodayWithdrawSumByCardNumber` (`service/withdraw/sqlc/query/withdraw.sql`).
+
+To disable the limit, set `WITHDRAW_DAILY_LIMIT=0`.
 ----

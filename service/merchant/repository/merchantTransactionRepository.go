@@ -2,10 +2,10 @@ package repository
 
 import (
 	"context"
+	sharedErrors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
 
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/merchant/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
-	merchant_errors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors/merchant_errors/repository"
 )
 
 type merchantTransactionRepository struct {
@@ -30,7 +30,7 @@ func (r *merchantTransactionRepository) FindAllTransactions(ctx context.Context,
 	merchant, err := r.db.FindAllTransactions(ctx, reqDb)
 
 	if err != nil {
-		return nil, merchant_errors.ErrFindAllTransactionsFailed.WithInternal(err)
+		return nil, sharedErrors.ErrFailed("find all merchant transactions").WithInternal(err)
 	}
 
 	return merchant, nil
@@ -49,7 +49,7 @@ func (r *merchantTransactionRepository) FindAllTransactionsByMerchant(ctx contex
 	merchant, err := r.db.FindAllTransactionsByMerchant(ctx, reqDb)
 
 	if err != nil {
-		return nil, merchant_errors.ErrFindAllTransactionsByMerchantFailed.WithInternal(err)
+		return nil, sharedErrors.ErrFailed("find merchant transactions by merchant").WithInternal(err)
 	}
 
 	return merchant, nil
@@ -68,7 +68,7 @@ func (r *merchantTransactionRepository) FindAllTransactionsByApikey(ctx context.
 	merchant, err := r.db.FindAllTransactionsByApikey(ctx, reqDb)
 
 	if err != nil {
-		return nil, merchant_errors.ErrFindAllTransactionsByApiKeyFailed.WithInternal(err)
+		return nil, sharedErrors.ErrFailed("find merchant transactions by API key").WithInternal(err)
 	}
 
 	return merchant, nil

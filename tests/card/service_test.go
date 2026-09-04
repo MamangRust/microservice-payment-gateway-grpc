@@ -2,18 +2,19 @@ package card_test
 
 import (
 	"context"
+	userdb "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/database/schema"
 	"testing"
 	"time"
 
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
-	tests "github.com/MamangRust/microservice-payment-gateway-test"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/card/repository"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/card/service"
 	user_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/repository"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/cache"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/observability"
+	tests "github.com/MamangRust/microservice-payment-gateway-test"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
@@ -46,8 +47,10 @@ func (s *CardServiceTestSuite) SetupSuite() {
 	s.redisClient = redis.NewClient(opts)
 
 	queries := db.New(pool)
+
+	userdbQueries := userdb.New(pool)
 	repos := repository.NewRepositories(queries, nil)
-	s.userRepo = user_repo.NewRepositories(queries)
+	s.userRepo = user_repo.NewRepositories(userdbQueries)
 
 	logger.ResetInstance()
 	lp := sdklog.NewLoggerProvider()

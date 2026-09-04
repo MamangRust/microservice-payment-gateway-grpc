@@ -6,15 +6,16 @@ import (
 	"strconv"
 	"time"
 
+	pbAISecurity "github.com/MamangRust/microservice-payment-gateway-grpc/pb/ai_security"
+	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb/transaction"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/kafka"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/middlewares"
 	mencache "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/redis"
 	transaction_cache "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/redis/api/transaction"
-	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb/transaction"
-	pbAISecurity "github.com/MamangRust/microservice-payment-gateway-grpc/pb/ai_security"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/kafka"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/idempotency"
 	apimapper "github.com/MamangRust/microservice-payment-gateway-grpc/shared/mapper/transaction"
 	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v4"
@@ -117,17 +118,22 @@ func (h *transactionCommandHandleApi) Create(c echo.Context) error {
 		return errors.NewValidationError(validations)
 	}
 
+	key := c.Request().Header.Get("Idempotency-Key")
+	if err := idempotency.ValidateKey(key); err != nil {
+		return err
+	}
+
 	ctx := c.Request().Context()
 
 	// AI Fraud Detection Check
 	fraudRes, err := h.aiSecurity.DetectFraud(ctx, &pbAISecurity.FraudRequest{
-		TransactionId:  strconv.FormatInt(time.Now().UnixNano(), 10), // Temporary ID if not generated yet
-		MerchantId:     int32(*body.MerchantID),
-		Amount:         float64(body.Amount),
-		PaymentMethod:  body.PaymentMethod,
-		Timestamp:      body.TransactionTime.Unix(),
-		IpAddress:      c.RealIP(),
-		DeviceId:       c.Request().Header.Get("X-Device-ID"),
+		TransactionId: strconv.FormatInt(time.Now().UnixNano(), 10), // Temporary ID if not generated yet
+		MerchantId:    int32(*body.MerchantID),
+		Amount:        float64(body.Amount),
+		PaymentMethod: body.PaymentMethod,
+		Timestamp:     body.TransactionTime.Unix(),
+		IpAddress:     c.RealIP(),
+		DeviceId:      c.Request().Header.Get("X-Device-ID"),
 	})
 
 	if err == nil && fraudRes.IsFraudulent {
@@ -141,10 +147,11 @@ func (h *transactionCommandHandleApi) Create(c echo.Context) error {
 	res, err := h.client.CreateTransaction(ctx, &pb.CreateTransactionRequest{
 		ApiKey:          apiKey,
 		CardNumber:      body.CardNumber,
-		Amount:          int32(body.Amount),
+		Amount:          int64(body.Amount),
 		PaymentMethod:   body.PaymentMethod,
 		MerchantId:      int32(*body.MerchantID),
 		TransactionTime: timestamppb.New(body.TransactionTime),
+		IdempotencyKey:  key,
 	})
 
 	if err != nil {
@@ -178,8 +185,6 @@ func (h *transactionCommandHandleApi) Update(c echo.Context) error {
 
 	var body requests.UpdateTransactionRequest
 
-	body.MerchantID = &id
-
 	apiKey, ok := c.Get("apiKey").(string)
 	if !ok {
 		return errors.NewBadRequestError("api-key is required")
@@ -200,7 +205,7 @@ func (h *transactionCommandHandleApi) Update(c echo.Context) error {
 		TransactionId:   int32(id),
 		CardNumber:      body.CardNumber,
 		ApiKey:          apiKey,
-		Amount:          int32(body.Amount),
+		Amount:          int64(body.Amount),
 		PaymentMethod:   body.PaymentMethod,
 		MerchantId:      int32(*body.MerchantID),
 		TransactionTime: timestamppb.New(body.TransactionTime),

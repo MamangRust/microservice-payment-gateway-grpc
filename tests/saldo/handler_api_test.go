@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	carddb "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/database/schema"
+	userdb "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/database/schema"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -12,12 +14,12 @@ import (
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
-	api "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/handler/saldo"
-	card_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/repository"
 	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb/saldo"
 	pbStats "github.com/MamangRust/microservice-payment-gateway-grpc/pb/saldo/stats"
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
+	api "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/handler/saldo"
+	card_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/repository"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/database/schema"
 	gapi "github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/handler"
 	saldo_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/repository"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/service"
@@ -41,16 +43,16 @@ import (
 
 type SaldoHandlerTestSuite struct {
 	suite.Suite
-	ts          *tests.TestSuite
-	dbPool      *pgxpool.Pool
-	redisClient redis.UniversalClient
-	grpcServer  *grpc.Server
-	chConn      clickhouse.Conn
+	ts            *tests.TestSuite
+	dbPool        *pgxpool.Pool
+	redisClient   redis.UniversalClient
+	grpcServer    *grpc.Server
+	chConn        clickhouse.Conn
 	commandClient pb.SaldoCommandServiceClient
 	queryClient   pb.SaldoQueryServiceClient
-	conn        *grpc.ClientConn
-	router      *echo.Echo
-	
+	conn          *grpc.ClientConn
+	router        *echo.Echo
+
 	userRepo  user_repo.UserCommandRepository
 	cardRepo  card_repo.CardCommandRepository
 	saldoRepo saldo_repo.Repositories
@@ -94,9 +96,13 @@ func (s *SaldoHandlerTestSuite) SetupSuite() {
 	s.Require().NoError(err)
 
 	queries := db.New(pool)
+
+	carddbQueries := carddb.New(pool)
+
+	userdbQueries := userdb.New(pool)
 	saldoRepos := saldo_repo.NewRepositories(queries, nil)
-	userRepos := user_repo.NewRepositories(queries)
-	cardRepos := card_repo.NewRepositories(queries, nil)
+	userRepos := user_repo.NewRepositories(userdbQueries)
+	cardRepos := card_repo.NewRepositories(carddbQueries, nil)
 
 	s.userRepo = userRepos.UserCommand()
 	s.cardRepo = cardRepos.CardCommand
@@ -136,7 +142,7 @@ func (s *SaldoHandlerTestSuite) SetupSuite() {
 	s.cardNumber = card.CardNumber
 
 	saldoGapiHandler := gapi.NewHandler(saldoService)
-	
+
 	// Stats Handler
 	chRepo := stats_repo.NewRepository(s.chConn)
 	saldoStatsHandler := stats_handler.NewSaldoStatsHandler(chRepo, log)

@@ -6,9 +6,9 @@ import (
 	"strconv"
 	"strings"
 
-	auth_cache "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/redis/api/auth"
 	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
+	auth_cache "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/redis/api/auth"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 	authapimapper "github.com/MamangRust/microservice-payment-gateway-grpc/shared/mapper/auth"
 
@@ -222,7 +222,7 @@ func (h *authHandleApi) RefreshToken(c echo.Context) error {
 // @Failure 500 {object} response.ErrorResponse "Internal Server Error"
 // @Router /api/auth/me [get]
 func (h *authHandleApi) GetMe(c echo.Context) error {
-	userId, ok := c.Get("userId").(string)
+	userId, ok := c.Get("user_id").(string)
 	if !ok {
 		return errors.NewBadRequestError("user not authenticated")
 	}

@@ -32,7 +32,10 @@ func main() {
 	if len(brokers) == 0 || brokers[0] == "" {
 		brokers = []string{"kafka-1:9092", "kafka-2:9092", "kafka-3:9092"}
 	}
-	k := kafka.NewKafka(log, brokers)
+	k, err := kafka.NewKafka(log, brokers)
+	if err != nil {
+		log.Fatal("Failed to create Kafka producer", zap.Error(err))
+	}
 
 	// Dependency Injection
 	repo := repository.NewClickhouseRepository(chConn, log)
@@ -59,4 +62,7 @@ func main() {
 	<-quit
 
 	log.Info("Shutting down Stats Writer...")
+	if err := uc.Close(); err != nil {
+		log.Error("Failed to close stats usecase", zap.Error(err))
+	}
 }

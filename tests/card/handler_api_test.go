@@ -15,14 +15,15 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2"
 	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb/card"
 	pbStats "github.com/MamangRust/microservice-payment-gateway-grpc/pb/card/stats"
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
 	cardhandler "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/handler/card"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/card/handler"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/card/repository"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/card/service"
 	stats_handler "github.com/MamangRust/microservice-payment-gateway-grpc/service/stats-reader/handler"
 	stats_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/stats-reader/repository"
+	userdb "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/database/schema"
 	user_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/repository"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/cache"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
@@ -46,7 +47,7 @@ type CardApiTestSuite struct {
 	redisClient redis.UniversalClient
 	grpcServer  *grpc.Server
 	echoApp     *echo.Echo
-	chConn       clickhouse.Conn
+	chConn      clickhouse.Conn
 	userID      int
 	cardID      int
 }
@@ -104,12 +105,12 @@ func (s *CardApiTestSuite) SetupSuite() {
 		CREATE TABLE IF NOT EXISTS transfer_events (
 			transfer_id UInt64,
 			transfer_no String,
-			sender_card_number String,
-			receiver_card_number String,
+			source_card String,
+			destination_card String,
 			amount Int64,
 			status String,
 			created_at DateTime DEFAULT now()
-		) ENGINE = MergeTree() ORDER BY (sender_card_number, created_at);
+		) ENGINE = MergeTree() ORDER BY (source_card, created_at);
 	`)
 	s.Require().NoError(err)
 
@@ -135,8 +136,10 @@ func (s *CardApiTestSuite) SetupSuite() {
 	s.Require().NoError(err)
 
 	queries := db.New(pool)
+
+	userQueries := userdb.New(pool)
 	repos := repository.NewRepositories(queries, nil)
-	userRepo := user_repo.NewRepositories(queries)
+	userRepo := user_repo.NewRepositories(userQueries)
 
 	logger.ResetInstance()
 	lp := sdklog.NewLoggerProvider()
@@ -153,7 +156,7 @@ func (s *CardApiTestSuite) SetupSuite() {
 	})
 
 	cardGapiHandler := handler.NewHandler(cardService)
-	
+
 	// Stats Handler
 	chRepo := stats_repo.NewRepository(s.chConn)
 	cardStatsHandler := stats_handler.NewCardStatsHandler(chRepo, log)
@@ -162,13 +165,13 @@ func (s *CardApiTestSuite) SetupSuite() {
 	pb.RegisterCardQueryServiceServer(server, cardGapiHandler)
 	pb.RegisterCardCommandServiceServer(server, cardGapiHandler)
 	pb.RegisterCardDashboardServiceServer(server, cardStatsHandler)
-	
+
 	pbStats.RegisterCardStatsBalanceServiceServer(server, cardStatsHandler)
 	pbStats.RegisterCardStatsTopupServiceServer(server, cardStatsHandler)
 	pbStats.RegisterCardStatsTransactionServiceServer(server, cardStatsHandler)
 	pbStats.RegisterCardStatsTransferServiceServer(server, cardStatsHandler)
 	pbStats.RegisterCardStatsWithdrawServiceServer(server, cardStatsHandler)
-	
+
 	s.grpcServer = server
 
 	lis, err := net.Listen("tcp", "localhost:0")
@@ -322,7 +325,7 @@ func (s *CardApiTestSuite) Test6_CardStats_MonthlyTopupAmount() {
 
 	rec := httptest.NewRecorder()
 	httpReq := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/card/stats/topup/monthly?year=%d", now.Year()), nil)
-	
+
 	s.echoApp.ServeHTTP(rec, httpReq)
 
 	s.Equal(http.StatusOK, rec.Code)
@@ -345,7 +348,7 @@ func (s *CardApiTestSuite) Test7_CardStats_Transaction() {
 
 	rec := httptest.NewRecorder()
 	httpReq := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/card/stats/transaction/monthly?year=%d", now.Year()), nil)
-	
+
 	s.echoApp.ServeHTTP(rec, httpReq)
 
 	s.Equal(http.StatusOK, rec.Code)
@@ -361,13 +364,13 @@ func (s *CardApiTestSuite) Test8_CardStats_Transfer() {
 	err := s.chConn.Exec(ctx, "TRUNCATE TABLE transfer_events")
 	s.Require().NoError(err)
 
-	seedSQL := `INSERT INTO transfer_events (transfer_id, transfer_no, sender_card_number, receiver_card_number, amount, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`
+	seedSQL := `INSERT INTO transfer_events (transfer_id, transfer_no, source_card, destination_card, amount, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`
 	err = s.chConn.Exec(ctx, seedSQL, 1, "TR001", "1234567890", "0987654321", 2000, "success", now)
 	s.Require().NoError(err)
 
 	rec := httptest.NewRecorder()
 	httpReq := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/card/stats/transfer/sender/monthly?year=%d", now.Year()), nil)
-	
+
 	s.echoApp.ServeHTTP(rec, httpReq)
 
 	s.Equal(http.StatusOK, rec.Code)
@@ -386,7 +389,7 @@ func (s *CardApiTestSuite) Test9_CardStats_Withdraw() {
 
 	rec := httptest.NewRecorder()
 	httpReq := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/card/stats/withdraw/monthly?year=%d", now.Year()), nil)
-	
+
 	s.echoApp.ServeHTTP(rec, httpReq)
 
 	s.Equal(http.StatusOK, rec.Code)

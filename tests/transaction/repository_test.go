@@ -3,17 +3,19 @@ package transaction_test
 import (
 	"context"
 	"fmt"
+	carddb "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/database/schema"
+	merchantdb "github.com/MamangRust/microservice-payment-gateway-grpc/service/merchant/database/schema"
+	userdb "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/database/schema"
 	"testing"
 	"time"
 
-
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
-	tests "github.com/MamangRust/microservice-payment-gateway-test"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/service/transaction/repository"
-	user_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/repository"
 	card_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/repository"
 	merchant_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/merchant/repository"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/transaction/database/schema"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/service/transaction/repository"
+	user_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/repository"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
+	tests "github.com/MamangRust/microservice-payment-gateway-test"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/suite"
@@ -21,11 +23,11 @@ import (
 
 type TransactionRepositoryTestSuite struct {
 	suite.Suite
-	ts            *tests.TestSuite
-	dbPool        *pgxpool.Pool
-	commandRepo   repository.TransactionCommandRepository
-	queryRepo     repository.TransactionQueryRepository
-	
+	ts          *tests.TestSuite
+	dbPool      *pgxpool.Pool
+	commandRepo repository.TransactionCommandRepository
+	queryRepo   repository.TransactionQueryRepository
+
 	// Repositories for seeding
 	userRepo     user_repo.UserCommandRepository
 	cardRepo     card_repo.Repositories
@@ -47,9 +49,15 @@ func (s *TransactionRepositoryTestSuite) SetupSuite() {
 	s.dbPool = pool
 
 	queries := db.New(pool)
-	s.userRepo = user_repo.NewUserCommandRepository(queries)
-	s.cardRepo = *card_repo.NewRepositories(queries, nil)
-	s.merchantRepo = merchant_repo.NewRepositories(queries, nil)
+
+	merchantdbQueries := merchantdb.New(pool)
+
+	carddbQueries := carddb.New(pool)
+
+	userdbQueries := userdb.New(pool)
+	s.userRepo = user_repo.NewUserCommandRepository(userdbQueries)
+	s.cardRepo = *card_repo.NewRepositories(carddbQueries, nil)
+	s.merchantRepo = merchant_repo.NewRepositories(merchantdbQueries, nil)
 
 	transactionRepos := repository.NewRepositories(queries, nil, nil, nil)
 	s.commandRepo = transactionRepos
@@ -109,7 +117,7 @@ func (s *TransactionRepositoryTestSuite) TestCreateTransaction() {
 	res, err := s.commandRepo.CreateTransaction(ctx, req)
 	s.NoError(err)
 	s.Require().NotNil(res)
-	s.Equal(int32(req.Amount), res.Amount)
+	s.Equal(int64(req.Amount), res.Amount)
 }
 
 func (s *TransactionRepositoryTestSuite) TestFindAllTransactions() {
@@ -210,7 +218,7 @@ func (s *TransactionRepositoryTestSuite) TestUpdateTransaction() {
 	res, err := s.commandRepo.UpdateTransaction(ctx, req)
 	s.NoError(err)
 	s.Require().NotNil(res)
-	s.Equal(int32(200000), res.Amount)
+	s.Equal(int64(200000), res.Amount)
 }
 
 func (s *TransactionRepositoryTestSuite) TestUpdateTransactionStatus() {

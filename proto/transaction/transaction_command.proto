@@ -11,17 +11,18 @@ import "google/protobuf/timestamp.proto";
 message CreateTransactionRequest {
   string api_key = 1;
   string card_number = 2;
-  int32 amount = 3;
+  int64 amount = 3;
   string payment_method = 4;
   int32 merchant_id = 5;
   google.protobuf.Timestamp transaction_time = 6;
+  string idempotency_key = 7;
 }
 
 message UpdateTransactionRequest {
   int32 transaction_id = 1;
   string api_key = 2;
   string card_number = 3;
-  int32 amount = 4;
+  int64 amount = 4;
   string payment_method = 5;
   int32 merchant_id = 6;
   google.protobuf.Timestamp transaction_time = 7;

@@ -3,15 +3,17 @@ package saldo_test
 import (
 	"context"
 	"fmt"
+	carddb "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/database/schema"
+	userdb "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/database/schema"
 	"testing"
 	"time"
 
 	card_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/repository"
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/database/schema"
 	saldo_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/repository"
+	user_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/repository"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 	tests "github.com/MamangRust/microservice-payment-gateway-test"
-	user_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/repository"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/suite"
 )
@@ -21,9 +23,9 @@ type SaldoRepositoryTestSuite struct {
 	ts     *tests.TestSuite
 	dbPool *pgxpool.Pool
 	repo   saldo_repo.Repositories
-	
-	userRepo  user_repo.UserCommandRepository
-	cardRepo  card_repo.CardCommandRepository
+
+	userRepo user_repo.UserCommandRepository
+	cardRepo card_repo.CardCommandRepository
 
 	cardNumber string
 }
@@ -40,10 +42,14 @@ func (s *SaldoRepositoryTestSuite) SetupSuite() {
 	s.dbPool = pool
 
 	queries := db.New(pool)
+
+	carddbQueries := carddb.New(pool)
+
+	userdbQueries := userdb.New(pool)
 	s.repo = saldo_repo.NewRepositories(queries, nil)
 
-	userRepos := user_repo.NewRepositories(queries)
-	cardRepos := card_repo.NewRepositories(queries, nil)
+	userRepos := user_repo.NewRepositories(userdbQueries)
+	cardRepos := card_repo.NewRepositories(carddbQueries, nil)
 	s.userRepo = userRepos.UserCommand()
 	s.cardRepo = cardRepos.CardCommand
 
@@ -94,7 +100,7 @@ func (s *SaldoRepositoryTestSuite) TestCreateSaldo() {
 	saldo, err := s.repo.CreateSaldo(ctx, req)
 	s.NoError(err)
 	s.Require().NotNil(saldo)
-	s.Equal(int32(req.TotalBalance), saldo.TotalBalance)
+	s.Equal(int64(req.TotalBalance), saldo.TotalBalance)
 }
 
 func (s *SaldoRepositoryTestSuite) TestFindAllSaldos() {
@@ -173,17 +179,39 @@ func (s *SaldoRepositoryTestSuite) TestFindByTrashed() {
 }
 
 func (s *SaldoRepositoryTestSuite) TestUpdateBalance() {
-	s.Require().NotEmpty(s.cardNumber)
+	// Create a fresh user + card + saldo so this test is independent of test
+	// ordering (other tests may trash/delete the shared seeded saldo).
 	ctx := context.Background()
+	user, err := s.userRepo.CreateUser(ctx, &requests.CreateUserRequest{
+		FirstName: "Saldo",
+		LastName:  "Owner",
+		Email:     fmt.Sprintf("saldo.repo.upd-%d@example.com", time.Now().UnixNano()),
+		Password:  "password123",
+	})
+	s.Require().NoError(err)
+	card, err := s.cardRepo.CreateCard(ctx, &requests.CreateCardRequest{
+		UserID:       int(user.UserID),
+		CardType:     "debit",
+		ExpireDate:   time.Now().AddDate(2, 0, 0),
+		CVV:          "123",
+		CardProvider: "visa",
+	})
+	s.Require().NoError(err)
+	saldo, err := s.repo.CreateSaldo(ctx, &requests.CreateSaldoRequest{
+		CardNumber:   card.CardNumber,
+		TotalBalance: 1000000,
+	})
+	s.Require().NoError(err)
+	s.NotNil(saldo)
 
 	req := &requests.UpdateSaldoBalance{
-		CardNumber:   s.cardNumber,
+		CardNumber:   card.CardNumber,
 		TotalBalance: 1200000,
 	}
 	updated, err := s.repo.UpdateSaldoBalance(ctx, req)
 	s.NoError(err)
 	s.NotNil(updated)
-	s.Equal(int32(1200000), updated.TotalBalance)
+	s.Equal(int64(1200000), updated.TotalBalance)
 }
 
 func (s *SaldoRepositoryTestSuite) TestTrashSaldo() {

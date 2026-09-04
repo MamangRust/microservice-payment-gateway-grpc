@@ -2,12 +2,13 @@ package repository
 
 import (
 	"context"
+	"net/http"
 	"time"
 
 	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb/user"
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
+	userdb "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
-	user_errors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors/user_errors/repository"
+	sharedErrors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -26,13 +27,13 @@ func NewUserRepository(queryClient pb.UserQueryServiceClient, commandClient pb.U
 }
 
 // FindById retrieves a user by their unique ID.
-func (r *userRepository) FindById(ctx context.Context, user_id int) (*db.GetUserByIDRow, error) {
+func (r *userRepository) FindById(ctx context.Context, user_id int) (*userdb.GetUserByIDRow, error) {
 	resp, err := r.userQueryClient.FindById(ctx, &pb.FindByIdUserRequest{
 		Id: int32(user_id),
 	})
 
 	if err != nil {
-		return nil, user_errors.ErrUserNotFound.WithInternal(err)
+		return nil, sharedErrors.ErrUserNotFound.WithInternal(err)
 	}
 
 	user := resp.GetData()
@@ -44,7 +45,7 @@ func (r *userRepository) FindById(ctx context.Context, user_id int) (*db.GetUser
 		return pgtype.Timestamp{Time: t, Valid: true}
 	}
 
-	return &db.GetUserByIDRow{
+	return &userdb.GetUserByIDRow{
 		UserID:    int32(user.Id),
 		Firstname: user.Firstname,
 		Lastname:  user.Lastname,
@@ -55,18 +56,18 @@ func (r *userRepository) FindById(ctx context.Context, user_id int) (*db.GetUser
 }
 
 // FindByEmail retrieves a user by their email address.
-func (r *userRepository) FindByEmail(ctx context.Context, email string) (*db.GetUserByEmailRow, error) {
+func (r *userRepository) FindByEmail(ctx context.Context, email string) (*userdb.GetUserByEmailRow, error) {
 	resp, err := r.userQueryClient.FindByEmail(ctx, &pb.FindByEmailUserRequest{
 		Email: email,
 	})
 
 	if err != nil {
-		return nil, user_errors.ErrUserNotFound.WithInternal(err)
+		return nil, sharedErrors.ErrUserNotFound.WithInternal(err)
 	}
 
 	user := resp.GetData()
 
-	return &db.GetUserByEmailRow{
+	return &userdb.GetUserByEmailRow{
 		UserID:   int32(user.Id),
 		Email:    user.Email,
 		Password: user.Password,
@@ -74,7 +75,7 @@ func (r *userRepository) FindByEmail(ctx context.Context, email string) (*db.Get
 }
 
 // FindByEmailAndVerify retrieves a verified user by their email address.
-func (r *userRepository) FindByEmailAndVerify(ctx context.Context, email string) (*db.GetUserByEmailAndVerifiedRow, error) {
+func (r *userRepository) FindByEmailAndVerify(ctx context.Context, email string) (*userdb.GetUserByEmailAndVerifiedRow, error) {
 	// For simplicity, we fetch by email and check verification locally or via specialized GRPC.
 	// Current User domain lookup doesn't have FindByEmailAndVerify, so we use FindByEmail.
 	resp, err := r.userQueryClient.FindByEmail(ctx, &pb.FindByEmailUserRequest{
@@ -82,7 +83,7 @@ func (r *userRepository) FindByEmailAndVerify(ctx context.Context, email string)
 	})
 
 	if err != nil {
-		return nil, user_errors.ErrUserNotFound.WithInternal(err)
+		return nil, sharedErrors.ErrUserNotFound.WithInternal(err)
 	}
 
 	user := resp.GetData()
@@ -94,7 +95,7 @@ func (r *userRepository) FindByEmailAndVerify(ctx context.Context, email string)
 		return pgtype.Timestamp{Time: t, Valid: true}
 	}
 
-	return &db.GetUserByEmailAndVerifiedRow{
+	return &userdb.GetUserByEmailAndVerifiedRow{
 		UserID:    int32(user.Id),
 		Firstname: user.Firstname,
 		Lastname:  user.Lastname,
@@ -106,13 +107,13 @@ func (r *userRepository) FindByEmailAndVerify(ctx context.Context, email string)
 }
 
 // FindByVerificationCode retrieves a user by their verification code.
-func (r *userRepository) FindByVerificationCode(ctx context.Context, verification_code string) (*db.GetUserByVerificationCodeRow, error) {
+func (r *userRepository) FindByVerificationCode(ctx context.Context, verification_code string) (*userdb.GetUserByVerificationCodeRow, error) {
 	resp, err := r.userQueryClient.FindByVerificationCode(ctx, &pb.FindByVerificationCodeUserRequest{
 		VerificationCode: verification_code,
 	})
 
 	if err != nil {
-		return nil, nil
+		return nil, sharedErrors.ErrUserNotFound.WithInternal(err)
 	}
 
 	user := resp.GetData()
@@ -124,7 +125,7 @@ func (r *userRepository) FindByVerificationCode(ctx context.Context, verificatio
 		return pgtype.Timestamp{Time: t, Valid: true}
 	}
 
-	return &db.GetUserByVerificationCodeRow{
+	return &userdb.GetUserByVerificationCodeRow{
 		UserID:    int32(user.Id),
 		Firstname: user.Firstname,
 		Lastname:  user.Lastname,
@@ -135,7 +136,7 @@ func (r *userRepository) FindByVerificationCode(ctx context.Context, verificatio
 }
 
 // CreateUser inserts a new user into the database via GRPC.
-func (r *userRepository) CreateUser(ctx context.Context, request *requests.RegisterRequest) (*db.CreateUserRow, error) {
+func (r *userRepository) CreateUser(ctx context.Context, request *requests.RegisterRequest) (*userdb.CreateUserRow, error) {
 	resp, err := r.userCommandClient.Create(ctx, &pb.CreateUserRequest{
 		Firstname:       request.FirstName,
 		Lastname:        request.LastName,
@@ -145,11 +146,15 @@ func (r *userRepository) CreateUser(ctx context.Context, request *requests.Regis
 	})
 
 	if err != nil {
-		return nil, user_errors.ErrCreateUser.WithInternal(err)
+		// User service now returns 409 (codes.AlreadyExists) on duplicate email - map it back.
+		if appErr := sharedErrors.ParseGrpcError(err); appErr != nil && appErr.Code == http.StatusConflict {
+			return nil, sharedErrors.NewConflictError("email already exists").WithInternal(err)
+		}
+		return nil, sharedErrors.ErrFailed("create user").WithInternal(err)
 	}
 
 	user := resp.GetData()
-	return &db.CreateUserRow{
+	return &userdb.CreateUserRow{
 		UserID:    int32(user.Id),
 		Firstname: user.Firstname,
 		Lastname:  user.Lastname,
@@ -158,35 +163,35 @@ func (r *userRepository) CreateUser(ctx context.Context, request *requests.Regis
 }
 
 // UpdateUserIsVerified updates the verification status of a user via GRPC.
-func (r *userRepository) UpdateUserIsVerified(ctx context.Context, user_id int, is_verified bool) (*db.UpdateUserIsVerifiedRow, error) {
+func (r *userRepository) UpdateUserIsVerified(ctx context.Context, user_id int, is_verified bool) (*userdb.UpdateUserIsVerifiedRow, error) {
 	resp, err := r.userCommandClient.UpdateIsVerified(ctx, &pb.UpdateUserIsVerifiedRequest{
 		UserId:     int32(user_id),
 		IsVerified: is_verified,
 	})
 
 	if err != nil {
-		return nil, user_errors.ErrUpdateUserVerificationCode.WithInternal(err)
+		return nil, sharedErrors.ErrFailed("update user verification code").WithInternal(err)
 	}
 
 	user := resp.GetData()
-	return &db.UpdateUserIsVerifiedRow{
+	return &userdb.UpdateUserIsVerifiedRow{
 		UserID: int32(user.Id),
 	}, nil
 }
 
 // UpdateUserPassword updates a user's password via GRPC.
-func (r *userRepository) UpdateUserPassword(ctx context.Context, user_id int, password string) (*db.UpdateUserPasswordRow, error) {
+func (r *userRepository) UpdateUserPassword(ctx context.Context, user_id int, password string) (*userdb.UpdateUserPasswordRow, error) {
 	resp, err := r.userCommandClient.UpdatePassword(ctx, &pb.UpdateUserPasswordRequest{
 		UserId:   int32(user_id),
 		Password: password,
 	})
 
 	if err != nil {
-		return nil, user_errors.ErrUpdateUserPassword.WithInternal(err)
+		return nil, sharedErrors.ErrFailed("update user password").WithInternal(err)
 	}
 
 	user := resp.GetData()
-	return &db.UpdateUserPasswordRow{
+	return &userdb.UpdateUserPasswordRow{
 		UserID: int32(user.Id),
 	}, nil
 }

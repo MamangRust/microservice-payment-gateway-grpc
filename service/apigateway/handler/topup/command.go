@@ -5,10 +5,13 @@ import (
 	"net/http"
 	"strconv"
 
-	topup_cache "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/redis/api/topup"
+	"google.golang.org/grpc/metadata"
+
 	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb/topup"
+	topup_cache "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/redis/api/topup"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/idempotency"
 	apimapper "github.com/MamangRust/microservice-payment-gateway-grpc/shared/mapper/topup"
 	"github.com/go-playground/validator/v10"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -90,12 +93,23 @@ func (h *topupCommandHandleApi) Create(c echo.Context) error {
 		return errors.NewValidationError(validations)
 	}
 
+	key := c.Request().Header.Get("Idempotency-Key")
+	if err := idempotency.ValidateKey(key); err != nil {
+		return err
+	}
+
 	ctx := c.Request().Context()
+	userID, ok := c.Get("user_id").(string)
+	if !ok || userID == "" {
+		return errors.ErrUnauthorized
+	}
+	ctx = metadata.AppendToOutgoingContext(ctx, "x-user-id", userID)
 
 	res, err := h.client.CreateTopup(ctx, &pb.CreateTopupRequest{
-		CardNumber:  body.CardNumber,
-		TopupAmount: int32(body.TopupAmount),
-		TopupMethod: body.TopupMethod,
+		CardNumber:     body.CardNumber,
+		TopupAmount:    int64(body.TopupAmount),
+		TopupMethod:    body.TopupMethod,
+		IdempotencyKey: key,
 	})
 
 	if err != nil {
@@ -132,6 +146,8 @@ func (h *topupCommandHandleApi) Update(c echo.Context) error {
 		return errors.NewBadRequestError("Invalid request")
 	}
 
+	body.TopupID = &idint
+
 	if err := body.Validate(); err != nil {
 		validations := h.parseValidationErrors(err)
 		return errors.NewValidationError(validations)
@@ -142,7 +158,7 @@ func (h *topupCommandHandleApi) Update(c echo.Context) error {
 	res, err := h.client.UpdateTopup(ctx, &pb.UpdateTopupRequest{
 		TopupId:     int32(idint),
 		CardNumber:  body.CardNumber,
-		TopupAmount: int32(body.TopupAmount),
+		TopupAmount: int64(body.TopupAmount),
 		TopupMethod: body.TopupMethod,
 	})
 

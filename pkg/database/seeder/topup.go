@@ -6,14 +6,16 @@ import (
 	"math/rand"
 	"time"
 
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
+	carddb "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/database/schema"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/topup/database/schema"
 	"go.uber.org/zap"
 )
 
 // topupSeeder is a struct that represents a seeder for the topups table.
 type topupSeeder struct {
 	db     *db.Queries
+	carddb *carddb.Queries
 	ctx    context.Context
 	logger logger.LoggerInterface
 }
@@ -28,9 +30,10 @@ type topupSeeder struct {
 //
 // Returns:
 // a pointer to the topupSeeder struct
-func NewTopupSeeder(db *db.Queries, ctx context.Context, logger logger.LoggerInterface) *topupSeeder {
+func NewTopupSeeder(db *db.Queries, carddb *carddb.Queries, ctx context.Context, logger logger.LoggerInterface) *topupSeeder {
 	return &topupSeeder{
 		db:     db,
+		carddb: carddb,
 		ctx:    ctx,
 		logger: logger,
 	}
@@ -52,10 +55,10 @@ func (r *topupSeeder) Seed() error {
 	activeTopups := 230
 	trashedTopups := totalTopups - activeTopups
 
-	var cards []db.GetCardByUserIDRow
+	var cards []carddb.GetCardByUserIDRow
 
 	for i := 1; i <= totalTopups; i++ {
-		cardList, err := r.db.GetCardByUserID(r.ctx, int32(i))
+		cardList, err := r.carddb.GetCardByUserID(r.ctx, int32(i))
 		if err != nil {
 			r.logger.Error("failed to get card for user", zap.Int("userID", i), zap.Error(err))
 			return fmt.Errorf("failed to get card for user %d: %w", i, err)
@@ -89,9 +92,10 @@ func (r *topupSeeder) Seed() error {
 		monthIndex := i % 12
 		topupTime := months[monthIndex].Add(time.Duration(rand.Intn(28)) * 24 * time.Hour)
 
+		topupAmount := amountToInt64(int64(rand.Intn(10000000) + 1000000))
 		request := db.CreateTopupParams{
 			CardNumber:  cardNumber,
-			TopupAmount: int32(rand.Intn(10000000) + 1000000),
+			TopupAmount: topupAmount,
 			TopupMethod: topupMethods[rand.Intn(len(topupMethods))],
 			TopupTime:   topupTime,
 		}

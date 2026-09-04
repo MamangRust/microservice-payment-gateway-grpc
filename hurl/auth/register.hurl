@@ -4,9 +4,12 @@ Content-Type: application/json
 {
   "firstname": "John",
   "lastname": "Doe",
-  "email": "john.doe@hellodota.com",
+  "email": "john.{{unique_suffix}}@hellodota.com",
   "password": "password123",
   "confirm_password": "password123"
 }
 
-HTTP 200
+HTTP 201
+[Asserts]
+jsonpath "$.status" == "success"
+jsonpath "$.data.email" == "john.{{unique_suffix}}@hellodota.com"

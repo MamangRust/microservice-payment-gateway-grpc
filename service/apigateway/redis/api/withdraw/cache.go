@@ -16,7 +16,7 @@ type withdrawmencache struct {
 
 func NewWithdrawMencache(cacheStore *cache.CacheStore) WithdrawMencache {
 	return &withdrawmencache{
-		WithdrawQueryCache:       NewWithdrawQueryCache(cacheStore),
-		WithdrawCommandCache:     NewWithdrawCommandCache(cacheStore),
+		WithdrawQueryCache:   NewWithdrawQueryCache(cacheStore),
+		WithdrawCommandCache: NewWithdrawCommandCache(cacheStore),
 	}
 }

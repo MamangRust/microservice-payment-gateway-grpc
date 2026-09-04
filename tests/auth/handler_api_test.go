@@ -10,21 +10,21 @@ import (
 	"strconv"
 	"testing"
 
+	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/auth"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/hash"
 	authhandler "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/handler/auth"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/auth/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/auth/handler"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/auth/repository"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/auth/service"
-	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb"
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
-	tests "github.com/MamangRust/microservice-payment-gateway-test"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/auth"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/hash"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
+	tests "github.com/MamangRust/microservice-payment-gateway-test"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/labstack/echo/v4"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/suite"
-	"github.com/labstack/echo/v4"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -93,14 +93,15 @@ func (s *AuthHandlerApiTestSuite) SetupSuite() {
 	s.Require().NoError(err)
 
 	s.server = echo.New()
-	
+
 	apiHandler := errors.NewApiHandler(s.ts.Observability, s.ts.Logger)
 
-	// Auth bypass middleware for /api/auth/me
+	// Auth bypass middleware for /api/auth/me — the handler reads c.Get("user_id")
+	// (set by the production JWT middleware), so set that key, not "userId".
 	s.server.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			if s.userID != 0 {
-				c.Set("userId", strconv.Itoa(s.userID))
+				c.Set("user_id", strconv.Itoa(s.userID))
 			}
 			return next(c)
 		}
@@ -148,7 +149,7 @@ func (s *AuthHandlerApiTestSuite) Test1_Register() {
 	s.server.ServeHTTP(rec, req)
 
 	s.Equal(http.StatusCreated, rec.Code)
-	
+
 	var res map[string]interface{}
 	json.Unmarshal(rec.Body.Bytes(), &res)
 	data := res["data"].(map[string]interface{})
@@ -169,10 +170,10 @@ func (s *AuthHandlerApiTestSuite) Test2_Login() {
 	s.server.ServeHTTP(rec, req)
 
 	s.Equal(http.StatusOK, rec.Code)
-	
+
 	var res map[string]interface{}
 	json.Unmarshal(rec.Body.Bytes(), &res)
-	
+
 	data := res["data"].(map[string]interface{})
 	s.accessToken = data["access_token"].(string)
 }
@@ -228,7 +229,7 @@ func (s *AuthHandlerApiTestSuite) Test3_GetMe() {
 	s.server.ServeHTTP(rec, req)
 
 	s.Equal(http.StatusOK, rec.Code)
-	
+
 	var res map[string]interface{}
 	json.Unmarshal(rec.Body.Bytes(), &res)
 	data := res["data"].(map[string]interface{})

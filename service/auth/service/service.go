@@ -1,12 +1,12 @@
 package service
 
 import (
-	mencache "github.com/MamangRust/microservice-payment-gateway-grpc/service/auth/redis"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/service/auth/repository"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/auth"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/hash"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/kafka"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
+	mencache "github.com/MamangRust/microservice-payment-gateway-grpc/service/auth/redis"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/service/auth/repository"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/cache"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/observability"
 )

@@ -49,9 +49,16 @@ func ParseGrpcError(err error) *AppError {
 
 	for _, detail := range st.Details() {
 		if res, ok := detail.(*pb.ErrorResponse); ok {
+			code := int(res.Code)
+			if !isValidHTTPCode(code) {
+				// Detail was attached without a valid HTTP code (e.g. zero).
+				// Fall back to the gRPC status code so the gateway never emits
+				// an invalid/0 HTTP status for an otherwise structured error.
+				code = grpcToHttpCode(st.Code())
+			}
 			return &AppError{
 				Type:    ErrorType(res.Status),
-				Code:    int(res.Code),
+				Code:    code,
 				Message: res.Message,
 			}
 		}
@@ -85,6 +92,8 @@ func httpToGrpcCode(code int) codes.Code {
 		return codes.ResourceExhausted
 	case http.StatusGatewayTimeout:
 		return codes.DeadlineExceeded
+	case http.StatusServiceUnavailable:
+		return codes.Unavailable
 	default:
 		return codes.Internal
 	}
@@ -106,6 +115,8 @@ func grpcToHttpCode(code codes.Code) int {
 		return http.StatusTooManyRequests
 	case codes.DeadlineExceeded:
 		return http.StatusGatewayTimeout
+	case codes.Unavailable:
+		return http.StatusServiceUnavailable
 	default:
 		return http.StatusInternalServerError
 	}
@@ -125,9 +136,16 @@ func grpcToErrorType(code codes.Code) ErrorType {
 		return ErrorTypeUnauthorized
 	case codes.DeadlineExceeded:
 		return ErrorTypeTimeout
+	case codes.Unavailable:
+		return ErrorTypeUnavailable
 	default:
 		return ErrorTypeInternal
 	}
+}
+
+// isValidHTTPCode reports whether code is a usable HTTP status code.
+func isValidHTTPCode(code int) bool {
+	return code >= 100 && code <= 599
 }
 
 func NewGrpcError(message string, httpCode int) error {
@@ -148,4 +166,3 @@ func NewGrpcError(message string, httpCode int) error {
 
 	return stWithDetails.Err()
 }
-

@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"math/rand"
 
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/hash"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/database/schema"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )

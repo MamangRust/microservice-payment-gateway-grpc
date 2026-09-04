@@ -2,21 +2,34 @@ package repository
 
 import (
 	"context"
+	"time"
 
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
+	carddb "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/database/schema"
+	saldodb "github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/database/schema"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/transfer/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/idempotency"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/outbox"
 )
 
-type SaldoRepository interface {
-	FindByCardNumber(ctx context.Context, card_number string) (*db.Saldo, error)
+type IdempotencyRepository interface {
+	idempotency.Store
+}
 
-	UpdateSaldoBalance(ctx context.Context, request *requests.UpdateSaldoBalance) (*db.UpdateSaldoBalanceRow, error)
+type OutboxRepository interface {
+	outbox.Store[db.OutboxRecord]
+}
+
+type SaldoRepository interface {
+	FindByCardNumber(ctx context.Context, card_number string) (*saldodb.Saldo, error)
+
+	UpdateSaldoBalance(ctx context.Context, request *requests.UpdateSaldoBalance) (*saldodb.UpdateSaldoBalanceRow, error)
 }
 
 type CardRepository interface {
-	FindUserCardByCardNumber(ctx context.Context, card_number string) (*db.GetUserEmailByCardNumberRow, error)
+	FindUserCardByCardNumber(ctx context.Context, card_number string) (*carddb.GetUserEmailByCardNumberRow, error)
 
-	FindCardByCardNumber(ctx context.Context, card_number string) (*db.GetCardByCardNumberRow, error)
+	FindCardByCardNumber(ctx context.Context, card_number string) (*carddb.GetCardByCardNumberRow, error)
 }
 
 type TransferQueryRepository interface {
@@ -33,6 +46,9 @@ type TransferCommandRepository interface {
 	UpdateTransfer(ctx context.Context, request *requests.UpdateTransferRequest) (*db.UpdateTransferRow, error)
 	UpdateTransferAmount(ctx context.Context, request *requests.UpdateTransferAmountRequest) (*db.UpdateTransferAmountRow, error)
 	UpdateTransferStatus(ctx context.Context, request *requests.UpdateTransferStatus) (*db.UpdateTransferStatusRow, error)
+	TransitionStatus(ctx context.Context, id int, fromStatus, toStatus, reason string) (*db.UpdateTransferStatusRow, error)
+	GuardStatus(ctx context.Context, id int, fromStatus, toStatus, reason string) (bool, error)
+	ListStuck(ctx context.Context, olderThan time.Duration, maxRows int32) ([]*db.StuckTransfer, error)
 
 	TrashedTransfer(ctx context.Context, transferID int) (*db.Transfer, error)
 	RestoreTransfer(ctx context.Context, transferID int) (*db.Transfer, error)

@@ -19,4 +19,7 @@ var (
 
 	// ErrAccountLocked is returned when the account is temporarily locked.
 	ErrAccountLocked = errors.ErrForbidden.WithMessage("Account temporarily locked due to many failed attempts")
+
+	// ErrUserEmailAlready is returned when a user email already exists.
+	ErrUserEmailAlready = errors.ErrBadRequest.WithMessage("User email already exists")
 )

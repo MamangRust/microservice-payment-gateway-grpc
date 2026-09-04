@@ -5,10 +5,9 @@ import (
 	"database/sql"
 	"errors"
 
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 	sharedErrors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
-	card_errors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors/card_errors/repository"
 )
 
 type cardQueryRepository struct {
@@ -33,7 +32,7 @@ func (r *cardQueryRepository) FindAllCards(ctx context.Context, req *requests.Fi
 	cards, err := r.db.GetCards(ctx, reqDb)
 
 	if err != nil {
-		return nil, card_errors.ErrFindAllCardsFailed.WithInternal(err)
+		return nil, sharedErrors.ErrFailed("find all cards").WithInternal(err)
 	}
 
 	return cards, nil
@@ -51,7 +50,7 @@ func (r *cardQueryRepository) FindByActive(ctx context.Context, req *requests.Fi
 	res, err := r.db.GetActiveCardsWithCount(ctx, reqDb)
 
 	if err != nil {
-		return nil, card_errors.ErrFindActiveCardsFailed.WithInternal(err)
+		return nil, sharedErrors.ErrFailed("find active cards").WithInternal(err)
 	}
 
 	return res, nil
@@ -69,7 +68,7 @@ func (r *cardQueryRepository) FindByTrashed(ctx context.Context, req *requests.F
 	res, err := r.db.GetTrashedCardsWithCount(ctx, reqDb)
 
 	if err != nil {
-		return nil, card_errors.ErrFindTrashedCardsFailed.WithInternal(err)
+		return nil, sharedErrors.ErrFailed("find trashed cards").WithInternal(err)
 	}
 
 	return res, nil
@@ -80,7 +79,7 @@ func (r *cardQueryRepository) FindById(ctx context.Context, card_id int) (*db.Ge
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, card_errors.ErrFindCardByIdFailed.WithInternal(err)
+			return nil, sharedErrors.ErrNotFoundResponse("card").WithInternal(err)
 		}
 		return nil, sharedErrors.ErrInternal.WithInternal(err)
 	}
@@ -93,7 +92,7 @@ func (r *cardQueryRepository) FindCardByUserId(ctx context.Context, user_id int)
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, card_errors.ErrFindCardByUserIdFailed.WithInternal(err)
+			return nil, sharedErrors.ErrNotFoundResponse("card").WithInternal(err)
 		}
 		return nil, sharedErrors.ErrInternal.WithInternal(err)
 	}
@@ -106,7 +105,7 @@ func (r *cardQueryRepository) FindCardByCardNumber(ctx context.Context, card_num
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, card_errors.ErrFindCardByCardNumberFailed.WithInternal(err)
+			return nil, sharedErrors.ErrNotFoundResponse("card").WithInternal(err)
 		}
 		return nil, sharedErrors.ErrInternal.WithInternal(err)
 	}
@@ -119,7 +118,7 @@ func (r *cardQueryRepository) FindUserCardByCardNumber(ctx context.Context, card
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, card_errors.ErrFindUserCardByCardNumberFailed.WithInternal(err)
+			return nil, sharedErrors.ErrNotFoundResponse("card").WithInternal(err)
 		}
 		return nil, sharedErrors.ErrInternal.WithInternal(err)
 	}

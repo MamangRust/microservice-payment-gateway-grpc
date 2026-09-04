@@ -22,6 +22,6 @@ func NewMerchantMencache(cacheStore *cache.CacheStore) MerchantMencache {
 		MerchantQueryCache:   NewMerchantQueryCache(cacheStore),
 		MerchantCommandCache: NewMerchantCommandCache(cacheStore),
 
-		MerchantTransactionCache:     NewMerchantTransactionCache(cacheStore),
+		MerchantTransactionCache: NewMerchantTransactionCache(cacheStore),
 	}
 }

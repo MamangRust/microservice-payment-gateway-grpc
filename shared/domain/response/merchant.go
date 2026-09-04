@@ -38,7 +38,7 @@ type MerchantResponseDeleteAt struct {
 type MerchantTransactionResponse struct {
 	ID              int    `json:"id"`               // Unique transaction identifier
 	CardNumber      string `json:"card_number"`      // Masked card number used in transaction
-	Amount          int32  `json:"amount"`           // Transaction amount (in smallest currency unit)
+	Amount          int64  `json:"amount"`           // Transaction amount (in smallest currency unit)
 	PaymentMethod   string `json:"payment_method"`   // Method used ("credit", "debit", etc.)
 	MerchantID      int32  `json:"merchant_id"`      // ID of the merchant
 	MerchantName    string `json:"merchant_name"`    // Name of merchant at time of transaction

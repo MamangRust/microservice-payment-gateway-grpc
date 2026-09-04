@@ -80,12 +80,16 @@ func (s *saldoKafkaHandler) ConsumeClaim(session sarama.ConsumerGroupSession, cl
 
 		totalBalance := int(totalBalanceFloat)
 
-		_, errRes := s.saldoService.CreateSaldo(ctx, &requests.CreateSaldoRequest{
+		// Atomic idempotency: CreateSaldoIfNotExists uses ON CONFLICT DO NOTHING
+		// (guarded by the partial unique index idx_saldos_card_number_active), so
+		// it never overwrites an existing balance or creates a duplicate row even
+		// when racing with the API create for the same card. The card-created
+		// event always carries total_balance=0, which must not clobber a real
+		// balance already set via the API.
+		if errRes := s.saldoService.CreateSaldoIfNotExists(ctx, &requests.CreateSaldoRequest{
 			CardNumber:   cardNumber,
 			TotalBalance: int(totalBalance),
-		})
-
-		if errRes != nil {
+		}); errRes != nil {
 			s.logger.Error("card service error", zap.Any("error", errRes))
 
 			return fmt.Errorf("card service error: %v", errRes.Error())

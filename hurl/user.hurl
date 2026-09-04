@@ -1,75 +1,85 @@
-# User Service API Tests
-# Base URL: http://localhost:8080
+# User Service API Tests (microservice routes)
+# Base URL: http://localhost:5000
 
-### Create a new user
-POST http://localhost:8080/api/user
+### Resolve the authenticated user id
+GET http://localhost:5000/api/auth/me
+Authorization: Bearer {{auth_token}}
+
+HTTP 200
+[Captures]
+user_id: jsonpath "$.data.id"
+
+### Create a new user through the user command API
+POST http://localhost:5000/api/user-command/create
 Content-Type: application/json
 Authorization: Bearer {{auth_token}}
 
 {
-  "first_name": "Jane",
-  "last_name": "Smith",
-  "email": "jane.smith@example.com",
-  "phone": "+1234567890",
-  "address": "456 User Street, User City",
-  "date_of_birth": "1990-01-15",
-  "status": "active"
+  "firstname": "Jane",
+  "lastname": "Smith",
+  "email": "jane.smith.{{unique_suffix}}@example.com",
+  "password": "password123",
+  "confirm_password": "password123"
 }
 
 HTTP 200
+[Captures]
+created_user_id: jsonpath "$.data.id"
 
 ### Get all users
-GET http://localhost:8080/api/user
+GET http://localhost:5000/api/user-query
 Authorization: Bearer {{auth_token}}
 
 HTTP 200
 
 ### Get user by ID
-GET http://localhost:8080/api/user/123
+GET http://localhost:5000/api/user-query/{{created_user_id}}
 Authorization: Bearer {{auth_token}}
 
 HTTP 200
 
-### Update user by ID
-PUT http://localhost:8080/api/user/123
+### Update the user
+POST http://localhost:5000/api/user-command/update/{{created_user_id}}
 Content-Type: application/json
 Authorization: Bearer {{auth_token}}
 
 {
-  "first_name": "Jane Marie",
-  "last_name": "Smith-Johnson",
-  "phone": "+1234567891",
-  "address": "789 Updated Street, New City"
+  "user_id": {{created_user_id}},
+  "firstname": "Jane",
+  "lastname": "Smithson",
+  "email": "jane.smith.{{unique_suffix}}@example.com",
+  "password": "password123",
+  "confirm_password": "password123"
 }
 
 HTTP 200
 
-### Delete user by ID
-DELETE http://localhost:8080/api/user/123
+### Get active users
+GET http://localhost:5000/api/user-query/active
 Authorization: Bearer {{auth_token}}
 
 HTTP 200
 
-### Get all user commands
-GET http://localhost:8080/api/user/command
+### Get trashed users
+GET http://localhost:5000/api/user-query/trashed
 Authorization: Bearer {{auth_token}}
 
 HTTP 200
 
-### Get user command by ID
-GET http://localhost:8080/api/user/command/123
+### Trash the user (soft delete)
+POST http://localhost:5000/api/user-command/trashed/{{created_user_id}}
 Authorization: Bearer {{auth_token}}
 
 HTTP 200
 
-### Get all user queries
-GET http://localhost:8080/api/user/query
+### Restore the user
+POST http://localhost:5000/api/user-command/restore/{{created_user_id}}
 Authorization: Bearer {{auth_token}}
 
 HTTP 200
 
-### Get user query by ID
-GET http://localhost:8080/api/user/query/123
+### Delete the user permanently (cleanup so the test is repeatable)
+DELETE http://localhost:5000/api/user-command/permanent/{{created_user_id}}
 Authorization: Bearer {{auth_token}}
 
 HTTP 200

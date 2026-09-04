@@ -3,13 +3,13 @@ package service
 import (
 	"context"
 	"errors"
+	sharedErrors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
 
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/hash"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/errorhandler"
-	user_repo_errors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors/user_errors/repository"
 	user_errors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors/user_errors/service"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/observability"
 
@@ -63,14 +63,14 @@ func (s *userCommandService) CreateUser(ctx context.Context, request *requests.C
 		attribute.String("email", request.Email))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	s.logger.Debug("Creating new user", zap.String("email", request.Email), zap.Any("request", request))
 
 	existingUser, err := s.userQueryRepository.FindByEmail(ctx, request.Email)
 	if err != nil {
-		if errors.Is(err, user_repo_errors.ErrUserNotFound) {
+		if errors.Is(err, sharedErrors.ErrUserNotFound) {
 			s.logger.Debug("Email is available, proceeding to create user", zap.String("email", request.Email))
 		} else {
 			status = "error"
@@ -111,7 +111,7 @@ func (s *userCommandService) CreateUser(ctx context.Context, request *requests.C
 		status = "error"
 		return errorhandler.HandleError[*db.CreateUserRow](
 			s.logger,
-			user_errors.ErrFailedCreateUser,
+			err,
 			method,
 			span,
 		)
@@ -129,7 +129,7 @@ func (s *userCommandService) UpdateUser(ctx context.Context, request *requests.U
 		attribute.Int("user_id", *request.UserID))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	s.logger.Debug("Updating user", zap.Int("user_id", *request.UserID), zap.Any("request", request))
@@ -139,7 +139,7 @@ func (s *userCommandService) UpdateUser(ctx context.Context, request *requests.U
 		status = "error"
 		return errorhandler.HandleError[*db.UpdateUserRow](
 			s.logger,
-			user_errors.ErrUserNotFoundRes,
+			sharedErrors.ErrNotFoundResponse("User"),
 			method,
 			span,
 
@@ -181,7 +181,7 @@ func (s *userCommandService) UpdateUser(ctx context.Context, request *requests.U
 		status = "error"
 		return errorhandler.HandleError[*db.UpdateUserRow](
 			s.logger,
-			user_errors.ErrFailedUpdateUser,
+			err,
 			method,
 			span,
 
@@ -201,7 +201,7 @@ func (s *userCommandService) TrashedUser(ctx context.Context, user_id int) (*db.
 		attribute.Int("user_id", user_id))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	s.logger.Debug("Trashing user", zap.Int("user_id", user_id))
@@ -211,7 +211,7 @@ func (s *userCommandService) TrashedUser(ctx context.Context, user_id int) (*db.
 		status = "error"
 		return errorhandler.HandleError[*db.TrashUserRow](
 			s.logger,
-			user_errors.ErrFailedTrashedUser,
+			err,
 			method,
 			span,
 
@@ -231,7 +231,7 @@ func (s *userCommandService) RestoreUser(ctx context.Context, user_id int) (*db.
 		attribute.Int("user_id", user_id))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	s.logger.Debug("Restoring user", zap.Int("user_id", user_id))
@@ -241,7 +241,7 @@ func (s *userCommandService) RestoreUser(ctx context.Context, user_id int) (*db.
 		status = "error"
 		return errorhandler.HandleError[*db.RestoreUserRow](
 			s.logger,
-			user_errors.ErrFailedRestoreUser,
+			err,
 			method,
 			span,
 
@@ -261,7 +261,7 @@ func (s *userCommandService) DeleteUserPermanent(ctx context.Context, user_id in
 		attribute.Int("user_id", user_id))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	s.logger.Debug("Deleting user permanently", zap.Int("user_id", user_id))
@@ -271,7 +271,7 @@ func (s *userCommandService) DeleteUserPermanent(ctx context.Context, user_id in
 		status = "error"
 		return errorhandler.HandleError[bool](
 			s.logger,
-			user_errors.ErrFailedDeletePermanent,
+			err,
 			method,
 			span,
 
@@ -290,7 +290,7 @@ func (s *userCommandService) RestoreAllUser(ctx context.Context) (bool, error) {
 	ctx, span, end, status, logSuccess := s.observability.StartTracingAndLogging(ctx, method)
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	s.logger.Debug("Restoring all users")
@@ -300,7 +300,7 @@ func (s *userCommandService) RestoreAllUser(ctx context.Context) (bool, error) {
 		status = "error"
 		return errorhandler.HandleError[bool](
 			s.logger,
-			user_errors.ErrFailedRestoreAll,
+			sharedErrors.ErrFailed("restore all users"),
 			method,
 			span,
 		)
@@ -317,7 +317,7 @@ func (s *userCommandService) DeleteAllUserPermanent(ctx context.Context) (bool, 
 	ctx, span, end, status, logSuccess := s.observability.StartTracingAndLogging(ctx, method)
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	s.logger.Debug("Permanently deleting all users")
@@ -327,7 +327,7 @@ func (s *userCommandService) DeleteAllUserPermanent(ctx context.Context) (bool, 
 		status = "error"
 		return errorhandler.HandleError[bool](
 			s.logger,
-			user_errors.ErrFailedDeleteAll,
+			sharedErrors.ErrFailed("delete all users permanently"),
 			method,
 			span,
 		)
@@ -345,7 +345,7 @@ func (s *userCommandService) UpdateIsVerified(ctx context.Context, userID int, i
 		attribute.Bool("is_verified", isVerified))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	res, err := s.userCommandRepository.UpdateIsVerified(ctx, userID, isVerified)
@@ -353,7 +353,7 @@ func (s *userCommandService) UpdateIsVerified(ctx context.Context, userID int, i
 		status = "error"
 		return errorhandler.HandleError[*db.UpdateUserIsVerifiedRow](
 			s.logger,
-			user_errors.ErrFailedUpdateUser,
+			err,
 			method,
 			span,
 			zap.Int("user_id", userID),
@@ -372,7 +372,7 @@ func (s *userCommandService) UpdatePassword(ctx context.Context, userID int, pas
 		attribute.Int("user_id", userID))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	hash, err := s.hashing.HashPassword(password)
@@ -391,7 +391,7 @@ func (s *userCommandService) UpdatePassword(ctx context.Context, userID int, pas
 		status = "error"
 		return errorhandler.HandleError[*db.UpdateUserPasswordRow](
 			s.logger,
-			user_errors.ErrFailedUpdateUser,
+			err,
 			method,
 			span,
 			zap.Int("user_id", userID),

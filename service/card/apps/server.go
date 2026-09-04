@@ -3,12 +3,15 @@ package apps
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pb/card"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pb/user"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/adapter"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/kafka"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/resilience"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/server"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/card/handler"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/card/repository"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/card/service"
@@ -23,6 +26,8 @@ func NewServer(cfg *server.Config) (*server.GRPCServer, error) {
 		return nil, err
 	}
 
+	queries := db.New(srv.Pool)
+
 	// Establish GRPC connection to User service
 	userConn, err := grpc.NewClient(viper.GetString("GRPC_USER_ADDR"), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
@@ -30,18 +35,31 @@ func NewServer(cfg *server.Config) (*server.GRPCServer, error) {
 	}
 
 	userQueryClient := user.NewUserQueryServiceClient(userConn)
-	userAdapter := adapter.NewUserAdapter(userQueryClient)
+	userGuard := resilience.NewDependencyGuard("user", 5, 30, 100, 3*time.Second, srv.Logger)
+	userAdapter := adapter.NewUserAdapter(userQueryClient, adapter.WithDependencyGuard(userGuard))
 
 	kafkaBrokers := strings.Split(viper.GetString("KAFKA_BROKERS"), ",")
-	mykafka := kafka.NewKafka(srv.Logger, kafkaBrokers)
+	mykafka, err := kafka.NewKafka(srv.Logger, kafkaBrokers)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Kafka producer: %w", err)
+	}
 
-	repos := repository.NewRepositories(srv.DB, userQueryClient)
+	repos := repository.NewRepositories(queries, userQueryClient)
+	billingCycleDay := viper.GetInt("BILLING_CYCLE_DAY")
+	if billingCycleDay == 0 {
+		billingCycleDay = 1
+	}
+	if billingCycleDay < 1 || billingCycleDay > 31 {
+		return nil, fmt.Errorf("BILLING_CYCLE_DAY must be between 1 and 31, got %d", billingCycleDay)
+	}
+
 	svc := service.NewService(&service.Deps{
-		Cache:        srv.CacheStore,
-		Logger:       srv.Logger,
-		Repositories: repos,
-		UserAdapter:  userAdapter,
-		Kafka:        mykafka,
+		Cache:           srv.CacheStore,
+		Logger:          srv.Logger,
+		Repositories:    repos,
+		UserAdapter:     userAdapter,
+		Kafka:           mykafka,
+		BillingCycleDay: billingCycleDay,
 	})
 	h := handler.NewHandler(svc)
 

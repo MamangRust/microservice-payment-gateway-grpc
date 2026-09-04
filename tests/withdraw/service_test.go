@@ -1,18 +1,24 @@
 package withdraw_test
 
 import (
+	"context"
+	"errors"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
+	carddb "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/database/schema"
+	card_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/repository"
+	saldodb "github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/database/schema"
+	saldo_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/repository"
+	userdb "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/database/schema"
+	user_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/repository"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/withdraw/database/schema"
+	withdraw_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/withdraw/repository"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/service/withdraw/service"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/cache"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
-	withdraw_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/withdraw/repository"
-	user_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/repository"
-	card_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/repository"
-	saldo_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/repository"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/service/withdraw/service"
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
+	app_errors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/observability"
 	"github.com/MamangRust/microservice-payment-gateway-test"
-	"context"
+	"net/http"
 	"testing"
 	"time"
 
@@ -31,6 +37,7 @@ type WithdrawServiceTestSuite struct {
 	userRepo        user_repo.UserCommandRepository
 	cardRepo        card_repo.CardCommandRepository
 	saldoRepo       saldo_repo.Repositories
+	withdrawRepos   withdraw_repo.Repositories
 	withdrawID      int32
 	cardNumber      string
 }
@@ -51,16 +58,23 @@ func (s *WithdrawServiceTestSuite) SetupSuite() {
 	s.redisClient = redis.NewClient(opts)
 
 	queries := db.New(pool)
-	
+
+	saldodbQueries := saldodb.New(pool)
+
+	carddbQueries := carddb.New(pool)
+
+	userdbQueries := userdb.New(pool)
+
 	// Create individual repositories from their respective modules
-	userCommandRepo := user_repo.NewUserCommandRepository(queries)
-	cardRepos := card_repo.NewRepositories(queries, nil)
-	saldoRepos := saldo_repo.NewRepositories(queries, nil)
-	
+	userCommandRepo := user_repo.NewUserCommandRepository(userdbQueries)
+	cardRepos := card_repo.NewRepositories(carddbQueries, nil)
+	saldoRepos := saldo_repo.NewRepositories(saldodbQueries, nil)
+
 	repos := withdraw_repo.NewRepositories(queries, cardRepos.CardQuery, saldoRepos)
 	s.userRepo = userCommandRepo
 	s.cardRepo = cardRepos.CardCommand
 	s.saldoRepo = saldoRepos
+	s.withdrawRepos = repos
 
 	logger.ResetInstance()
 	lp := sdklog.NewLoggerProvider()
@@ -123,7 +137,7 @@ func (s *WithdrawServiceTestSuite) Test1_Create() {
 	withdraw, err := s.withdrawService.Create(context.Background(), req)
 	s.NoError(err)
 	s.NotNil(withdraw)
-	s.Equal(int32(req.WithdrawAmount), withdraw.WithdrawAmount)
+	s.Equal(int64(req.WithdrawAmount), withdraw.WithdrawAmount)
 	s.withdrawID = withdraw.WithdrawID
 }
 
@@ -160,7 +174,7 @@ func (s *WithdrawServiceTestSuite) Test4_Update() {
 	updated, err := s.withdrawService.Update(context.Background(), req)
 	s.NoError(err)
 	s.NotNil(updated)
-	s.Equal(int32(req.WithdrawAmount), updated.WithdrawAmount)
+	s.Equal(int64(req.WithdrawAmount), updated.WithdrawAmount)
 }
 
 func (s *WithdrawServiceTestSuite) Test5_Trashed() {
@@ -201,6 +215,132 @@ func (s *WithdrawServiceTestSuite) Test8_BulkOperations() {
 	success, err = s.withdrawService.DeleteAllWithdrawPermanent(ctx)
 	s.NoError(err)
 	s.True(success)
+}
+
+func (s *WithdrawServiceTestSuite) Test9_Idempotency_SameKeyReplaysWithoutDoubleDebit() {
+	ctx := context.Background()
+
+	// Fresh card with a known balance so balance assertions stay deterministic.
+	user, err := s.userRepo.CreateUser(ctx, &requests.CreateUserRequest{
+		FirstName: "Idem", LastName: "Withdraw", Email: "idem.withdraw@example.com", Password: "password123",
+	})
+	s.Require().NoError(err)
+	card, err := s.cardRepo.CreateCard(ctx, &requests.CreateCardRequest{
+		UserID:       int(user.UserID),
+		CardType:     "debit",
+		ExpireDate:   time.Now().AddDate(1, 0, 0),
+		CVV:          "777",
+		CardProvider: "visa",
+	})
+	s.Require().NoError(err)
+	_, err = s.saldoRepo.CreateSaldo(ctx, &requests.CreateSaldoRequest{CardNumber: card.CardNumber, TotalBalance: 300000})
+	s.Require().NoError(err)
+
+	req := &requests.CreateWithdrawRequest{
+		CardNumber:     card.CardNumber,
+		WithdrawAmount: 100000,
+		WithdrawTime:   time.Now(),
+		IdempotencyKey: "withdraw-idem-key-1",
+	}
+
+	// First call executes and debits the balance once.
+	first, err := s.withdrawService.Create(ctx, req)
+	s.Require().NoError(err)
+	s.Require().NotNil(first)
+
+	// Retry with the exact same key + payload must replay, not re-execute.
+	replay, err := s.withdrawService.Create(ctx, req)
+	s.Require().NoError(err)
+	s.Require().NotNil(replay)
+	s.Equal(first.WithdrawID, replay.WithdrawID, "replay must return the original record")
+
+	bal, err := s.saldoRepo.FindByCardNumber(ctx, card.CardNumber)
+	s.Require().NoError(err)
+	s.Equal(int64(200000), bal.TotalBalance, "balance must be debited exactly once")
+
+	// Same key with a different payload must be rejected with a conflict.
+	conflictReq := &requests.CreateWithdrawRequest{
+		CardNumber:     card.CardNumber,
+		WithdrawAmount: 150000,
+		WithdrawTime:   time.Now(),
+		IdempotencyKey: "withdraw-idem-key-1",
+	}
+	_, err = s.withdrawService.Create(ctx, conflictReq)
+	s.Require().Error(err)
+	var appErr *app_errors.AppError
+	s.True(errors.As(err, &appErr), "conflict must surface as an AppError")
+	s.Equal(http.StatusConflict, appErr.Code)
+
+	// Balance is still debited exactly once after the rejected retry.
+	bal, err = s.saldoRepo.FindByCardNumber(ctx, card.CardNumber)
+	s.Require().NoError(err)
+	s.Equal(int64(200000), bal.TotalBalance)
+}
+
+func (s *WithdrawServiceTestSuite) Test10_DailyWithdrawalLimit() {
+	ctx := context.Background()
+
+	// Fresh card so today's sum starts at zero, and a service instance with an
+	// explicit daily limit (WITHDRAW_DAILY_LIMIT = 150000).
+	user, err := s.userRepo.CreateUser(ctx, &requests.CreateUserRequest{
+		FirstName: "Daily", LastName: "Limit", Email: "daily.limit@example.com", Password: "password123",
+	})
+	s.Require().NoError(err)
+	card, err := s.cardRepo.CreateCard(ctx, &requests.CreateCardRequest{
+		UserID:       int(user.UserID),
+		CardType:     "debit",
+		ExpireDate:   time.Now().AddDate(1, 0, 0),
+		CVV:          "888",
+		CardProvider: "visa",
+	})
+	s.Require().NoError(err)
+	_, err = s.saldoRepo.CreateSaldo(ctx, &requests.CreateSaldoRequest{CardNumber: card.CardNumber, TotalBalance: 500000})
+	s.Require().NoError(err)
+
+	logger.ResetInstance()
+	lp := sdklog.NewLoggerProvider()
+	log, _ := logger.NewLogger("test", lp)
+	obs, _ := observability.NewObservability("test", log)
+	_ = obs
+	cacheMetrics, _ := observability.NewCacheMetrics("test")
+	cacheStore := cache.NewCacheStore(s.redisClient, log, cacheMetrics)
+
+	svc := service.NewService(&service.Deps{
+		Kafka:                nil,
+		Repositories:         s.withdrawRepos,
+		CardAdapter:          s.ts.CardAdapter,
+		SaldoAdapter:         s.ts.SaldoAdapter,
+		Logger:               log,
+		Cache:                cacheStore,
+		AISecurityClient:     nil,
+		DailyWithdrawalLimit: 150000,
+	})
+
+	// First withdrawal is within the limit.
+	first, err := svc.Create(ctx, &requests.CreateWithdrawRequest{
+		CardNumber:     card.CardNumber,
+		WithdrawAmount: 100000,
+		WithdrawTime:   time.Now(),
+	})
+	s.Require().NoError(err)
+	s.Require().NotNil(first)
+
+	// Second withdrawal pushes today's total past the limit: rejected with 400.
+	overLimit, err := svc.Create(ctx, &requests.CreateWithdrawRequest{
+		CardNumber:     card.CardNumber,
+		WithdrawAmount: 60000,
+		WithdrawTime:   time.Now(),
+	})
+	s.Require().Error(err)
+	var appErr *app_errors.AppError
+	s.True(errors.As(err, &appErr), "over-limit must surface as an AppError")
+	s.Equal(http.StatusBadRequest, appErr.Code, "over-limit must be a BadRequest")
+	s.Nil(overLimit)
+
+	// Balance must be untouched by the rejected withdrawal (only 100000 debited).
+	bal, err := s.saldoRepo.FindByCardNumber(ctx, card.CardNumber)
+	s.Require().NoError(err)
+	s.Equal(int64(400000), bal.TotalBalance, "rejected withdrawal must not change the balance")
 }
 
 func TestWithdrawServiceSuite(t *testing.T) {

@@ -52,7 +52,7 @@ func (s *loginCache) SetCachedLogin(ctx context.Context, email string, data *res
 
 func (s *loginCache) IncrementFailedLogin(ctx context.Context, email string) (int, error) {
 	key := fmt.Sprintf(keyFailedLogin, email)
-	
+
 	// Increment the failed login counter in Redis
 	val, err := s.store.Redis.Incr(ctx, key).Result()
 	if err != nil {
@@ -87,7 +87,7 @@ func (s *loginCache) ResetFailedLogin(ctx context.Context, email string) error {
 
 func (s *loginCache) IsAccountLocked(ctx context.Context, email string) (bool, error) {
 	lockKey := fmt.Sprintf(keyAccountLocked, email)
-	
+
 	exists, err := s.store.Redis.Exists(ctx, lockKey).Result()
 	if err != nil {
 		return false, fmt.Errorf("failed to check account lock status: %w", err)

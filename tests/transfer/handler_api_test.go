@@ -5,6 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	carddb "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/database/schema"
+	saldodb "github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/database/schema"
+	userdb "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/database/schema"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -14,13 +17,13 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2"
 	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb/transfer"
 	pbStats "github.com/MamangRust/microservice-payment-gateway-grpc/pb/transfer/stats"
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
 	transferhandler "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/handler/transfer"
 	card_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/repository"
 	saldo_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/repository"
 	stats_handler "github.com/MamangRust/microservice-payment-gateway-grpc/service/stats-reader/handler"
 	stats_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/stats-reader/repository"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/transfer/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/transfer/handler"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/transfer/repository"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/transfer/service"
@@ -43,18 +46,18 @@ import (
 type TransferHandlerTestSuite struct {
 	suite.Suite
 	ts            *tests.TestSuite
-	dbPool      *pgxpool.Pool
-	redisClient redis.UniversalClient
-	chConn      clickhouse.Conn
-	grpcServer  *grpc.Server
+	dbPool        *pgxpool.Pool
+	redisClient   redis.UniversalClient
+	chConn        clickhouse.Conn
+	grpcServer    *grpc.Server
 	commandClient pb.TransferCommandServiceClient
 	queryClient   pb.TransferQueryServiceClient
-	conn        *grpc.ClientConn
-	router      *echo.Echo
-	repos       repository.Repositories
-	userRepo    user_repo.UserCommandRepository
-	cardRepo    card_repo.Repositories
-	saldoRepo   saldo_repo.Repositories
+	conn          *grpc.ClientConn
+	router        *echo.Echo
+	repos         repository.Repositories
+	userRepo      user_repo.UserCommandRepository
+	cardRepo      card_repo.Repositories
+	saldoRepo     saldo_repo.Repositories
 
 	senderCardNumber   string
 	receiverCardNumber string
@@ -84,21 +87,27 @@ func (s *TransferHandlerTestSuite) SetupSuite() {
 		CREATE TABLE IF NOT EXISTS transfer_events (
 			transfer_id UInt64,
 			transfer_no String,
-			transfer_from String,
-			transfer_to String,
+			source_card String,
+			destination_card String,
 			amount Int64,
 			status String,
 			created_at DateTime DEFAULT now()
-		) ENGINE = MergeTree() ORDER BY (transfer_from, created_at);
+		) ENGINE = MergeTree() ORDER BY (source_card, created_at);
 	`)
 	s.Require().NoError(err)
 
 	queries := db.New(pool)
-	
+
+	saldodbQueries := saldodb.New(pool)
+
+	carddbQueries := carddb.New(pool)
+
+	schemadbQueries := userdb.New(pool)
+
 	// Repositories for seeding
-	s.userRepo = user_repo.NewUserCommandRepository(queries)
-	s.cardRepo = *card_repo.NewRepositories(queries, nil)
-	s.saldoRepo = saldo_repo.NewRepositories(queries, nil)
+	s.userRepo = user_repo.NewUserCommandRepository(schemadbQueries)
+	s.cardRepo = *card_repo.NewRepositories(carddbQueries, nil)
+	s.saldoRepo = saldo_repo.NewRepositories(saldodbQueries, nil)
 
 	// Transfer repos
 	s.repos = repository.NewRepositories(queries, s.saldoRepo, s.cardRepo.CardQuery)
@@ -175,7 +184,7 @@ func (s *TransferHandlerTestSuite) SetupSuite() {
 	s.Require().NoError(err)
 
 	transferHandlerGapi := handler.NewHandler(transferService)
-	
+
 	// Stats Handler
 	chRepo := stats_repo.NewRepository(s.chConn)
 	transferStatsHandler := stats_handler.NewTransferStatsHandler(chRepo, log)
@@ -247,6 +256,7 @@ func (s *TransferHandlerTestSuite) Test1_CreateTransfer() {
 
 	request := httptest.NewRequest(http.MethodPost, "/api/transfer-command/create", bytes.NewBuffer(body))
 	request.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	request.Header.Set("Idempotency-Key", "transfer-create-handler-1")
 	rec := httptest.NewRecorder()
 
 	s.router.ServeHTTP(rec, request)
@@ -259,10 +269,10 @@ func (s *TransferHandlerTestSuite) Test1_CreateTransfer() {
 
 	// Verify balances
 	senderSaldo, _ := s.saldoRepo.FindByCardNumber(context.Background(), s.senderCardNumber)
-	s.Equal(int32(900000), senderSaldo.TotalBalance)
+	s.Equal(int64(900000), senderSaldo.TotalBalance)
 
 	receiverSaldo, _ := s.saldoRepo.FindByCardNumber(context.Background(), s.receiverCardNumber)
-	s.Equal(int32(100000), receiverSaldo.TotalBalance)
+	s.Equal(int64(100000), receiverSaldo.TotalBalance)
 }
 
 func (s *TransferHandlerTestSuite) Test2_FindTransferById() {
@@ -299,10 +309,10 @@ func (s *TransferHandlerTestSuite) Test4_UpdateTransfer() {
 
 	// Verify adjusted balances (Sender 900k - 50k = 850k, Receiver 100k + 50k = 150k)
 	senderSaldo, _ := s.saldoRepo.FindByCardNumber(context.Background(), s.senderCardNumber)
-	s.Equal(int32(850000), senderSaldo.TotalBalance)
+	s.Equal(int64(850000), senderSaldo.TotalBalance)
 
 	receiverSaldo, _ := s.saldoRepo.FindByCardNumber(context.Background(), s.receiverCardNumber)
-	s.Equal(int32(150000), receiverSaldo.TotalBalance)
+	s.Equal(int64(150000), receiverSaldo.TotalBalance)
 }
 
 func (s *TransferHandlerTestSuite) Test5_TrashedTransfer() {
@@ -339,7 +349,7 @@ func (s *TransferHandlerTestSuite) Test8_TransferStats_Amount() {
 	err := s.chConn.Exec(ctx, "TRUNCATE TABLE transfer_events")
 	s.Require().NoError(err)
 
-	seedSQL := `INSERT INTO transfer_events (transfer_id, transfer_no, transfer_from, transfer_to, amount, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`
+	seedSQL := `INSERT INTO transfer_events (transfer_id, transfer_no, source_card, destination_card, amount, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`
 	// Sender data
 	err = s.chConn.Exec(ctx, seedSQL, 1, "TR001", s.senderCardNumber, s.receiverCardNumber, 1000, "success", now)
 	s.Require().NoError(err)

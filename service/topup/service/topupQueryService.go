@@ -3,14 +3,14 @@ package service
 import (
 	"context"
 
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/topup/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/errorhandler"
-	topup_errors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors/topup_errors/service"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/observability"
 	mencache "github.com/MamangRust/microservice-payment-gateway-grpc/service/topup/redis"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/topup/repository"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/errorhandler"
+	sharedErrors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/observability"
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 )
@@ -53,7 +53,7 @@ func (s *topupQueryService) FindAll(ctx context.Context, req *requests.FindAllTo
 		attribute.String("search", search))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	if data, total, found := s.cache.GetCachedTopupsCache(ctx, req); found {
@@ -66,7 +66,7 @@ func (s *topupQueryService) FindAll(ctx context.Context, req *requests.FindAllTo
 		status = "error"
 		return errorhandler.HandlerErrorPagination[[]*db.GetTopupsRow](
 			s.logger,
-			topup_errors.ErrFailedFindAllTopups,
+			sharedErrors.ErrFailed("find all topups"),
 			method,
 			span,
 
@@ -107,7 +107,7 @@ func (s *topupQueryService) FindAllByCardNumber(ctx context.Context, req *reques
 		attribute.String("search", search))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	if data, total, found := s.cache.GetCacheTopupByCardCache(ctx, req); found {
@@ -120,7 +120,7 @@ func (s *topupQueryService) FindAllByCardNumber(ctx context.Context, req *reques
 		status = "error"
 		return errorhandler.HandlerErrorPagination[[]*db.GetTopupsByCardNumberRow](
 			s.logger,
-			topup_errors.ErrFailedFindAllTopupsByCardNumber,
+			sharedErrors.ErrFailed("find all topups by card number"),
 			method,
 			span,
 
@@ -157,7 +157,7 @@ func (s *topupQueryService) FindById(ctx context.Context, topupID int) (*db.GetT
 		attribute.Int("topup_id", topupID))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	if data, found := s.cache.GetCachedTopupCache(ctx, topupID); found {
@@ -170,7 +170,7 @@ func (s *topupQueryService) FindById(ctx context.Context, topupID int) (*db.GetT
 		status = "error"
 		return errorhandler.HandleError[*db.GetTopupByIDRow](
 			s.logger,
-			topup_errors.ErrTopupNotFoundRes,
+			sharedErrors.ErrNotFoundResponse("Topup"),
 			method,
 			span,
 
@@ -197,7 +197,7 @@ func (s *topupQueryService) FindByActive(ctx context.Context, req *requests.Find
 		attribute.String("search", search))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	if data, total, found := s.cache.GetCachedTopupActiveCache(ctx, req); found {
@@ -210,7 +210,7 @@ func (s *topupQueryService) FindByActive(ctx context.Context, req *requests.Find
 		status = "error"
 		return errorhandler.HandlerErrorPagination[[]*db.GetActiveTopupsRow](
 			s.logger,
-			topup_errors.ErrFailedFindActiveTopups,
+			sharedErrors.ErrFailed("find active topups"),
 			method,
 			span,
 
@@ -250,7 +250,7 @@ func (s *topupQueryService) FindByTrashed(ctx context.Context, req *requests.Fin
 		attribute.String("search", search))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	if data, total, found := s.cache.GetCachedTopupTrashedCache(ctx, req); found {
@@ -263,7 +263,7 @@ func (s *topupQueryService) FindByTrashed(ctx context.Context, req *requests.Fin
 		status = "error"
 		return errorhandler.HandlerErrorPagination[[]*db.GetTrashedTopupsRow](
 			s.logger,
-			topup_errors.ErrFailedFindTrashedTopups,
+			sharedErrors.ErrFailed("find trashed topups"),
 			method,
 			span,
 

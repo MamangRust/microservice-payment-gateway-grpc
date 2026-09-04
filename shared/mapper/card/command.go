@@ -74,15 +74,19 @@ func (s *cardCommandResponseMapper) ToApiResponseCardAll(card *pb.ApiResponseCar
 //     CardNumber, CardType, ExpireDate, CVV, CardProvider, CreatedAt, and UpdatedAt.
 func (s *cardCommandResponseMapper) mapCardResponse(card *pb.CardResponse) *response.CardResponse {
 	return &response.CardResponse{
-		ID:           int(card.Id),
-		UserID:       int(card.UserId),
-		CardNumber:   card.CardNumber,
-		CardType:     card.CardType,
-		ExpireDate:   card.ExpireDate,
-		CVV:          card.Cvv,
-		CardProvider: card.CardProvider,
-		CreatedAt:    card.CreatedAt,
-		UpdatedAt:    card.UpdatedAt,
+		ID:                 int(card.Id),
+		UserID:             int(card.UserId),
+		CardNumber:         card.CardNumber,
+		CardType:           card.CardType,
+		ExpireDate:         card.ExpireDate,
+		CVV:                card.Cvv,
+		CardProvider:       card.CardProvider,
+		CreatedAt:          card.CreatedAt,
+		UpdatedAt:          card.UpdatedAt,
+		Status:             card.Status,
+		CreditLimit:        int(card.CreditLimit),
+		OutstandingBalance: int(card.OutstandingBalance),
+		RewardPoints:       int(card.RewardPoints),
 	}
 }
 
@@ -101,15 +105,19 @@ func (s *cardCommandResponseMapper) mapCardResponseDeleteAt(card *pb.CardRespons
 	}
 
 	return &response.CardResponseDeleteAt{
-		ID:           int(card.Id),
-		UserID:       int(card.UserId),
-		CardNumber:   card.CardNumber,
-		CardType:     card.CardType,
-		ExpireDate:   card.ExpireDate,
-		CVV:          card.Cvv,
-		CardProvider: card.CardProvider,
-		CreatedAt:    card.CreatedAt,
-		UpdatedAt:    card.UpdatedAt,
-		DeletedAt:    &deletedAt,
+		ID:                 int(card.Id),
+		UserID:             int(card.UserId),
+		CardNumber:         card.CardNumber,
+		CardType:           card.CardType,
+		ExpireDate:         card.ExpireDate,
+		CVV:                card.Cvv,
+		CardProvider:       card.CardProvider,
+		CreatedAt:          card.CreatedAt,
+		UpdatedAt:          card.UpdatedAt,
+		DeletedAt:          &deletedAt,
+		Status:             card.Status,
+		CreditLimit:        int(card.CreditLimit),
+		OutstandingBalance: int(card.OutstandingBalance),
+		RewardPoints:       int(card.RewardPoints),
 	}
 }

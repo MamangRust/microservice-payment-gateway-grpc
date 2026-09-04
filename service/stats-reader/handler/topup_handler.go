@@ -238,7 +238,7 @@ func (h *TopupStatsHandler) mapToTopupMonthAmountData(data []repository.MonthlyA
 	for _, d := range data {
 		results = append(results, &pbTopupStats.TopupMonthAmountResponse{
 			Month:       d.Month,
-			TotalAmount: int32(d.TotalAmount),
+			TotalAmount: d.TotalAmount,
 		})
 	}
 	return results
@@ -249,7 +249,7 @@ func (h *TopupStatsHandler) mapToTopupYearAmountData(data []repository.YearlyAmo
 	for _, d := range data {
 		results = append(results, &pbTopupStats.TopupYearlyAmountResponse{
 			Year:        d.Year,
-			TotalAmount: int32(d.TotalAmount),
+			TotalAmount: d.TotalAmount,
 		})
 	}
 	return results
@@ -262,7 +262,7 @@ func (h *TopupStatsHandler) mapToTopupMonthMethodData(data []repository.MonthlyM
 			Month:       d.Month,
 			TopupMethod: d.PaymentMethod,
 			TotalTopups: int32(d.TotalTransactions),
-			TotalAmount: int32(d.TotalAmount),
+			TotalAmount: d.TotalAmount,
 		})
 	}
 	return results
@@ -275,7 +275,7 @@ func (h *TopupStatsHandler) mapToTopupMonthStatusSuccessData(data []repository.M
 			Year:         d.Year,
 			Month:        d.Month,
 			TotalSuccess: int32(d.TotalTransactions),
-			TotalAmount:  int32(d.TotalAmount),
+			TotalAmount:  d.TotalAmount,
 		})
 	}
 	return results
@@ -287,7 +287,7 @@ func (h *TopupStatsHandler) mapToTopupYearStatusSuccessData(data []repository.Ye
 		results = append(results, &pbTopupStats.TopupYearStatusSuccessResponse{
 			Year:         d.Year,
 			TotalSuccess: int32(d.TotalTransactions),
-			TotalAmount:  int32(d.TotalAmount),
+			TotalAmount:  d.TotalAmount,
 		})
 	}
 	return results
@@ -300,7 +300,7 @@ func (h *TopupStatsHandler) mapToTopupMonthStatusFailedData(data []repository.Mo
 			Year:        d.Year,
 			Month:       d.Month,
 			TotalFailed: int32(d.TotalTransactions),
-			TotalAmount: int32(d.TotalAmount),
+			TotalAmount: d.TotalAmount,
 		})
 	}
 	return results
@@ -312,7 +312,7 @@ func (h *TopupStatsHandler) mapToTopupYearStatusFailedData(data []repository.Yea
 		results = append(results, &pbTopupStats.TopupYearStatusFailedResponse{
 			Year:        d.Year,
 			TotalFailed: int32(d.TotalTransactions),
-			TotalAmount: int32(d.TotalAmount),
+			TotalAmount: d.TotalAmount,
 		})
 	}
 	return results
@@ -325,7 +325,7 @@ func (h *TopupStatsHandler) mapToTopupYearMethodData(data []repository.YearlyMet
 			Year:        d.Year,
 			TopupMethod: d.PaymentMethod,
 			TotalTopups: int32(d.TotalTransactions),
-			TotalAmount: int32(d.TotalAmount),
+			TotalAmount: d.TotalAmount,
 		})
 	}
 	return results

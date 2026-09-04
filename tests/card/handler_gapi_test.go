@@ -2,6 +2,7 @@ package card_test
 
 import (
 	"context"
+	userdb "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/database/schema"
 	"net"
 	"testing"
 	"time"
@@ -9,18 +10,18 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2"
 	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb/card"
 	pbStats "github.com/MamangRust/microservice-payment-gateway-grpc/pb/card/stats"
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
-	tests "github.com/MamangRust/microservice-payment-gateway-test"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/card/handler"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/card/repository"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/card/service"
-	user_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/repository"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/cache"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/observability"
 	stats_handler "github.com/MamangRust/microservice-payment-gateway-grpc/service/stats-reader/handler"
 	stats_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/stats-reader/repository"
+	user_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/repository"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/cache"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/observability"
+	tests "github.com/MamangRust/microservice-payment-gateway-test"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
@@ -28,27 +29,27 @@ import (
 	sdklog "go.opentelemetry.io/otel/sdk/log"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type CardGapiTestSuite struct {
 	suite.Suite
-	ts           *tests.TestSuite
-	dbPool       *pgxpool.Pool
-	redisClient redis.UniversalClient
-	grpcServer   *grpc.Server
-	conn         *grpc.ClientConn
-	chConn       clickhouse.Conn
-	queryClient  pb.CardQueryServiceClient
-	cmdClient    pb.CardCommandServiceClient
-	statsClient  pbStats.CardStatsTopupServiceClient
-	balanceClient pbStats.CardStatsBalanceServiceClient
+	ts                *tests.TestSuite
+	dbPool            *pgxpool.Pool
+	redisClient       redis.UniversalClient
+	grpcServer        *grpc.Server
+	conn              *grpc.ClientConn
+	chConn            clickhouse.Conn
+	queryClient       pb.CardQueryServiceClient
+	cmdClient         pb.CardCommandServiceClient
+	statsClient       pbStats.CardStatsTopupServiceClient
+	balanceClient     pbStats.CardStatsBalanceServiceClient
 	transactionClient pbStats.CardStatsTransactionServiceClient
 	transferClient    pbStats.CardStatsTransferServiceClient
 	withdrawClient    pbStats.CardStatsWithdrawServiceClient
-	userID       int
-	cardID       int
+	userID            int
+	cardID            int
 }
 
 func (s *CardGapiTestSuite) SetupSuite() {
@@ -116,12 +117,12 @@ func (s *CardGapiTestSuite) SetupSuite() {
 		CREATE TABLE IF NOT EXISTS transfer_events (
 			transfer_id UInt64,
 			transfer_no String,
-			sender_card_number String,
-			receiver_card_number String,
+			source_card String,
+			destination_card String,
 			amount Int64,
 			status String,
 			created_at DateTime DEFAULT now()
-		) ENGINE = MergeTree() ORDER BY (sender_card_number, created_at);
+		) ENGINE = MergeTree() ORDER BY (source_card, created_at);
 	`)
 	s.Require().NoError(err)
 
@@ -147,8 +148,10 @@ func (s *CardGapiTestSuite) SetupSuite() {
 	s.Require().NoError(err)
 
 	queries := db.New(pool)
+
+	userdbQueries := userdb.New(pool)
 	repos := repository.NewRepositories(queries, nil)
-	userRepo := user_repo.NewRepositories(queries)
+	userRepo := user_repo.NewRepositories(userdbQueries)
 
 	logger.ResetInstance()
 	lp := sdklog.NewLoggerProvider()
@@ -165,7 +168,7 @@ func (s *CardGapiTestSuite) SetupSuite() {
 	})
 
 	cardHandler := handler.NewHandler(cardService)
-	
+
 	// Stats Handler
 	chRepo := stats_repo.NewRepository(s.chConn)
 	cardStatsHandler := stats_handler.NewCardStatsHandler(chRepo, log)
@@ -335,7 +338,7 @@ func (s *CardGapiTestSuite) Test8_CardStats_Transfer() {
 	err := s.chConn.Exec(ctx, "TRUNCATE TABLE transfer_events")
 	s.Require().NoError(err)
 
-	seedSQL := `INSERT INTO transfer_events (transfer_id, transfer_no, sender_card_number, receiver_card_number, amount, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`
+	seedSQL := `INSERT INTO transfer_events (transfer_id, transfer_no, source_card, destination_card, amount, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`
 	err = s.chConn.Exec(ctx, seedSQL, 1, "TR001", "1234567890", "0987654321", 2000, "success", now)
 	s.Require().NoError(err)
 
@@ -431,7 +434,7 @@ func (s *CardGapiTestSuite) Test14_CardStats_Transfer_Full() {
 	s.NoError(err)
 	_, err = s.transferClient.FindYearlyTransferReceiverAmount(ctx, &pb.FindYearAmount{Year: int32(now.Year())})
 	s.NoError(err)
-	
+
 	_, err = s.transferClient.FindMonthlyTransferSenderAmountByCardNumber(ctx, &pb.FindYearAmountCardNumber{Year: int32(now.Year()), CardNumber: cardNumber})
 	s.NoError(err)
 	_, err = s.transferClient.FindYearlyTransferSenderAmountByCardNumber(ctx, &pb.FindYearAmountCardNumber{Year: int32(now.Year()), CardNumber: cardNumber})

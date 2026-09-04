@@ -3,7 +3,8 @@ package repository
 import (
 	"context"
 
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/auth/database/schema"
+	userdb "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 )
 
@@ -11,19 +12,19 @@ import (
 //
 //go:generate mockgen -source=interfaces.go -destination=mocks/mock.go
 type UserRepository interface {
-	FindByEmail(ctx context.Context, email string) (*db.GetUserByEmailRow, error)
+	FindByEmail(ctx context.Context, email string) (*userdb.GetUserByEmailRow, error)
 
-	FindByEmailAndVerify(ctx context.Context, email string) (*db.GetUserByEmailAndVerifiedRow, error)
+	FindByEmailAndVerify(ctx context.Context, email string) (*userdb.GetUserByEmailAndVerifiedRow, error)
 
-	FindById(ctx context.Context, user_id int) (*db.GetUserByIDRow, error)
+	FindById(ctx context.Context, user_id int) (*userdb.GetUserByIDRow, error)
 
-	CreateUser(ctx context.Context, request *requests.RegisterRequest) (*db.CreateUserRow, error)
+	CreateUser(ctx context.Context, request *requests.RegisterRequest) (*userdb.CreateUserRow, error)
 
-	UpdateUserIsVerified(ctx context.Context, user_id int, is_verified bool) (*db.UpdateUserIsVerifiedRow, error)
+	UpdateUserIsVerified(ctx context.Context, user_id int, is_verified bool) (*userdb.UpdateUserIsVerifiedRow, error)
 
-	UpdateUserPassword(ctx context.Context, user_id int, password string) (*db.UpdateUserPasswordRow, error)
+	UpdateUserPassword(ctx context.Context, user_id int, password string) (*userdb.UpdateUserPasswordRow, error)
 
-	FindByVerificationCode(ctx context.Context, verification_code string) (*db.GetUserByVerificationCodeRow, error)
+	FindByVerificationCode(ctx context.Context, verification_code string) (*userdb.GetUserByVerificationCodeRow, error)
 }
 
 type ResetTokenRepository interface {
@@ -31,7 +32,7 @@ type ResetTokenRepository interface {
 
 	CreateResetToken(ctx context.Context, req *requests.CreateResetTokenRequest) (*db.CreateResetTokenRow, error)
 
-	DeleteResetToken(ctx context.Context, user_id int) error
+	DeleteResetToken(ctx context.Context, user_id int32) error
 }
 
 type RefreshTokenRepository interface {

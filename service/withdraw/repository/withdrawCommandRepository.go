@@ -2,10 +2,10 @@ package repository
 
 import (
 	"context"
+	sharedErrors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
 
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/withdraw/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
-	withdraw_errors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors/withdraw_errors/repository"
 )
 
 type withdrawCommandRepository struct {
@@ -21,14 +21,14 @@ func NewWithdrawCommandRepository(db *db.Queries) WithdrawCommandRepository {
 func (r *withdrawCommandRepository) CreateWithdraw(ctx context.Context, request *requests.CreateWithdrawRequest) (*db.CreateWithdrawRow, error) {
 	req := db.CreateWithdrawParams{
 		CardNumber:     request.CardNumber,
-		WithdrawAmount: int32(request.WithdrawAmount),
+		WithdrawAmount: int64(request.WithdrawAmount),
 		WithdrawTime:   request.WithdrawTime,
 	}
 
 	res, err := r.db.CreateWithdraw(ctx, req)
 
 	if err != nil {
-		return nil, withdraw_errors.ErrCreateWithdrawFailed.WithInternal(err)
+		return nil, sharedErrors.ErrFailed("create withdraw").WithInternal(err)
 	}
 
 	return res, nil
@@ -38,14 +38,14 @@ func (r *withdrawCommandRepository) UpdateWithdraw(ctx context.Context, request 
 	req := db.UpdateWithdrawParams{
 		WithdrawID:     int32(*request.WithdrawID),
 		CardNumber:     request.CardNumber,
-		WithdrawAmount: int32(request.WithdrawAmount),
+		WithdrawAmount: int64(request.WithdrawAmount),
 		WithdrawTime:   request.WithdrawTime,
 	}
 
 	res, err := r.db.UpdateWithdraw(ctx, req)
 
 	if err != nil {
-		return nil, withdraw_errors.ErrUpdateWithdrawFailed.WithInternal(err)
+		return nil, sharedErrors.ErrNoRowsOrFailed(err, "withdraw", "update withdraw")
 	}
 
 	return res, nil
@@ -60,7 +60,7 @@ func (r *withdrawCommandRepository) UpdateWithdrawStatus(ctx context.Context, re
 	res, err := r.db.UpdateWithdrawStatus(ctx, req)
 
 	if err != nil {
-		return nil, withdraw_errors.ErrUpdateWithdrawStatusFailed.WithInternal(err)
+		return nil, sharedErrors.ErrNoRowsOrFailed(err, "withdraw", "update withdraw status")
 	}
 
 	return res, nil
@@ -70,7 +70,7 @@ func (r *withdrawCommandRepository) TrashedWithdraw(ctx context.Context, withdra
 	res, err := r.db.TrashWithdraw(ctx, int32(withdraw_id))
 
 	if err != nil {
-		return nil, withdraw_errors.ErrTrashedWithdrawFailed.WithInternal(err)
+		return nil, sharedErrors.ErrNoRowsOrFailed(err, "withdraw", "trash withdraw")
 	}
 
 	return res, nil
@@ -80,7 +80,7 @@ func (r *withdrawCommandRepository) RestoreWithdraw(ctx context.Context, withdra
 	res, err := r.db.RestoreWithdraw(ctx, int32(withdraw_id))
 
 	if err != nil {
-		return nil, withdraw_errors.ErrRestoreWithdrawFailed.WithInternal(err)
+		return nil, sharedErrors.ErrNoRowsOrFailed(err, "withdraw", "restore withdraw")
 	}
 
 	return res, nil
@@ -90,7 +90,7 @@ func (r *withdrawCommandRepository) DeleteWithdrawPermanent(ctx context.Context,
 	err := r.db.DeleteWithdrawPermanently(ctx, int32(withdraw_id))
 
 	if err != nil {
-		return false, withdraw_errors.ErrDeleteWithdrawPermanentFailed.WithInternal(err)
+		return false, sharedErrors.ErrNoRowsOrFailed(err, "withdraw", "delete withdraw permanently")
 	}
 
 	return true, nil
@@ -100,7 +100,7 @@ func (r *withdrawCommandRepository) RestoreAllWithdraw(ctx context.Context) (boo
 	err := r.db.RestoreAllWithdraws(ctx)
 
 	if err != nil {
-		return false, withdraw_errors.ErrRestoreAllWithdrawsFailed.WithInternal(err)
+		return false, sharedErrors.ErrFailed("restore all withdraws").WithInternal(err)
 	}
 
 	return true, nil
@@ -110,7 +110,7 @@ func (r *withdrawCommandRepository) DeleteAllWithdrawPermanent(ctx context.Conte
 	err := r.db.DeleteAllPermanentWithdraws(ctx)
 
 	if err != nil {
-		return false, withdraw_errors.ErrDeleteAllWithdrawsPermanentFailed.WithInternal(err)
+		return false, sharedErrors.ErrFailed("delete all withdraws permanently").WithInternal(err)
 	}
 
 	return true, nil

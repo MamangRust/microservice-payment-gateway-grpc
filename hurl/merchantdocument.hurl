@@ -1,47 +1,111 @@
-# Merchant Document Service API Tests
-# Base URL: http://localhost:8080
+# Merchant Document Service API Tests (microservice routes)
+# Base URL: http://localhost:5000
 
-### Create a new merchant document
-POST http://localhost:8080/api/merchantdocument
+### Resolve the authenticated user id
+GET http://localhost:5000/api/auth/me
+Authorization: Bearer {{auth_token}}
+
+HTTP 200
+[Captures]
+user_id: jsonpath "$.data.id"
+
+### Create a merchant to attach the document to
+POST http://localhost:5000/api/merchant-command/create
 Content-Type: application/json
 Authorization: Bearer {{auth_token}}
 
 {
-  "merchant_id": "123",
-  "document_type": "business_license",
-  "document_name": "Business License.pdf",
-  "document_url": "https://example.com/documents/business_license.pdf",
-  "status": "pending"
+  "name": "Document Merchant",
+  "user_id": {{user_id}}
+}
+
+HTTP 200
+[Captures]
+merchant_id: jsonpath "$.data.id"
+
+### Create a merchant document
+POST http://localhost:5000/api/merchant-document-command/create
+Content-Type: application/json
+Authorization: Bearer {{auth_token}}
+
+{
+  "merchant_id": {{merchant_id}},
+  "document_type": "license",
+  "document_url": "https://example.com/license.pdf"
+}
+
+HTTP 200
+[Captures]
+document_id: jsonpath "$.data.id"
+
+### Update the merchant document
+POST http://localhost:5000/api/merchant-document-command/updates/{{document_id}}
+Content-Type: application/json
+Authorization: Bearer {{auth_token}}
+
+{
+  "document_id": {{document_id}},
+  "merchant_id": {{merchant_id}},
+  "document_type": "identity_proof",
+  "document_url": "https://example.com/id.pdf",
+  "status": "pending",
+  "note": "resubmitted"
+}
+
+HTTP 200
+
+### Update the document review status
+POST http://localhost:5000/api/merchant-document-command/update-status/{{document_id}}
+Content-Type: application/json
+Authorization: Bearer {{auth_token}}
+
+{
+  "document_id": {{document_id}},
+  "merchant_id": {{merchant_id}},
+  "status": "approved",
+  "note": "verified"
 }
 
 HTTP 200
 
 ### Get all merchant documents
-GET http://localhost:8080/api/merchantdocument
+GET http://localhost:5000/api/merchant-document-query
 Authorization: Bearer {{auth_token}}
 
 HTTP 200
 
 ### Get merchant document by ID
-GET http://localhost:8080/api/merchantdocument/123
+GET http://localhost:5000/api/merchant-document-query/{{document_id}}
 Authorization: Bearer {{auth_token}}
 
 HTTP 200
 
-### Update merchant document by ID
-PUT http://localhost:8080/api/merchantdocument/123
-Content-Type: application/json
+### Get active merchant documents
+GET http://localhost:5000/api/merchant-document-query/active
 Authorization: Bearer {{auth_token}}
-
-{
-  "document_name": "Updated Business License.pdf",
-  "status": "approved"
-}
 
 HTTP 200
 
-### Delete merchant document by ID
-DELETE http://localhost:8080/api/merchantdocument/123
+### Get trashed merchant documents
+GET http://localhost:5000/api/merchant-document-query/trashed
+Authorization: Bearer {{auth_token}}
+
+HTTP 200
+
+### Trash the document (soft delete)
+POST http://localhost:5000/api/merchant-document-command/trashed/{{document_id}}
+Authorization: Bearer {{auth_token}}
+
+HTTP 200
+
+### Restore the document
+POST http://localhost:5000/api/merchant-document-command/restore/{{document_id}}
+Authorization: Bearer {{auth_token}}
+
+HTTP 200
+
+### Delete the document permanently (cleanup so the test is repeatable)
+DELETE http://localhost:5000/api/merchant-document-command/permanent/{{document_id}}
 Authorization: Bearer {{auth_token}}
 
 HTTP 200

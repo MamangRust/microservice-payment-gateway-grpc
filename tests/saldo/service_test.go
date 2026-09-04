@@ -2,19 +2,21 @@ package saldo_test
 
 import (
 	"context"
+	carddb "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/database/schema"
+	userdb "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/database/schema"
 	"testing"
 	"time"
 
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
+	card_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/repository"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/database/schema"
 	saldo_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/repository"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/service"
+	user_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/repository"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/cache"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/observability"
 	tests "github.com/MamangRust/microservice-payment-gateway-test"
-	user_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/repository"
-	card_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/repository"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/suite"
@@ -47,9 +49,13 @@ func (s *SaldoServiceTestSuite) SetupSuite() {
 	s.redisClient = redis.NewClient(opts)
 
 	queries := db.New(pool)
-	
-	userRepos := user_repo.NewRepositories(queries)
-	cardRepos := card_repo.NewRepositories(queries, nil)
+
+	carddbQueries := carddb.New(pool)
+
+	userdbQueries := userdb.New(pool)
+
+	userRepos := user_repo.NewRepositories(userdbQueries)
+	cardRepos := card_repo.NewRepositories(carddbQueries, nil)
 	saldoRepos := saldo_repo.NewRepositories(queries, nil)
 
 	s.userRepo = userRepos.UserCommand()
@@ -110,13 +116,13 @@ func (s *SaldoServiceTestSuite) TestSaldoLifecycle() {
 	saldo, err := s.saldoService.CreateSaldo(ctx, req)
 	s.NoError(err)
 	s.NotNil(saldo)
-	s.Equal(int32(req.TotalBalance), saldo.TotalBalance)
+	s.Equal(int64(req.TotalBalance), saldo.TotalBalance)
 
 	// 2. Find By Card Number
 	found, err := s.saldoService.FindByCardNumber(ctx, card.CardNumber)
 	s.NoError(err)
 	s.NotNil(found)
-	s.Equal(int32(req.TotalBalance), found.TotalBalance)
+	s.Equal(int64(req.TotalBalance), found.TotalBalance)
 }
 
 func (s *SaldoServiceTestSuite) TestBulkOperations() {

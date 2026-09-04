@@ -3,14 +3,17 @@ package myhandlerkafka
 import (
 	"context"
 	"encoding/json"
+	stderrors "errors"
+	"fmt"
 	"time"
 
 	"github.com/IBM/sarama"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/service/merchant/service"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/kafka"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/service/merchant/service"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/response"
+	sharedErrors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
 	"go.uber.org/zap"
 )
 
@@ -57,13 +60,21 @@ func (m *merchantKafkaHandler) Cleanup(session sarama.ConsumerGroupSession) erro
 // a valid response to the corresponding Kafka topic. Each message is marked as processed
 // in the consumer group session.
 func (m *merchantKafkaHandler) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
 	for msg := range claim.Messages() {
+		// NOTE: create a FRESH context per message. A consumer-group claim stays
+		// open for minutes/hours, so a context created once at ConsumeClaim start
+		// is already expired by the time the message is processed, which made
+		// every FindByApiKey (Redis GET + DB query) fail instantly with
+		// "context deadline exceeded" -> Valid:false -> HTTP 401 at the gateway.
+		ctx, cancel := context.WithTimeout(session.Context(), 10*time.Second)
+
 		var payload requests.MerchantRequestPayload
 		if err := json.Unmarshal(msg.Value, &payload); err != nil {
+			cancel()
 			m.logger.Error("Failed to unmarshal merchant request", zap.Error(err))
+			// This message cannot be processed successfully; acknowledge it so a
+			// poison message does not block the partition forever.
+			session.MarkMessage(msg, "malformed merchant API-key request")
 			continue
 		}
 
@@ -73,15 +84,33 @@ func (m *merchantKafkaHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 		}
 
 		merchant, err := m.merchantService.FindByApiKey(ctx, payload.ApiKey)
-		if err == nil && merchant != nil {
+		cancel()
+		if err != nil {
+			// A missing merchant is a normal invalid-key result. Infrastructure
+			// failures (Redis, DB, or gRPC) must be retried instead of being
+			// acknowledged as an invalid key and permanently turning into 401.
+			var appErr *sharedErrors.AppError
+			if !stderrors.As(err, &appErr) || appErr.Type != sharedErrors.ErrorTypeNotFound {
+				m.logger.Error("Merchant API-key lookup failed", zap.Error(err))
+				return fmt.Errorf("find merchant by API key: %w", err)
+			}
+		} else if merchant != nil {
 			resp.Valid = true
 			resp.MerchantID = int64(merchant.MerchantID)
 		}
 
-		respBytes, _ := json.Marshal(resp)
+		respBytes, err := json.Marshal(resp)
+		if err != nil {
+			m.logger.Error("Failed to marshal merchant response", zap.Error(err))
+			return fmt.Errorf("marshal merchant response: %w", err)
+		}
 		sendErr := m.kafka.SendMessage(payload.ReplyTopic, payload.CorrelationID, respBytes)
 		if sendErr != nil {
+			// Do not acknowledge the request: the gateway is waiting for this
+			// correlation ID, and Sarama must redeliver it after the consumer
+			// session retries.
 			m.logger.Error("Failed to send Kafka response", zap.Error(sendErr))
+			return fmt.Errorf("send merchant response: %w", sendErr)
 		}
 
 		session.MarkMessage(msg, "")

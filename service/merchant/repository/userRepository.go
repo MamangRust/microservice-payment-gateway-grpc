@@ -2,11 +2,11 @@ package repository
 
 import (
 	"context"
+	userdb "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/database/schema"
+	sharedErrors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
 	"time"
 
 	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb/user"
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
-	user_errors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors/user_errors/repository"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -22,17 +22,17 @@ func NewUserRepository(userQueryClient pb.UserQueryServiceClient) UserRepository
 	}
 }
 
-func (r *userRepository) FindById(ctx context.Context, user_id int) (*db.GetUserByIDRow, error) {
+func (r *userRepository) FindById(ctx context.Context, user_id int) (*userdb.GetUserByIDRow, error) {
 	resp, err := r.userQueryClient.FindById(ctx, &pb.FindByIdUserRequest{
 		Id: int32(user_id),
 	})
 
 	if err != nil {
-		return nil, user_errors.ErrUserNotFound.WithInternal(err)
+		return nil, sharedErrors.ErrUserNotFound.WithInternal(err)
 	}
 
 	if resp == nil || resp.Data == nil {
-		return nil, user_errors.ErrUserNotFound
+		return nil, sharedErrors.ErrUserNotFound
 	}
 
 	parseTime := func(ts string) pgtype.Timestamp {
@@ -47,7 +47,7 @@ func (r *userRepository) FindById(ctx context.Context, user_id int) (*db.GetUser
 	}
 
 	// Map back to db struct
-	return &db.GetUserByIDRow{
+	return &userdb.GetUserByIDRow{
 		UserID:    resp.Data.Id,
 		Firstname: resp.Data.Firstname,
 		Lastname:  resp.Data.Lastname,

@@ -5,10 +5,9 @@ import (
 	"database/sql"
 	"errors"
 
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 	sharedErrors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
-	user_errors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors/user_errors/repository"
 )
 
 // userQueryRepository implements UserQueryRepository.
@@ -35,7 +34,7 @@ func (r *userQueryRepository) FindAllUsers(ctx context.Context, req *requests.Fi
 	res, err := r.db.GetUsersWithPagination(ctx, reqDb)
 
 	if err != nil {
-		return nil, user_errors.ErrFindAllUsers.WithInternal(err)
+		return nil, sharedErrors.ErrFailed("find all users").WithInternal(err)
 	}
 
 	return res, nil
@@ -46,7 +45,7 @@ func (r *userQueryRepository) FindById(ctx context.Context, user_id int) (*db.Ge
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, user_errors.ErrUserNotFound.WithInternal(err)
+			return nil, sharedErrors.ErrNotFound.WithMessage("user not found").WithInternal(err)
 		}
 
 		return nil, sharedErrors.ErrInternal.WithInternal(err)
@@ -67,7 +66,7 @@ func (r *userQueryRepository) FindByActive(ctx context.Context, req *requests.Fi
 	res, err := r.db.GetActiveUsersWithPagination(ctx, reqDb)
 
 	if err != nil {
-		return nil, user_errors.ErrFindActiveUsers.WithInternal(err)
+		return nil, sharedErrors.ErrFailed("find active users").WithInternal(err)
 	}
 
 	return res, nil
@@ -85,7 +84,7 @@ func (r *userQueryRepository) FindByTrashed(ctx context.Context, req *requests.F
 	res, err := r.db.GetTrashedUsersWithPagination(ctx, reqDb)
 
 	if err != nil {
-		return nil, user_errors.ErrFindTrashedUsers.WithInternal(err)
+		return nil, sharedErrors.ErrFailed("find trashed users").WithInternal(err)
 	}
 
 	return res, nil
@@ -96,7 +95,7 @@ func (r *userQueryRepository) FindByEmail(ctx context.Context, email string) (*d
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, user_errors.ErrUserNotFound.WithInternal(err)
+			return nil, sharedErrors.ErrNotFound.WithMessage("user not found").WithInternal(err)
 		}
 
 		return nil, sharedErrors.ErrInternal.WithInternal(err)
@@ -110,7 +109,7 @@ func (r *userQueryRepository) FindByVerificationCode(ctx context.Context, code s
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, user_errors.ErrUserNotFound.WithInternal(err)
+			return nil, sharedErrors.ErrNotFound.WithMessage("user not found").WithInternal(err)
 		}
 
 		return nil, sharedErrors.ErrInternal.WithInternal(err)

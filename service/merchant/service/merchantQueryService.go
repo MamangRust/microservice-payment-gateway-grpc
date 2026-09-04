@@ -5,7 +5,7 @@ import (
 
 	cache "github.com/MamangRust/microservice-payment-gateway-grpc/service/merchant/redis"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/merchant/repository"
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/merchant/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/errorhandler"
@@ -46,7 +46,7 @@ func (s *merchantQueryService) FindAll(ctx context.Context, req *requests.FindAl
 	search := req.Search
 
 	ctx, span, end, status, logSuccess := s.observability.StartTracingAndLogging(ctx, method, attribute.Int("page", page), attribute.Int("pageSize", pageSize), attribute.String("search", search))
-	defer func() { end(status) }()
+	defer func() { end(status, "grpc") }()
 
 	if data, total, found := s.cache.GetCachedMerchants(ctx, req); found {
 		logSuccess("Successfully retrieved all merchant records from cache", zap.Int("totalRecords", *total), zap.Int("page", page), zap.Int("pageSize", pageSize))
@@ -77,7 +77,7 @@ func (s *merchantQueryService) FindById(ctx context.Context, merchantID int) (*d
 	const method = "FindById"
 
 	ctx, span, end, status, logSuccess := s.observability.StartTracingAndLogging(ctx, method, attribute.Int("merchant.id", merchantID))
-	defer func() { end(status) }()
+	defer func() { end(status, "grpc") }()
 
 	if cachedMerchant, found := s.cache.GetCachedMerchant(ctx, merchantID); found {
 		logSuccess("Successfully retrieved merchant from cache", zap.Int("merchant.id", merchantID))
@@ -103,7 +103,7 @@ func (s *merchantQueryService) FindByActive(ctx context.Context, req *requests.F
 	search := req.Search
 
 	ctx, span, end, status, logSuccess := s.observability.StartTracingAndLogging(ctx, method, attribute.Int("page", page), attribute.Int("pageSize", pageSize), attribute.String("search", search))
-	defer func() { end(status) }()
+	defer func() { end(status, "grpc") }()
 
 	if data, total, found := s.cache.GetCachedMerchantActive(ctx, req); found {
 		logSuccess("Successfully fetched active merchants from cache", zap.Int("totalRecords", *total), zap.Int("page", page), zap.Int("pageSize", pageSize))
@@ -136,7 +136,7 @@ func (s *merchantQueryService) FindByTrashed(ctx context.Context, req *requests.
 	search := req.Search
 
 	ctx, span, end, status, logSuccess := s.observability.StartTracingAndLogging(ctx, method, attribute.Int("page", page), attribute.Int("pageSize", pageSize), attribute.String("search", search))
-	defer func() { end(status) }()
+	defer func() { end(status, "grpc") }()
 
 	if data, total, found := s.cache.GetCachedMerchantTrashed(ctx, req); found {
 		logSuccess("Successfully fetched trashed merchants from cache", zap.Int("totalRecords", *total), zap.Int("page", page), zap.Int("pageSize", pageSize))
@@ -167,7 +167,7 @@ func (s *merchantQueryService) FindByApiKey(ctx context.Context, apiKey string) 
 	const method = "FindByApiKey"
 
 	ctx, span, end, status, logSuccess := s.observability.StartTracingAndLogging(ctx, method, attribute.String("api_key", apiKey))
-	defer func() { end(status) }()
+	defer func() { end(status, "grpc") }()
 
 	if cachedMerchant, found := s.cache.GetCachedMerchantByApiKey(ctx, apiKey); found {
 		logSuccess("Successfully found merchant by API key from cache", zap.String("api_key", apiKey))
@@ -191,7 +191,7 @@ func (s *merchantQueryService) FindByMerchantUserId(ctx context.Context, userID 
 	const method = "FindByMerchantUserId"
 
 	ctx, span, end, status, logSuccess := s.observability.StartTracingAndLogging(ctx, method, attribute.Int("user.id", userID))
-	defer func() { end(status) }()
+	defer func() { end(status, "grpc") }()
 
 	if cachedMerchants, found := s.cache.GetCachedMerchantsByUserId(ctx, userID); found {
 		logSuccess("Successfully found merchants by user ID from cache", zap.Int("user.id", userID), zap.Int("count", len(cachedMerchants)))

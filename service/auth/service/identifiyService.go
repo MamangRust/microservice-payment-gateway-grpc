@@ -7,13 +7,13 @@ import (
 	"strconv"
 	"time"
 
+	userdb "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/database/schema"
 	sharederrorhandler "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errorhandler"
 
+	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/auth"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
 	mencache "github.com/MamangRust/microservice-payment-gateway-grpc/service/auth/redis"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/auth/repository"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/auth"
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/response"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/observability"
@@ -62,7 +62,7 @@ func (s *identityService) RefreshToken(ctx context.Context, token string) (*resp
 	ctx, span, end, status, logSuccess := s.observability.StartTracingAndLogging(ctx, method, attribute.String("token", token))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	if cachedUserID, found := s.mencache.GetRefreshToken(ctx, token); found {
@@ -167,13 +167,13 @@ func (s *identityService) RefreshToken(ctx context.Context, token string) (*resp
 	}, nil
 }
 
-func (s *identityService) GetMe(ctx context.Context, userId int) (*db.GetUserByIDRow, error) {
+func (s *identityService) GetMe(ctx context.Context, userId int) (*userdb.GetUserByIDRow, error) {
 	const method = "GetMe"
 
 	ctx, span, end, status, logSuccess :=
 		s.observability.StartTracingAndLogging(ctx, method)
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	s.logger.Debug("Fetching user details", zap.Int("user.id", userId))
@@ -188,7 +188,7 @@ func (s *identityService) GetMe(ctx context.Context, userId int) (*db.GetUserByI
 	user, err := s.user.FindById(ctx, userId)
 	if err != nil {
 		status = "error"
-		return sharederrorhandler.HandleError[*db.GetUserByIDRow](
+		return sharederrorhandler.HandleError[*userdb.GetUserByIDRow](
 			s.logger,
 			err,
 			method,

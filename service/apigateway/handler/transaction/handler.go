@@ -1,12 +1,12 @@
 package transactionhandler
 
 import (
-	mencache "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/redis"
-	transaction_cache "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/redis/api/transaction"
-	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb/transaction"
 	pbAISecurity "github.com/MamangRust/microservice-payment-gateway-grpc/pb/ai_security"
+	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb/transaction"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/kafka"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
+	mencache "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/redis"
+	transaction_cache "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/redis/api/transaction"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/cache"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
 	apimapper "github.com/MamangRust/microservice-payment-gateway-grpc/shared/mapper/transaction"
@@ -29,7 +29,7 @@ type DepsTransaction struct {
 
 	ApiHandler errors.ApiHandler
 
-	AISecurity *grpc.ClientConn
+	AISecurity  *grpc.ClientConn
 	StatsClient *grpc.ClientConn
 }
 
@@ -65,11 +65,11 @@ func setupTransactionQueryHandler(deps *DepsTransaction, mapper apimapper.Transa
 func setupTransactionCommandHandler(deps *DepsTransaction, cache mencache.MerchantCache, mapper apimapper.TransactionCommandResponseMapper, cache_ transaction_cache.TransactionMencache) func() {
 	return func() {
 		NewTransactionCommandHandleApi(&transactionCommandHandleDeps{
-			kafka:      deps.Kafka,
-			client:     pb.NewTransactionCommandServiceClient(deps.Client),
-			router:     deps.E,
-			logger:     deps.Logger,
-			mapper:     mapper,
+			kafka:             deps.Kafka,
+			client:            pb.NewTransactionCommandServiceClient(deps.Client),
+			router:            deps.E,
+			logger:            deps.Logger,
+			mapper:            mapper,
 			cache:             cache,
 			cache_transaction: cache_,
 			apiHandler:        deps.ApiHandler,

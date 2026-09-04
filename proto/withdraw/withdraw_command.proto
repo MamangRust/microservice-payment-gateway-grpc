@@ -10,14 +10,15 @@ import "google/protobuf/timestamp.proto";
 
 message CreateWithdrawRequest {
   string card_number = 1;
-  int32 withdraw_amount = 2;
+  int64 withdraw_amount = 2;
   google.protobuf.Timestamp withdraw_time = 3;
+  string idempotency_key = 4;
 }
 
 message UpdateWithdrawRequest {
   int32 withdraw_id = 1;
   string card_number = 2;
-  int32 withdraw_amount = 3;
+  int64 withdraw_amount = 3;
   google.protobuf.Timestamp withdraw_time = 4;
 }
 

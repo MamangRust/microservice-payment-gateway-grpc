@@ -3,6 +3,7 @@ package apps
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	pbai "github.com/MamangRust/microservice-payment-gateway-grpc/pb/ai_security"
 	pbcard "github.com/MamangRust/microservice-payment-gateway-grpc/pb/card"
@@ -10,10 +11,13 @@ import (
 	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb/withdraw"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/adapter"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/kafka"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/resilience"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/server"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/withdraw/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/withdraw/handler"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/withdraw/repository"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/withdraw/service"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/outbox"
 	"github.com/spf13/viper"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -24,6 +28,8 @@ func NewServer(cfg *server.Config) (*server.GRPCServer, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	queries := db.New(srv.Pool)
 
 	// gRPC Clients for cross-service communication
 	connSaldo, err := grpc.NewClient(viper.GetString("GRPC_SALDO_ADDR"), grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -47,22 +53,43 @@ func NewServer(cfg *server.Config) (*server.GRPCServer, error) {
 	cardClientCmd := pbcard.NewCardCommandServiceClient(connCard)
 	aiClient := pbai.NewAISecurityServiceClient(connAI)
 
-	saldoAdapter := adapter.NewSaldoAdapter(saldoClientQuery, saldoClientCmd)
-	cardAdapter := adapter.NewCardAdapter(cardClientQuery, cardClientCmd)
+	saldoGuard := resilience.NewDependencyGuard("saldo", 5, 30, 100, 3*time.Second, srv.Logger)
+	cardGuard := resilience.NewDependencyGuard("card", 5, 30, 100, 3*time.Second, srv.Logger)
 
-	repos := repository.NewRepositories(srv.DB, cardAdapter, saldoAdapter)
+	saldoAdapter := adapter.NewSaldoAdapter(saldoClientQuery, saldoClientCmd, adapter.WithDependencyGuard(saldoGuard))
+	cardAdapter := adapter.NewCardAdapter(cardClientQuery, cardClientCmd, adapter.WithDependencyGuard(cardGuard))
+
+	repos := repository.NewRepositories(queries, cardAdapter, saldoAdapter)
 	kafkaBrokers := strings.Split(viper.GetString("KAFKA_BROKERS"), ",")
-	myKafka := kafka.NewKafka(srv.Logger, kafkaBrokers)
+	myKafka, err := kafka.NewKafka(srv.Logger, kafkaBrokers)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Kafka producer: %w", err)
+	}
+
+	// Daily withdrawal limit (in smallest currency unit); defaults to 10.000.000.
+	dailyWithdrawalLimit := viper.GetInt64("WITHDRAW_DAILY_LIMIT")
+	if dailyWithdrawalLimit == 0 {
+		dailyWithdrawalLimit = 10_000_000
+	}
+	if dailyWithdrawalLimit < 0 {
+		return nil, fmt.Errorf("WITHDRAW_DAILY_LIMIT must be >= 0, got %d", dailyWithdrawalLimit)
+	}
 
 	svc := service.NewService(&service.Deps{
-		Kafka:            myKafka,
-		Repositories:     repos,
-		Logger:           srv.Logger,
-		Cache:            srv.CacheStore,
-		AISecurityClient: aiClient,
-		CardAdapter:      cardAdapter,
-		SaldoAdapter:     saldoAdapter,
+		Kafka:                myKafka,
+		Repositories:         repos,
+		Logger:               srv.Logger,
+		Cache:                srv.CacheStore,
+		AISecurityClient:     aiClient,
+		CardAdapter:          cardAdapter,
+		SaldoAdapter:         saldoAdapter,
+		DailyWithdrawalLimit: dailyWithdrawalLimit,
 	})
+
+	// Phase 3: Start outbox publisher
+	outboxPub := outbox.NewPublisher(srv.Pool, myKafka, srv.Logger)
+	go outboxPub.Start(srv.Ctx)
+
 	h := handler.NewHandler(svc)
 
 	srv.RegisterServices = func(gs *grpc.Server) {

@@ -25,6 +25,7 @@ rule_files:
   - rules/transfer-service-alerts.yaml
   - rules/user-service-alerts.yaml
   - rules/withdrawal-service-alerts.yaml
+  - rules/financial-slo-alerts.yaml
 
 
 scrape_configs:

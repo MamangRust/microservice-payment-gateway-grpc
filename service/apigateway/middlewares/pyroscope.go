@@ -10,14 +10,15 @@ import (
 func PyroscopeMiddleware() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
+			var handlerErr error
 			pyroscope.TagWrapper(c.Request().Context(), pyroscope.Labels(
 				"endpoint", c.Path(),
 				"method", c.Request().Method,
 			), func(ctx context.Context) {
 				c.SetRequest(c.Request().WithContext(ctx))
-				next(c)
+				handlerErr = next(c)
 			})
-			return nil
+			return handlerErr
 		}
 	}
 }

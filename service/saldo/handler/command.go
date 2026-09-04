@@ -43,9 +43,9 @@ func (s *saldoCommandHandleGrpc) CreateSaldo(ctx context.Context, req *pb.Create
 	protoSaldo := &pb.SaldoResponse{
 		SaldoId:        int32(saldo.SaldoID),
 		CardNumber:     saldo.CardNumber,
-		TotalBalance:   int32(saldo.TotalBalance),
+		TotalBalance:   int64(saldo.TotalBalance),
 		WithdrawTime:   saldo.WithdrawTime.Time.Format(time.RFC3339),
-		WithdrawAmount: Int32Value(saldo.WithdrawAmount),
+		WithdrawAmount: Int64Value(saldo.WithdrawAmount),
 		CreatedAt:      saldo.CreatedAt.Time.Format(time.RFC3339),
 		UpdatedAt:      saldo.UpdatedAt.Time.Format(time.RFC3339),
 	}
@@ -82,9 +82,9 @@ func (s *saldoCommandHandleGrpc) UpdateSaldo(ctx context.Context, req *pb.Update
 	protoSaldo := &pb.SaldoResponse{
 		SaldoId:        int32(saldo.SaldoID),
 		CardNumber:     saldo.CardNumber,
-		TotalBalance:   int32(saldo.TotalBalance),
+		TotalBalance:   int64(saldo.TotalBalance),
 		WithdrawTime:   saldo.WithdrawTime.Time.Format(time.RFC3339),
-		WithdrawAmount: Int32Value(saldo.WithdrawAmount),
+		WithdrawAmount: Int64Value(saldo.WithdrawAmount),
 		CreatedAt:      saldo.CreatedAt.Time.Format(time.RFC3339),
 		UpdatedAt:      saldo.UpdatedAt.Time.Format(time.RFC3339),
 	}
@@ -94,6 +94,93 @@ func (s *saldoCommandHandleGrpc) UpdateSaldo(ctx context.Context, req *pb.Update
 		Message: "Successfully updated saldo record",
 		Data:    protoSaldo,
 	}, nil
+}
+
+func (s *saldoCommandHandleGrpc) DebitSaldo(ctx context.Context, req *pb.DebitSaldoRequest) (*pb.ApiResponseSaldo, error) {
+	request := &requests.DebitSaldoRequest{
+		CardNumber:  req.GetCardNumber(),
+		Amount:      int(req.GetAmount()),
+		OperationID: req.GetOperationId(),
+		SourceType:  req.GetSourceType(),
+		SourceID:    req.GetSourceId(),
+	}
+	if err := request.Validate(); err != nil {
+		return nil, saldo_errors.ErrGrpcValidateUpdateSaldo
+	}
+
+	saldo, err := s.service.DebitSaldo(ctx, request)
+	if err != nil {
+		return nil, errors.ToGrpcError(err)
+	}
+	return saldoMutationResponse("Successfully debited saldo record", saldo.SaldoID, saldo.CardNumber, saldo.TotalBalance), nil
+}
+
+func (s *saldoCommandHandleGrpc) CreditSaldo(ctx context.Context, req *pb.CreditSaldoRequest) (*pb.ApiResponseSaldo, error) {
+	request := &requests.CreditSaldoRequest{
+		CardNumber:  req.GetCardNumber(),
+		Amount:      int(req.GetAmount()),
+		OperationID: req.GetOperationId(),
+		SourceType:  req.GetSourceType(),
+		SourceID:    req.GetSourceId(),
+	}
+	if err := request.Validate(); err != nil {
+		return nil, saldo_errors.ErrGrpcValidateUpdateSaldo
+	}
+
+	saldo, err := s.service.CreditSaldo(ctx, request)
+	if err != nil {
+		return nil, errors.ToGrpcError(err)
+	}
+	return saldoMutationResponse("Successfully credited saldo record", saldo.SaldoID, saldo.CardNumber, saldo.TotalBalance), nil
+}
+
+func (s *saldoCommandHandleGrpc) ApplySaldoAdjustment(ctx context.Context, req *pb.ApplySaldoAdjustmentRequest) (*pb.ApiResponseAdjustment, error) {
+	request := &requests.ApplySaldoAdjustmentRequest{
+		CardNumber:  req.GetCardNumber(),
+		Delta:       req.GetDelta(),
+		OperationID: req.GetOperationId(),
+		SourceType:  req.GetSourceType(),
+		SourceID:    req.GetSourceId(),
+		Note:        req.GetNote(),
+	}
+	if err := request.Validate(); err != nil {
+		return nil, saldo_errors.ErrGrpcValidateUpdateSaldo
+	}
+	res, err := s.service.ApplySaldoAdjustment(ctx, request)
+	if err != nil {
+		return nil, errors.ToGrpcError(err)
+	}
+	return &pb.ApiResponseAdjustment{
+		Status:  "success",
+		Message: "Successfully applied saldo adjustment",
+		Data: &pb.SaldoResponse{
+			SaldoId:      res.SaldoID,
+			CardNumber:   res.CardNumber,
+			TotalBalance: int64(res.TotalBalance),
+		},
+	}, nil
+}
+
+func (s *saldoCommandHandleGrpc) ResolveReconciliation(ctx context.Context, req *pb.ResolveReconciliationRequest) (*pb.ApiResponseSaldoAll, error) {
+	if req.GetQueueId() <= 0 || req.GetOperationId() == "" {
+		return nil, saldo_errors.ErrGrpcSaldoInvalidID
+	}
+	if err := s.service.ResolveReconciliation(ctx, req.GetQueueId(), req.GetOperationId(), req.GetNote()); err != nil {
+		return nil, errors.ToGrpcError(err)
+	}
+	return &pb.ApiResponseSaldoAll{Status: "success", Message: "Successfully resolved reconciliation item"}, nil
+}
+
+func saldoMutationResponse(message string, saldoID int32, cardNumber string, totalBalance int64) *pb.ApiResponseSaldo {
+	return &pb.ApiResponseSaldo{
+		Status:  "success",
+		Message: message,
+		Data: &pb.SaldoResponse{
+			SaldoId:      saldoID,
+			CardNumber:   cardNumber,
+			TotalBalance: totalBalance,
+		},
+	}
 }
 
 func (s *saldoCommandHandleGrpc) UpdateSaldoWithdraw(ctx context.Context, req *pb.UpdateSaldoWithdrawRequest) (*pb.ApiResponseSaldo, error) {
@@ -119,9 +206,9 @@ func (s *saldoCommandHandleGrpc) UpdateSaldoWithdraw(ctx context.Context, req *p
 	protoSaldo := &pb.SaldoResponse{
 		SaldoId:        int32(saldo.SaldoID),
 		CardNumber:     saldo.CardNumber,
-		TotalBalance:   int32(saldo.TotalBalance),
+		TotalBalance:   int64(saldo.TotalBalance),
 		WithdrawTime:   saldo.WithdrawTime.Time.Format(time.RFC3339),
-		WithdrawAmount: Int32Value(saldo.WithdrawAmount),
+		WithdrawAmount: Int64Value(saldo.WithdrawAmount),
 		CreatedAt:      saldo.CreatedAt.Time.Format(time.RFC3339),
 		UpdatedAt:      saldo.UpdatedAt.Time.Format(time.RFC3339),
 	}
@@ -148,9 +235,9 @@ func (s *saldoCommandHandleGrpc) TrashedSaldo(ctx context.Context, req *pb.FindB
 	protoSaldo := &pb.SaldoResponseDeleteAt{
 		SaldoId:        int32(saldo.SaldoID),
 		CardNumber:     saldo.CardNumber,
-		TotalBalance:   int32(saldo.TotalBalance),
+		TotalBalance:   int64(saldo.TotalBalance),
 		WithdrawTime:   saldo.WithdrawTime.Time.Format(time.RFC3339),
-		WithdrawAmount: Int32Value(saldo.WithdrawAmount),
+		WithdrawAmount: Int64Value(saldo.WithdrawAmount),
 		CreatedAt:      saldo.CreatedAt.Time.Format(time.RFC3339),
 		UpdatedAt:      saldo.UpdatedAt.Time.Format(time.RFC3339),
 		DeletedAt:      wrapperspb.String(saldo.DeletedAt.Time.Format(time.RFC3339)),
@@ -178,9 +265,9 @@ func (s *saldoCommandHandleGrpc) RestoreSaldo(ctx context.Context, req *pb.FindB
 	protoSaldo := &pb.SaldoResponseDeleteAt{
 		SaldoId:        int32(saldo.SaldoID),
 		CardNumber:     saldo.CardNumber,
-		TotalBalance:   int32(saldo.TotalBalance),
+		TotalBalance:   int64(saldo.TotalBalance),
 		WithdrawTime:   saldo.WithdrawTime.Time.Format(time.RFC3339),
-		WithdrawAmount: Int32Value(saldo.WithdrawAmount),
+		WithdrawAmount: Int64Value(saldo.WithdrawAmount),
 		CreatedAt:      saldo.CreatedAt.Time.Format(time.RFC3339),
 		UpdatedAt:      saldo.UpdatedAt.Time.Format(time.RFC3339),
 		DeletedAt:      wrapperspb.String(saldo.DeletedAt.Time.Format(time.RFC3339)),

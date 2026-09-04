@@ -6,14 +6,14 @@ import (
 	"strconv"
 	"testing"
 
+	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/auth"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/hash"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/auth/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/auth/handler"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/auth/repository"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/auth/service"
-	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb"
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
 	tests "github.com/MamangRust/microservice-payment-gateway-test"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/auth"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/hash"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
@@ -179,11 +179,11 @@ func (s *AuthHandlerGapiTestSuite) Test4_LoginLockout() {
 func (s *AuthHandlerGapiTestSuite) Test3_GetMe() {
 	s.Require().NotEmpty(s.accessToken)
 	ctx := context.Background()
-	
+
 	tokenManager, _ := auth.NewManager("mysecret")
 	userIdStr, err := tokenManager.ValidateToken(s.accessToken)
 	s.NoError(err)
-	
+
 	userId, err := strconv.Atoi(userIdStr)
 	s.NoError(err)
 

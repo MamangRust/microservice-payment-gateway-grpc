@@ -4,9 +4,9 @@ import (
 	"net/http"
 	"strconv"
 
-	merchant_cache "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/redis/api/merchant"
 	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb/merchant"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
+	merchant_cache "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/redis/api/merchant"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 	errors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
 	apimapper "github.com/MamangRust/microservice-payment-gateway-grpc/shared/mapper/merchant"
@@ -209,20 +209,25 @@ func (h *merchantQueryHandleApi) FindByApiKey(c echo.Context) error {
 // @Failure 500 {object} response.ErrorResponse "Failed to retrieve merchant data"
 // @Router /api/merchant-query/merchant-user [get]
 func (h *merchantQueryHandleApi) FindByMerchantUserId(c echo.Context) error {
-	userId, ok := c.Get("user_id").(int32)
+	userIdStr, ok := c.Get("user_id").(string)
 	if !ok {
+		return errors.NewBadRequestError("user_id is required and must be valid")
+	}
+
+	userId, err := strconv.Atoi(userIdStr)
+	if err != nil {
 		return errors.NewBadRequestError("user_id is required and must be valid")
 	}
 
 	ctx := c.Request().Context()
 
-	cachedData, found := h.cache.GetCachedMerchantsByUserId(ctx, int(userId))
+	cachedData, found := h.cache.GetCachedMerchantsByUserId(ctx, userId)
 	if found {
 		return c.JSON(http.StatusOK, cachedData)
 	}
 
 	reqGrpc := &pb.FindByMerchantUserIdRequest{
-		UserId: userId,
+		UserId: int32(userId),
 	}
 
 	res, err := h.client.FindByMerchantUserId(ctx, reqGrpc)

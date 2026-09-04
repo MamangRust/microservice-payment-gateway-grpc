@@ -13,4 +13,7 @@ type Repository interface {
 	InsertSaldoEvent(ctx context.Context, event events.SaldoEvent) error
 	InsertMerchantEvent(ctx context.Context, event events.MerchantEvent) error
 	InsertCardEvent(ctx context.Context, event events.CardEvent) error
+
+	Flush(ctx context.Context) error
+	Close() error
 }

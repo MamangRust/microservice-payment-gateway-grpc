@@ -37,7 +37,7 @@ message TransactionResponse {
   int32 id = 1;
   string card_number = 2;
   string transaction_no = 3;
-  int32 amount = 4;
+  int64 amount = 4;
   string payment_method = 5;
   int32 merchant_id = 6;
   string transaction_time = 7;
@@ -49,7 +49,7 @@ message TransactionResponseDeleteAt {
   int32 id = 1;
   string card_number = 2;
   string transaction_no = 3;
-  int32 amount = 4;
+  int64 amount = 4;
   string payment_method = 5;
   int32 merchant_id = 6;
   string transaction_time = 7;

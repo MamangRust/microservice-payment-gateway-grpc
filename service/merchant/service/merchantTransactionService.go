@@ -5,7 +5,7 @@ import (
 
 	mencache "github.com/MamangRust/microservice-payment-gateway-grpc/service/merchant/redis"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/merchant/repository"
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/merchant/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/errorhandler"
@@ -48,7 +48,7 @@ func (s *merchantTransactionService) FindAllTransactions(ctx context.Context, re
 	search := req.Search
 
 	ctx, span, end, status, logSuccess := s.observability.StartTracingAndLogging(ctx, method, attribute.Int("page", page), attribute.Int("pageSize", pageSize), attribute.String("search", search))
-	defer func() { end(status) }()
+	defer func() { end(status, "grpc") }()
 
 	if data, total, found := s.cache.GetCacheAllMerchantTransactions(ctx, req); found {
 		logSuccess("Successfully retrieved all merchant transactions from cache", zap.Int("totalRecords", *total), zap.Int("page", page), zap.Int("pageSize", pageSize))
@@ -81,7 +81,7 @@ func (s *merchantTransactionService) FindAllTransactionsByMerchant(ctx context.C
 	search := req.Search
 
 	ctx, span, end, status, logSuccess := s.observability.StartTracingAndLogging(ctx, method, attribute.Int("page", page), attribute.Int("pageSize", pageSize), attribute.String("search", search))
-	defer func() { end(status) }()
+	defer func() { end(status, "grpc") }()
 
 	if data, total, found := s.cache.GetCacheMerchantTransactions(ctx, req); found {
 		logSuccess("Successfully retrieved merchant transactions from cache", zap.Int("totalRecords", *total), zap.Int("page", page), zap.Int("pageSize", pageSize))
@@ -114,7 +114,7 @@ func (s *merchantTransactionService) FindAllTransactionsByApikey(ctx context.Con
 	search := req.Search
 
 	ctx, span, end, status, logSuccess := s.observability.StartTracingAndLogging(ctx, method, attribute.Int("page", page), attribute.Int("pageSize", pageSize), attribute.String("search", search))
-	defer func() { end(status) }()
+	defer func() { end(status, "grpc") }()
 
 	if data, total, found := s.cache.GetCacheMerchantTransactionApikey(ctx, req); found {
 		logSuccess("Successfully retrieved merchant transactions by apikey from cache", zap.Int("totalRecords", *total), zap.Int("page", page), zap.Int("pageSize", pageSize))

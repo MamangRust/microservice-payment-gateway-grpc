@@ -4,9 +4,9 @@ import (
 	"net/http"
 	"strconv"
 
-	card_cache "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/redis/api/card"
 	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb/card"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
+	card_cache "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/redis/api/card"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 	errors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
 	apimapper "github.com/MamangRust/microservice-payment-gateway-grpc/shared/mapper/card"
@@ -170,7 +170,7 @@ func (h *cardQueryHandleApi) FindById(c echo.Context) error {
 // @Failure 500 {object} response.ErrorResponse "Failed to retrieve card record"
 // @Router /api/card-query/user [get]
 func (h *cardQueryHandleApi) FindByUserID(c echo.Context) error {
-	userIDStr, ok := c.Get("userID").(string)
+	userIDStr, ok := c.Get("user_id").(string)
 	if !ok {
 		return errors.NewBadRequestError("user_id is required")
 	}

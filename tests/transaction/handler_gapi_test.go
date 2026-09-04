@@ -2,6 +2,10 @@ package transaction_test
 
 import (
 	"context"
+	carddb "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/database/schema"
+	merchantdb "github.com/MamangRust/microservice-payment-gateway-grpc/service/merchant/database/schema"
+	saldodb "github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/database/schema"
+	userdb "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/database/schema"
 	"net"
 	"testing"
 	"time"
@@ -10,13 +14,13 @@ import (
 	pbAISecurity "github.com/MamangRust/microservice-payment-gateway-grpc/pb/ai_security"
 	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb/transaction"
 	pbStats "github.com/MamangRust/microservice-payment-gateway-grpc/pb/transaction/stats"
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
 	card_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/repository"
 	merchant_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/merchant/repository"
 	saldo_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/repository"
 	stats_handler "github.com/MamangRust/microservice-payment-gateway-grpc/service/stats-reader/handler"
 	stats_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/stats-reader/repository"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/transaction/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/transaction/handler"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/transaction/repository"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/transaction/service"
@@ -32,8 +36,8 @@ import (
 	sdklog "go.opentelemetry.io/otel/sdk/log"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type TransactionGapiTestSuite struct {
@@ -97,10 +101,18 @@ func (s *TransactionGapiTestSuite) SetupSuite() {
 	s.Require().NoError(err)
 
 	queries := db.New(pool)
-	s.userRepo = user_repo.NewUserCommandRepository(queries)
-	s.cardRepo = *card_repo.NewRepositories(queries, nil)
-	s.saldoRepo = saldo_repo.NewRepositories(queries, nil)
-	s.merchantRepo = merchant_repo.NewRepositories(queries, nil)
+
+	merchantdbQueries := merchantdb.New(pool)
+
+	saldodbQueries := saldodb.New(pool)
+
+	carddbQueries := carddb.New(pool)
+
+	userdbQueries := userdb.New(pool)
+	s.userRepo = user_repo.NewUserCommandRepository(userdbQueries)
+	s.cardRepo = *card_repo.NewRepositories(carddbQueries, nil)
+	s.saldoRepo = saldo_repo.NewRepositories(saldodbQueries, nil)
+	s.merchantRepo = merchant_repo.NewRepositories(merchantdbQueries, nil)
 
 	opts, err := redis.ParseURL(s.ts.RedisURL)
 	s.Require().NoError(err)
@@ -247,7 +259,7 @@ func (s *TransactionGapiTestSuite) Test3_UpdateTransaction() {
 	}
 	res, err := s.commandClient.UpdateTransaction(ctx, updateReq)
 	s.Require().NoError(err)
-	s.Equal(int32(200000), res.Data.Amount)
+	s.Equal(int64(200000), res.Data.Amount)
 }
 
 func (s *TransactionGapiTestSuite) Test4_TrashedTransaction() {

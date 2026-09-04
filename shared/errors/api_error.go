@@ -47,7 +47,7 @@ func (h *apiHandler) Handle(method string, handler func(echo.Context) error) ech
 		c.SetRequest(c.Request().WithContext(ctx))
 
 		defer func() {
-			end(status)
+			end(status, "http")
 		}()
 
 		err := handler(c)
@@ -144,4 +144,3 @@ func NewServiceUnavailableError(service string) *AppError {
 func NewForbiddenError(message string) *AppError {
 	return ErrForbidden.WithMessage(message)
 }
-

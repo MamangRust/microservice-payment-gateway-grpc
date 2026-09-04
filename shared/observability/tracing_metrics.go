@@ -22,11 +22,11 @@ type TraceLoggerObservability interface {
 	) (
 		context.Context,
 		trace.Span,
-		func(string),
+		func(string, string),
 		string,
 		func(string, ...zap.Field),
 	)
-	RecordMetrics(ctx context.Context, method, status string, start time.Time)
+	RecordMetrics(ctx context.Context, method, status, protocol string, start time.Time)
 }
 
 type Observability struct {
@@ -86,7 +86,7 @@ func (o *Observability) StartTracingAndLogging(
 ) (
 	context.Context,
 	trace.Span,
-	func(string),
+	func(string, string),
 	string,
 	func(string, ...zap.Field),
 ) {
@@ -105,8 +105,8 @@ func (o *Observability) StartTracingAndLogging(
 		o.logger.Info("Start: " + method)
 	}
 
-	end := func(status string) {
-		o.RecordMetrics(ctx, method, status, start)
+	end := func(status, protocol string) {
+		o.RecordMetrics(ctx, method, status, protocol, start)
 
 		code := codes.Ok
 		if status != "success" {
@@ -126,12 +126,13 @@ func (o *Observability) StartTracingAndLogging(
 	return ctx, span, end, status, logSuccess
 }
 
-func (o *Observability) RecordMetrics(ctx context.Context, method, status string, start time.Time) {
+func (o *Observability) RecordMetrics(ctx context.Context, method, status, protocol string, start time.Time) {
 	duration := time.Since(start).Seconds()
 
 	attrs := []attribute.KeyValue{
 		attribute.String("method", method),
 		attribute.String("status", status),
+		attribute.String("protocol", protocol),
 	}
 
 	if o.requestCounter != nil {

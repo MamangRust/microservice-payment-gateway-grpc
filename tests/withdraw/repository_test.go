@@ -3,12 +3,14 @@ package withdraw_test
 import (
 	"context"
 	"fmt"
+	carddb "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/database/schema"
+	userdb "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/database/schema"
 	"testing"
 	"time"
 
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
 	card_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/repository"
 	user_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/repository"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/withdraw/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/withdraw/repository"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 	"github.com/MamangRust/microservice-payment-gateway-test"
@@ -36,6 +38,7 @@ func (s *WithdrawRepositoryTestSuite) SetupSuite() {
 	s.dbPool = pool
 
 	queries := db.New(pool)
+
 	s.repo = repository.NewWithdrawCommandRepository(queries)
 	s.queryRepo = repository.NewWithdrawQueryRepository(queries)
 }
@@ -45,21 +48,20 @@ func (s *WithdrawRepositoryTestSuite) TearDownSuite() {
 	s.ts.Teardown()
 }
 
-func (s *WithdrawRepositoryTestSuite) createSeedCard() (*db.CreateCardRow, error) {
+func (s *WithdrawRepositoryTestSuite) createSeedCard() (*carddb.CreateCardRow, error) {
 	userReq := &requests.CreateUserRequest{
 		FirstName: "Withdraw",
 		LastName:  "Owner",
 		Email:     fmt.Sprintf("withdrawowner-%d@example.com", time.Now().UnixNano()),
 		Password:  "password123",
 	}
-	queries := db.New(s.dbPool)
-	userRepo := user_repo.NewUserCommandRepository(queries)
+	userRepo := user_repo.NewUserCommandRepository(userdb.New(s.dbPool))
 	user, err := userRepo.CreateUser(context.Background(), userReq)
 	if err != nil {
 		return nil, err
 	}
 
-	cardRepos := card_repo.NewRepositories(queries, nil)
+	cardRepos := card_repo.NewRepositories(carddb.New(s.dbPool), nil)
 	return cardRepos.CardCommand.CreateCard(context.Background(), &requests.CreateCardRequest{
 		UserID:       int(user.UserID),
 		CardType:     "debit",
@@ -82,7 +84,7 @@ func (s *WithdrawRepositoryTestSuite) TestCreateWithdraw() {
 	withdraw, err := s.repo.CreateWithdraw(context.Background(), req)
 	s.NoError(err)
 	s.NotNil(withdraw)
-	s.Equal(int32(req.WithdrawAmount), withdraw.WithdrawAmount)
+	s.Equal(int64(req.WithdrawAmount), withdraw.WithdrawAmount)
 }
 
 func (s *WithdrawRepositoryTestSuite) TestFindAll() {
@@ -188,7 +190,7 @@ func (s *WithdrawRepositoryTestSuite) TestUpdateWithdraw() {
 	updated, err := s.repo.UpdateWithdraw(context.Background(), req)
 	s.NoError(err)
 	s.NotNil(updated)
-	s.Equal(int32(updateAmount), updated.WithdrawAmount)
+	s.Equal(int64(updateAmount), updated.WithdrawAmount)
 }
 
 func (s *WithdrawRepositoryTestSuite) TestTrashWithdraw() {

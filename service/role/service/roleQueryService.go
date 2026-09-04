@@ -3,14 +3,14 @@ package service
 import (
 	"context"
 
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/role/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
 
 	mencache "github.com/MamangRust/microservice-payment-gateway-grpc/service/role/redis"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/role/repository"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/errorhandler"
-	role_errors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors/role_errors/service"
+	sharedErrors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/observability"
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
@@ -55,7 +55,7 @@ func (s *roleQueryService) FindAll(ctx context.Context, req *requests.FindAllRol
 		attribute.String("search", search))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	if data, total, found := s.cache.GetCachedRoles(ctx, req); found {
@@ -68,7 +68,7 @@ func (s *roleQueryService) FindAll(ctx context.Context, req *requests.FindAllRol
 		status = "error"
 		return errorhandler.HandlerErrorPagination[[]*db.GetRolesRow](
 			s.logger,
-			role_errors.ErrFailedFindAll,
+			sharedErrors.ErrFailed("find all roles"),
 			method,
 			span,
 
@@ -103,7 +103,7 @@ func (s *roleQueryService) FindById(ctx context.Context, id int) (*db.Role, erro
 		attribute.Int("id", id))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	if data, found := s.cache.GetCachedRoleById(ctx, id); found {
@@ -117,7 +117,7 @@ func (s *roleQueryService) FindById(ctx context.Context, id int) (*db.Role, erro
 		status = "error"
 		return errorhandler.HandleError[*db.Role](
 			s.logger,
-			role_errors.ErrRoleNotFoundRes,
+			sharedErrors.ErrNotFoundResponse("Role"),
 			method,
 			span,
 
@@ -139,7 +139,7 @@ func (s *roleQueryService) FindByUserId(ctx context.Context, id int) ([]*db.Role
 		attribute.Int("user_id", id))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	if data, found := s.cache.GetCachedRoleByUserId(ctx, id); found {
@@ -152,7 +152,7 @@ func (s *roleQueryService) FindByUserId(ctx context.Context, id int) ([]*db.Role
 		status = "error"
 		return errorhandler.HandleError[[]*db.Role](
 			s.logger,
-			role_errors.ErrRoleNotFoundRes,
+			sharedErrors.ErrNotFoundResponse("Role"),
 			method,
 			span,
 
@@ -174,7 +174,7 @@ func (s *roleQueryService) FindByName(ctx context.Context, name string) (*db.Rol
 		attribute.String("name", name))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	if data, found := s.cache.GetCachedRoleByName(ctx, name); found {
@@ -188,7 +188,7 @@ func (s *roleQueryService) FindByName(ctx context.Context, name string) (*db.Rol
 		status = "error"
 		return errorhandler.HandleError[*db.Role](
 			s.logger,
-			role_errors.ErrRoleNotFoundRes,
+			sharedErrors.ErrNotFoundResponse("Role"),
 			method,
 			span,
 
@@ -215,7 +215,7 @@ func (s *roleQueryService) FindByActiveRole(ctx context.Context, req *requests.F
 		attribute.String("search", search))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	res, err := s.roleQuery.FindByActiveRole(ctx, req)
@@ -223,7 +223,7 @@ func (s *roleQueryService) FindByActiveRole(ctx context.Context, req *requests.F
 		status = "error"
 		return errorhandler.HandlerErrorPagination[[]*db.GetActiveRolesRow](
 			s.logger,
-			role_errors.ErrFailedFindActive,
+			sharedErrors.ErrFailed("find active roles"),
 			method,
 			span,
 
@@ -262,7 +262,7 @@ func (s *roleQueryService) FindByTrashedRole(ctx context.Context, req *requests.
 		attribute.String("search", search))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	if data, total, found := s.cache.GetCachedRoleTrashed(ctx, req); found {
@@ -275,7 +275,7 @@ func (s *roleQueryService) FindByTrashedRole(ctx context.Context, req *requests.
 		status = "error"
 		return errorhandler.HandlerErrorPagination[[]*db.GetTrashedRolesRow](
 			s.logger,
-			role_errors.ErrFailedFindTrashed,
+			sharedErrors.ErrFailed("find trashed roles"),
 			method,
 			span,
 

@@ -5,6 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	carddb "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/database/schema"
+	saldodb "github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/database/schema"
+	userdb "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/database/schema"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -14,13 +17,13 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2"
 	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb/topup"
 	pbStats "github.com/MamangRust/microservice-payment-gateway-grpc/pb/topup/stats"
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
 	api "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/handler/topup"
 	card_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/repository"
 	saldo_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/repository"
 	stats_handler "github.com/MamangRust/microservice-payment-gateway-grpc/service/stats-reader/handler"
 	stats_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/stats-reader/repository"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/topup/database/schema"
 	gapi "github.com/MamangRust/microservice-payment-gateway-grpc/service/topup/handler"
 	topup_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/topup/repository"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/topup/service"
@@ -59,6 +62,7 @@ type TopupHandlerTestSuite struct {
 
 	cardNumber string
 	topupID    int
+	userID     int
 }
 
 func (s *TopupHandlerTestSuite) SetupSuite() {
@@ -101,9 +105,15 @@ func (s *TopupHandlerTestSuite) SetupSuite() {
 
 	queries := db.New(pool)
 
-	userRepos := user_repo.NewRepositories(queries)
-	cardRepos := card_repo.NewRepositories(queries, nil)
-	saldoRepos := saldo_repo.NewRepositories(queries, nil)
+	saldodbQueries := saldodb.New(pool)
+
+	carddbQueries := carddb.New(pool)
+
+	schemadbQueries := userdb.New(pool)
+
+	userRepos := user_repo.NewRepositories(schemadbQueries)
+	cardRepos := card_repo.NewRepositories(carddbQueries, nil)
+	saldoRepos := saldo_repo.NewRepositories(saldodbQueries, nil)
 
 	cardAdapter := &topupCardRepoAdapter{
 		CardQueryRepository:   cardRepos.CardQuery,
@@ -138,9 +148,10 @@ func (s *TopupHandlerTestSuite) SetupSuite() {
 		Password:  "password123",
 	})
 	s.Require().NoError(err)
+	s.userID = int(user.UserID)
 
 	card, err := s.cardRepo.CreateCard(context.Background(), &requests.CreateCardRequest{
-		UserID:       int(user.UserID),
+		UserID:       s.userID,
 		CardType:     "debit",
 		ExpireDate:   time.Now().AddDate(1, 0, 0),
 		CVV:          "123",
@@ -183,6 +194,15 @@ func (s *TopupHandlerTestSuite) SetupSuite() {
 
 	// Setup Echo
 	s.router = echo.New()
+	// Mimic the production JWT auth middleware (WebSecurityConfig): command
+	// handlers read c.Get("user_id") and reject with 401 when it is absent.
+	// The seeded card belongs to s.userID, so assert ownership with that id.
+	s.router.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			c.Set("user_id", fmt.Sprint(s.userID))
+			return next(c)
+		}
+	})
 	apiErrorHandler := app_errors.NewApiHandler(obs, log)
 
 	api.RegisterTopupHandler(&api.DepsTopup{
@@ -226,6 +246,7 @@ func (s *TopupHandlerTestSuite) Test1_CreateTopup() {
 
 	request := httptest.NewRequest(http.MethodPost, "/api/topup-command/create", bytes.NewBuffer(body))
 	request.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	request.Header.Set("Idempotency-Key", "topup-create-handler-1")
 	rec := httptest.NewRecorder()
 
 	s.router.ServeHTTP(rec, request)

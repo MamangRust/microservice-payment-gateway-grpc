@@ -1,12 +1,12 @@
 package user_test
 
 import (
-	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/service/user/repository"
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
-	"github.com/MamangRust/microservice-payment-gateway-test"
 	"context"
 	"fmt"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/database/schema"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/service/user/repository"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
+	"github.com/MamangRust/microservice-payment-gateway-test"
 	"testing"
 	"time"
 

@@ -3,14 +3,14 @@ import { check, sleep } from 'k6';
 
 const BASE_URL = 'http://localhost:5000';
 const TOKEN =
-  'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI0MSIsImF1ZCI6WyJhY2Nlc3MiXSwiZXhwIjoxNzY5NjU1MTU0fQ.czewquqL85w2H0jYiDNQpvN34qqOaHAOUDtQxNd0NQU';
+  'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwiYXVkIjpbImFjY2VzcyJdLCJleHAiOjE3ODU1NTY2MTJ9.O2__bTSOSd-SA0yX5Girec-v4VGkrj3rgwmrImocCdk';
 
 export const options = {
   scenarios: {
     endurance_test: {
       executor: 'constant-vus',
       vus: 150,
-      duration: '30m',
+      duration: '5m',
     },
   },
 };

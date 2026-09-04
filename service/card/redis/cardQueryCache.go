@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/database/schema"
 	sharedcachehelpers "github.com/MamangRust/microservice-payment-gateway-grpc/shared/cache"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 )
@@ -69,7 +69,7 @@ func (c *cardQueryCache) GetByCardNumberCache(ctx context.Context, cardNumber st
 }
 
 func (c *cardQueryCache) GetUserCardByCardNumberCache(ctx context.Context, cardNumber string) (*db.GetUserEmailByCardNumberRow, bool) {
-	key := fmt.Sprintf(cardByCardNumCacheKey, cardNumber)
+	key := fmt.Sprintf(cardUserByCardNumCacheKey, cardNumber)
 
 	result, found := sharedcachehelpers.GetFromCache[*db.GetUserEmailByCardNumberRow](ctx, c.store, key)
 
@@ -192,7 +192,7 @@ func (c *cardQueryCache) SetUserCardByCardNumberCache(ctx context.Context, cardN
 		return
 	}
 
-	key := fmt.Sprintf(cardByCardNumCacheKey, cardNumber)
+	key := fmt.Sprintf(cardUserByCardNumCacheKey, cardNumber)
 
 	sharedcachehelpers.SetToCache(ctx, c.store, key, data, ttlDefault)
 }
@@ -208,6 +208,8 @@ func (c *cardQueryCache) DeleteByUserIDCache(ctx context.Context, userID int) {
 }
 
 func (c *cardQueryCache) DeleteByCardNumberCache(ctx context.Context, cardNumber string) {
-	key := fmt.Sprintf(cardByCardNumCacheKey, cardNumber)
-	sharedcachehelpers.DeleteFromCache(ctx, c.store, key)
+	cardKey := fmt.Sprintf(cardByCardNumCacheKey, cardNumber)
+	userCardKey := fmt.Sprintf(cardUserByCardNumCacheKey, cardNumber)
+	sharedcachehelpers.DeleteFromCache(ctx, c.store, cardKey)
+	sharedcachehelpers.DeleteFromCache(ctx, c.store, userCardKey)
 }

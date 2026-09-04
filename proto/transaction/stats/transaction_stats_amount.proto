@@ -8,12 +8,12 @@ import "transaction/transaction.proto";
 
 message TransactionMonthAmountResponse {
   string month = 1;
-  int32 total_amount = 2;
+  int64 total_amount = 2;
 }
 
 message TransactionYearlyAmountResponse {
   string year = 1;
-  int32 total_amount = 2;
+  int64 total_amount = 2;
 }
 
 message ApiResponseTransactionMonthAmount {

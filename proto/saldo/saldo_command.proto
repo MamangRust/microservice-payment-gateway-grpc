@@ -9,13 +9,13 @@ import "google/protobuf/empty.proto";
 
 message CreateSaldoRequest {
   string card_number = 1;
-  int32 total_balance = 2;
+  int64 total_balance = 2;
 }
 
 message UpdateSaldoRequest {
   int32 saldo_id = 1;
   string card_number = 2;
-  int32 total_balance = 3;
+  int64 total_balance = 3;
 }
 
 message ApiResponseSaldoDelete {
@@ -30,9 +30,46 @@ message ApiResponseSaldoAll {
 
 message UpdateSaldoWithdrawRequest {
   string card_number = 1;
-  int32 total_balance = 2;
+  int64 total_balance = 2;
   string withdraw_time = 3;
-  int32 withdraw_amount = 4;
+  int64 withdraw_amount = 4;
+}
+
+message DebitSaldoRequest {
+  string card_number = 1;
+  int64 amount = 2;
+  string operation_id = 3;
+  string source_type = 4;
+  string source_id = 5;
+}
+
+message CreditSaldoRequest {
+  string card_number = 1;
+  int64 amount = 2;
+  string operation_id = 3;
+  string source_type = 4;
+  string source_id = 5;
+}
+
+message ApplySaldoAdjustmentRequest {
+  string card_number = 1;
+  int64 delta = 2;
+  string operation_id = 3;
+  string source_type = 4;
+  string source_id = 5;
+  string note = 6;
+}
+
+message ApiResponseAdjustment {
+  string status = 1;
+  string message = 2;
+  SaldoResponse data = 3;
+}
+
+message ResolveReconciliationRequest {
+  int64 queue_id = 1;
+  string operation_id = 2;
+  string note = 3;
 }
 
 service SaldoCommandService {
@@ -40,6 +77,10 @@ service SaldoCommandService {
   rpc UpdateSaldo(UpdateSaldoRequest) returns (ApiResponseSaldo) {}
   rpc UpdateSaldoWithdraw(UpdateSaldoWithdrawRequest)
       returns (ApiResponseSaldo) {}
+  rpc DebitSaldo(DebitSaldoRequest) returns (ApiResponseSaldo) {}
+  rpc CreditSaldo(CreditSaldoRequest) returns (ApiResponseSaldo) {}
+  rpc ApplySaldoAdjustment(ApplySaldoAdjustmentRequest) returns (ApiResponseAdjustment) {}
+  rpc ResolveReconciliation(ResolveReconciliationRequest) returns (ApiResponseSaldoAll) {}
   rpc TrashedSaldo(FindByIdSaldoRequest) returns (ApiResponseSaldoDeleteAt) {}
   rpc RestoreSaldo(FindByIdSaldoRequest) returns (ApiResponseSaldoDeleteAt) {}
   rpc DeleteSaldoPermanent(FindByIdSaldoRequest)

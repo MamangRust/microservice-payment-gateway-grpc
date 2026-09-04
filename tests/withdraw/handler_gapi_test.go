@@ -2,55 +2,58 @@ package withdraw_test
 
 import (
 	"context"
+	carddb "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/database/schema"
+	saldodb "github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/database/schema"
+	userdb "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/database/schema"
 	"net"
 	"testing"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/service/withdraw/handler"
 	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb/withdraw"
 	pbStats "github.com/MamangRust/microservice-payment-gateway-grpc/pb/withdraw/stats"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/service/withdraw/repository"
-	user_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/repository"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
 	card_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/repository"
 	saldo_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/repository"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/service/withdraw/service"
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/cache"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/observability"
-	"github.com/MamangRust/microservice-payment-gateway-test"
 	stats_handler "github.com/MamangRust/microservice-payment-gateway-grpc/service/stats-reader/handler"
 	stats_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/stats-reader/repository"
+	user_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/repository"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/withdraw/database/schema"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/service/withdraw/handler"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/service/withdraw/repository"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/service/withdraw/service"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/cache"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/observability"
+	"github.com/MamangRust/microservice-payment-gateway-test"
 
+	pbAISecurity "github.com/MamangRust/microservice-payment-gateway-grpc/pb/ai_security"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/suite"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/protobuf/types/known/timestamppb"
-	pbAISecurity "github.com/MamangRust/microservice-payment-gateway-grpc/pb/ai_security"
 	"google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type WithdrawGapiTestSuite struct {
 	suite.Suite
-	ts          *tests.TestSuite
-	dbPool      *pgxpool.Pool
-	redisClient redis.UniversalClient
-	chConn      clickhouse.Conn
-	grpcServer  *grpc.Server
+	ts            *tests.TestSuite
+	dbPool        *pgxpool.Pool
+	redisClient   redis.UniversalClient
+	chConn        clickhouse.Conn
+	grpcServer    *grpc.Server
 	commandClient pb.WithdrawCommandServiceClient
 	queryClient   pb.WithdrawQueryServiceClient
 	statsClient   pbStats.WithdrawStatsAmountServiceClient
 	statusClient  pbStats.WithdrawStatsStatusServiceClient
-	conn        *grpc.ClientConn
-	repos       repository.Repositories
-	userRepo    user_repo.UserCommandRepository
-	cardRepo    card_repo.CardCommandRepository
-	saldoRepo   saldo_repo.Repositories
+	conn          *grpc.ClientConn
+	repos         repository.Repositories
+	userRepo      user_repo.UserCommandRepository
+	cardRepo      card_repo.CardCommandRepository
+	saldoRepo     saldo_repo.Repositories
 
 	cardNumber string
 	withdrawID int32
@@ -94,16 +97,22 @@ func (s *WithdrawGapiTestSuite) SetupSuite() {
 	s.redisClient = redis.NewClient(opts)
 
 	queries := db.New(pool)
-	
+
+	saldodbQueries := saldodb.New(pool)
+
+	carddbQueries := carddb.New(pool)
+
+	userdbQueries := userdb.New(pool)
+
 	// Repositories for seeding and service dependencies
-	userRepos := user_repo.NewUserCommandRepository(queries)
-	cardRepos := card_repo.NewRepositories(queries, nil)
-	saldoRepos := saldo_repo.NewRepositories(queries, nil)
-	
+	userRepos := user_repo.NewUserCommandRepository(userdbQueries)
+	cardRepos := card_repo.NewRepositories(carddbQueries, nil)
+	saldoRepos := saldo_repo.NewRepositories(saldodbQueries, nil)
+
 	s.userRepo = userRepos
 	s.cardRepo = cardRepos.CardCommand
 	s.saldoRepo = saldoRepos
-	
+
 	s.repos = repository.NewRepositories(queries, cardRepos.CardQuery, saldoRepos)
 
 	logger.ResetInstance()
@@ -144,7 +153,7 @@ func (s *WithdrawGapiTestSuite) SetupSuite() {
 	})
 
 	withdrawHandler := handler.NewHandler(withdrawService)
-	
+
 	// Stats Handler
 	chRepo := stats_repo.NewRepository(s.chConn)
 	withdrawStatsHandler := stats_handler.NewWithdrawStatsHandler(chRepo, log)
@@ -196,13 +205,13 @@ func (s *WithdrawGapiTestSuite) Test1_Create() {
 	}
 	res, err := s.commandClient.CreateWithdraw(ctx, createReq)
 	s.NoError(err)
-	s.Equal(int32(100000), res.Data.WithdrawAmount)
+	s.Equal(int64(100000), res.Data.WithdrawAmount)
 
 	s.withdrawID = res.Data.WithdrawId
 
 	// Verify balance
 	saldo, _ := s.saldoRepo.FindByCardNumber(ctx, s.cardNumber)
-	s.Equal(int32(900000), saldo.TotalBalance)
+	s.Equal(int64(900000), saldo.TotalBalance)
 }
 
 func (s *WithdrawGapiTestSuite) Test2_FindById() {
@@ -226,11 +235,11 @@ func (s *WithdrawGapiTestSuite) Test3_Update() {
 	}
 	updated, err := s.commandClient.UpdateWithdraw(ctx, updateReq)
 	s.NoError(err)
-	s.Equal(int32(150000), updated.Data.WithdrawAmount)
+	s.Equal(int64(150000), updated.Data.WithdrawAmount)
 
 	// Verify adjusted balance (900k - 50k = 850k)
 	saldo, _ := s.saldoRepo.FindByCardNumber(ctx, s.cardNumber)
-	s.Equal(int32(850000), saldo.TotalBalance)
+	s.Equal(int64(850000), saldo.TotalBalance)
 }
 
 func (s *WithdrawGapiTestSuite) Test4_Trashed() {

@@ -3,26 +3,29 @@ package transfer_test
 import (
 	"context"
 	"fmt"
+	carddb "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/database/schema"
+	saldodb "github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/database/schema"
+	userdb "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/database/schema"
 	"testing"
 	"time"
 
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
-	tests "github.com/MamangRust/microservice-payment-gateway-test"
-	user_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/repository"
 	card_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/repository"
 	saldo_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/repository"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/transfer/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/transfer/repository"
+	user_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/repository"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
+	tests "github.com/MamangRust/microservice-payment-gateway-test"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/suite"
 )
 
 type TransferRepositoryTestSuite struct {
 	suite.Suite
-	ts     *tests.TestSuite
-	dbPool *pgxpool.Pool
-	commandRepo   repository.TransferCommandRepository
-	queryRepo     repository.TransferQueryRepository
+	ts          *tests.TestSuite
+	dbPool      *pgxpool.Pool
+	commandRepo repository.TransferCommandRepository
+	queryRepo   repository.TransferQueryRepository
 	userRepo    user_repo.UserCommandRepository
 	cardRepo    card_repo.Repositories
 	saldoRepo   saldo_repo.Repositories
@@ -43,11 +46,17 @@ func (s *TransferRepositoryTestSuite) SetupSuite() {
 	s.dbPool = pool
 
 	queries := db.New(pool)
-	
+
+	saldodbQueries := saldodb.New(pool)
+
+	carddbQueries := carddb.New(pool)
+
+	userdbQueries := userdb.New(pool)
+
 	// Repositories for seeding
-	s.userRepo = user_repo.NewUserCommandRepository(queries)
-	s.cardRepo = *card_repo.NewRepositories(queries, nil)
-	s.saldoRepo = saldo_repo.NewRepositories(queries, nil)
+	s.userRepo = user_repo.NewUserCommandRepository(userdbQueries)
+	s.cardRepo = *card_repo.NewRepositories(carddbQueries, nil)
+	s.saldoRepo = saldo_repo.NewRepositories(saldodbQueries, nil)
 
 	s.commandRepo = repository.NewTransferCommandRepository(queries)
 	s.queryRepo = repository.NewTransferQueryRepository(queries)
@@ -120,7 +129,7 @@ func (s *TransferRepositoryTestSuite) TestCreateTransfer() {
 	transfer, err := s.commandRepo.CreateTransfer(ctx, req)
 	s.Require().NoError(err)
 	s.Require().NotNil(transfer)
-	s.Equal(int32(req.TransferAmount), transfer.TransferAmount)
+	s.Equal(int64(req.TransferAmount), transfer.TransferAmount)
 }
 
 func (s *TransferRepositoryTestSuite) TestFindAll() {
@@ -215,7 +224,7 @@ func (s *TransferRepositoryTestSuite) TestUpdateTransfer() {
 	res, err := s.commandRepo.UpdateTransfer(ctx, req)
 	s.NoError(err)
 	s.NotNil(res)
-	s.Equal(int32(50000), res.TransferAmount)
+	s.Equal(int64(50000), res.TransferAmount)
 }
 
 func (s *TransferRepositoryTestSuite) TestUpdateTransferAmount() {
@@ -231,7 +240,7 @@ func (s *TransferRepositoryTestSuite) TestUpdateTransferAmount() {
 	res, err := s.commandRepo.UpdateTransferAmount(ctx, req)
 	s.NoError(err)
 	s.NotNil(res)
-	s.Equal(int32(60000), res.TransferAmount)
+	s.Equal(int64(60000), res.TransferAmount)
 }
 
 func (s *TransferRepositoryTestSuite) TestUpdateTransferStatus() {

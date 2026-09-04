@@ -5,10 +5,9 @@ import (
 	"database/sql"
 	"errors"
 
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/withdraw/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 	sharedErrors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
-	withdraw_errors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors/withdraw_errors/repository"
 )
 
 type withdrawQueryRepository struct {
@@ -33,7 +32,7 @@ func (r *withdrawQueryRepository) FindAll(ctx context.Context, req *requests.Fin
 	withdraw, err := r.db.GetWithdraws(ctx, reqDb)
 
 	if err != nil {
-		return nil, withdraw_errors.ErrFindAllWithdrawsFailed.WithInternal(err)
+		return nil, sharedErrors.ErrFailed("find all withdraws").WithInternal(err)
 	}
 
 	return withdraw, nil
@@ -52,7 +51,7 @@ func (r *withdrawQueryRepository) FindByActive(ctx context.Context, req *request
 	res, err := r.db.GetActiveWithdraws(ctx, reqDb)
 
 	if err != nil {
-		return nil, withdraw_errors.ErrFindActiveWithdrawsFailed.WithInternal(err)
+		return nil, sharedErrors.ErrFailed("find active withdraws").WithInternal(err)
 	}
 
 	return res, nil
@@ -70,7 +69,7 @@ func (r *withdrawQueryRepository) FindByTrashed(ctx context.Context, req *reques
 	res, err := r.db.GetTrashedWithdraws(ctx, reqDb)
 
 	if err != nil {
-		return nil, withdraw_errors.ErrFindTrashedWithdrawsFailed.WithInternal(err)
+		return nil, sharedErrors.ErrFailed("find trashed withdraws").WithInternal(err)
 	}
 
 	return res, nil
@@ -89,7 +88,7 @@ func (r *withdrawQueryRepository) FindAllByCardNumber(ctx context.Context, req *
 	withdraw, err := r.db.GetWithdrawsByCardNumber(ctx, reqDb)
 
 	if err != nil {
-		return nil, withdraw_errors.ErrFindWithdrawsByCardNumberFailed.WithInternal(err)
+		return nil, sharedErrors.ErrFailed("find withdraws by card number").WithInternal(err)
 	}
 
 	return withdraw, nil
@@ -101,10 +100,20 @@ func (r *withdrawQueryRepository) FindById(ctx context.Context, id int) (*db.Get
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, withdraw_errors.ErrFindWithdrawByIdFailed.WithInternal(err)
+			return nil, sharedErrors.ErrNotFoundResponse("withdraw").WithInternal(err)
 		}
 		return nil, sharedErrors.ErrInternal.WithInternal(err)
 	}
 
 	return withdraw, nil
+}
+
+func (r *withdrawQueryRepository) GetTodayWithdrawSumByCardNumber(ctx context.Context, cardNumber string) (int64, error) {
+	total, err := r.db.GetTodayWithdrawSumByCardNumber(ctx, cardNumber)
+
+	if err != nil {
+		return 0, sharedErrors.ErrFailed("get today withdraw sum").WithInternal(err)
+	}
+
+	return total, nil
 }

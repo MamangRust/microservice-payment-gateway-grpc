@@ -1,14 +1,14 @@
 package service
 
 import (
+	"github.com/MamangRust/microservice-payment-gateway-grpc/pb/ai_security"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/adapter"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/kafka"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
+	mencache "github.com/MamangRust/microservice-payment-gateway-grpc/service/transaction/redis"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/service/transaction/repository"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/cache"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/observability"
-	mencache "github.com/MamangRust/microservice-payment-gateway-grpc/service/transaction/redis"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/adapter"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/service/transaction/repository"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/pb/ai_security"
 )
 
 // Service is a struct that contains all the services
@@ -61,6 +61,8 @@ func newTransactionCommandService(deps *Deps, observability observability.TraceL
 		SaldoAdapter:                 deps.SaldoAdapter,
 		TransactionCommandRepository: deps.Repositories,
 		TransactionQueryRepository:   deps.Repositories,
+		IdempotencyStore:             deps.Repositories,
+		OutboxStore:                  deps.Repositories,
 		Logger:                       deps.Logger,
 		Observability:                observability,
 		AISecurityClient:             deps.AISecurityClient,

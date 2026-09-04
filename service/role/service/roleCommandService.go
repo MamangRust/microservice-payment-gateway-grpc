@@ -3,13 +3,13 @@ package service
 import (
 	"context"
 
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/role/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
 	mencache "github.com/MamangRust/microservice-payment-gateway-grpc/service/role/redis"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/role/repository"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/errorhandler"
-	role_errors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors/role_errors/service"
+	sharedErrors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/observability"
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
@@ -49,7 +49,7 @@ func (s *roleCommandService) CreateRole(ctx context.Context, request *requests.C
 		attribute.String("roleName", request.Name))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	s.logger.Debug("Starting CreateRole process",
@@ -61,7 +61,7 @@ func (s *roleCommandService) CreateRole(ctx context.Context, request *requests.C
 		status = "error"
 		return errorhandler.HandleError[*db.Role](
 			s.logger,
-			role_errors.ErrFailedCreateRole,
+			err,
 			method,
 			span,
 			zap.String("role_name", request.Name),
@@ -84,7 +84,7 @@ func (s *roleCommandService) UpdateRole(ctx context.Context, request *requests.U
 		attribute.String("newRoleName", request.Name))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	s.logger.Debug("Starting UpdateRole process",
@@ -97,7 +97,7 @@ func (s *roleCommandService) UpdateRole(ctx context.Context, request *requests.U
 		status = "error"
 		return errorhandler.HandleError[*db.Role](
 			s.logger,
-			role_errors.ErrFailedUpdateRole,
+			err,
 			method,
 			span,
 			zap.Int("role_id", *request.ID),
@@ -120,7 +120,7 @@ func (s *roleCommandService) TrashedRole(ctx context.Context, id int) (*db.Role,
 		attribute.Int("roleID", id))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	s.logger.Debug("Starting TrashedRole process",
@@ -132,7 +132,7 @@ func (s *roleCommandService) TrashedRole(ctx context.Context, id int) (*db.Role,
 		status = "error"
 		return errorhandler.HandleError[*db.Role](
 			s.logger,
-			role_errors.ErrFailedTrashedRole,
+			err,
 			method,
 			span,
 			zap.Int("role_id", id),
@@ -153,7 +153,7 @@ func (s *roleCommandService) RestoreRole(ctx context.Context, id int) (*db.Role,
 		attribute.Int("roleID", id))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	s.logger.Debug("Starting RestoreRole process",
@@ -165,7 +165,7 @@ func (s *roleCommandService) RestoreRole(ctx context.Context, id int) (*db.Role,
 		status = "error"
 		return errorhandler.HandleError[*db.Role](
 			s.logger,
-			role_errors.ErrFailedRestoreRole,
+			err,
 			method,
 			span,
 			zap.Int("role_id", id),
@@ -186,7 +186,7 @@ func (s *roleCommandService) DeleteRolePermanent(ctx context.Context, id int) (b
 		attribute.Int("roleID", id))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	s.logger.Debug("Starting DeleteRolePermanent process",
@@ -198,7 +198,7 @@ func (s *roleCommandService) DeleteRolePermanent(ctx context.Context, id int) (b
 		status = "error"
 		return errorhandler.HandleError[bool](
 			s.logger,
-			role_errors.ErrFailedDeletePermanent,
+			err,
 			method,
 			span,
 			zap.Int("role_id", id),
@@ -218,7 +218,7 @@ func (s *roleCommandService) RestoreAllRole(ctx context.Context) (bool, error) {
 	ctx, span, end, status, logSuccess := s.observability.StartTracingAndLogging(ctx, method)
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	s.logger.Debug("Restoring all roles")
@@ -228,7 +228,7 @@ func (s *roleCommandService) RestoreAllRole(ctx context.Context) (bool, error) {
 		status = "error"
 		return errorhandler.HandleError[bool](
 			s.logger,
-			role_errors.ErrFailedRestoreAll,
+			sharedErrors.ErrFailed("restore all roles"),
 			method,
 			span,
 		)
@@ -244,7 +244,7 @@ func (s *roleCommandService) DeleteAllRolePermanent(ctx context.Context) (bool, 
 	ctx, span, end, status, logSuccess := s.observability.StartTracingAndLogging(ctx, method)
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	s.logger.Debug("Permanently deleting all roles")
@@ -254,7 +254,7 @@ func (s *roleCommandService) DeleteAllRolePermanent(ctx context.Context) (bool, 
 		status = "error"
 		return errorhandler.HandleError[bool](
 			s.logger,
-			role_errors.ErrFailedDeletePermanent,
+			sharedErrors.ErrFailed("delete role permanently"),
 			method,
 			span,
 		)
@@ -271,7 +271,7 @@ func (s *roleCommandService) CreateUserRole(ctx context.Context, userID, roleID 
 		attribute.Int("roleID", roleID))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	s.logger.Debug("Starting CreateUserRole process",
@@ -284,7 +284,7 @@ func (s *roleCommandService) CreateUserRole(ctx context.Context, userID, roleID 
 		status = "error"
 		return errorhandler.HandleError[*db.Role](
 			s.logger,
-			role_errors.ErrFailedUpdateRole,
+			err,
 			method,
 			span,
 			zap.Int("user_id", userID),
@@ -308,7 +308,7 @@ func (s *roleCommandService) DeleteUserRole(ctx context.Context, userID, roleID 
 		attribute.Int("roleID", roleID))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	s.logger.Debug("Starting DeleteUserRole process",
@@ -321,7 +321,7 @@ func (s *roleCommandService) DeleteUserRole(ctx context.Context, userID, roleID 
 		status = "error"
 		return errorhandler.HandleError[bool](
 			s.logger,
-			role_errors.ErrFailedUpdateRole,
+			err,
 			method,
 			span,
 			zap.Int("user_id", userID),

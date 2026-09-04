@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"strconv"
 
-	cache "github.com/MamangRust/microservice-payment-gateway-grpc/service/merchant/redis"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/adapter"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/service/merchant/repository"
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/merchant/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/email"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/kafka"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
+	cache "github.com/MamangRust/microservice-payment-gateway-grpc/service/merchant/redis"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/service/merchant/repository"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/errorhandler"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/observability"
@@ -60,7 +60,7 @@ func (s *merchantDocumentCommandService) CreateMerchantDocument(ctx context.Cont
 	const method = "CreateMerchantDocument"
 
 	ctx, span, end, status, logSuccess := s.observability.StartTracingAndLogging(ctx, method)
-	defer func() { end(status) }()
+	defer func() { end(status, "grpc") }()
 
 	merchant, err := s.merchantRepo.FindByMerchantId(ctx, request.MerchantID)
 	if err != nil {
@@ -81,12 +81,16 @@ func (s *merchantDocumentCommandService) CreateMerchantDocument(ctx context.Cont
 	}
 
 	go func() {
-		htmlBody := email.GenerateEmailHTML(map[string]string{
+		htmlBody, err := email.GenerateEmailHTML(map[string]string{
 			"Title":   "Welcome to SanEdge Merchant Portal",
 			"Message": "Thank you for registering your merchant account. Your account is currently <b>inactive</b> and under initial review. To proceed, please upload all required documents for verification. Once your documents are submitted, our team will review them and activate your account accordingly.",
 			"Button":  "Upload Documents",
 			"Link":    fmt.Sprintf("https://sanedge.example.com/merchant/%d/documents", user.UserID),
 		})
+		if err != nil {
+			s.logger.Error("failed to generate merchant document email HTML", zap.Error(err))
+			return
+		}
 
 		emailPayload := map[string]any{
 			"email":   user.Email,
@@ -100,7 +104,7 @@ func (s *merchantDocumentCommandService) CreateMerchantDocument(ctx context.Cont
 			return
 		}
 
-		err = s.kafka.SendMessage("email-service-topic-merchant-document-created", strconv.Itoa(int(merchantDocument.DocumentID)), payloadBytes)
+		err = s.kafka.SendMessage("email-service-topic-merchant-document-create", strconv.Itoa(int(merchantDocument.DocumentID)), payloadBytes)
 		if err != nil {
 			s.logger.Error("failed to send merchant document creation email via kafka", zap.Error(err), zap.Int("document_id", int(merchantDocument.DocumentID)))
 		}
@@ -115,7 +119,7 @@ func (s *merchantDocumentCommandService) UpdateMerchantDocument(ctx context.Cont
 	const method = "UpdateMerchantDocument"
 
 	ctx, span, end, status, logSuccess := s.observability.StartTracingAndLogging(ctx, method)
-	defer func() { end(status) }()
+	defer func() { end(status, "grpc") }()
 
 	merchantDocument, err := s.commandRepo.UpdateMerchantDocument(ctx, request)
 	if err != nil {
@@ -134,7 +138,7 @@ func (s *merchantDocumentCommandService) UpdateMerchantDocumentStatus(ctx contex
 	const method = "UpdateMerchantDocumentStatus"
 
 	ctx, span, end, status, logSuccess := s.observability.StartTracingAndLogging(ctx, method)
-	defer func() { end(status) }()
+	defer func() { end(status, "grpc") }()
 
 	merchant, err := s.merchantRepo.FindByMerchantId(ctx, request.MerchantID)
 	if err != nil {
@@ -185,12 +189,16 @@ func (s *merchantDocumentCommandService) UpdateMerchantDocumentStatus(ctx contex
 			message += fmt.Sprintf(`<br><br><b>Reviewer Note:</b><br><i>%s</i>`, note)
 		}
 
-		htmlBody := email.GenerateEmailHTML(map[string]string{
+		htmlBody, err := email.GenerateEmailHTML(map[string]string{
 			"Title":   subject,
 			"Message": message,
 			"Button":  buttonLabel,
 			"Link":    link,
 		})
+		if err != nil {
+			s.logger.Error("failed to generate merchant document status email HTML", zap.Error(err))
+			return
+		}
 
 		emailPayload := map[string]any{
 			"email":   user.Email,
@@ -221,7 +229,7 @@ func (s *merchantDocumentCommandService) TrashedMerchantDocument(ctx context.Con
 	const method = "TrashedMerchantDocument"
 
 	ctx, span, end, status, logSuccess := s.observability.StartTracingAndLogging(ctx, method)
-	defer func() { end(status) }()
+	defer func() { end(status, "grpc") }()
 
 	res, err := s.commandRepo.TrashedMerchantDocument(ctx, documentID)
 	if err != nil {
@@ -240,7 +248,7 @@ func (s *merchantDocumentCommandService) RestoreMerchantDocument(ctx context.Con
 	const method = "RestoreMerchantDocument"
 
 	ctx, span, end, status, logSuccess := s.observability.StartTracingAndLogging(ctx, method)
-	defer func() { end(status) }()
+	defer func() { end(status, "grpc") }()
 
 	res, err := s.commandRepo.RestoreMerchantDocument(ctx, documentID)
 	if err != nil {
@@ -257,7 +265,7 @@ func (s *merchantDocumentCommandService) DeleteMerchantDocumentPermanent(ctx con
 	const method = "DeleteMerchantDocumentPermanent"
 
 	ctx, span, end, status, logSuccess := s.observability.StartTracingAndLogging(ctx, method)
-	defer func() { end(status) }()
+	defer func() { end(status, "grpc") }()
 
 	_, err := s.commandRepo.DeleteMerchantDocumentPermanent(ctx, documentID)
 	if err != nil {
@@ -274,7 +282,7 @@ func (s *merchantDocumentCommandService) RestoreAllMerchantDocument(ctx context.
 	const method = "RestoreAllMerchantDocument"
 
 	ctx, span, end, status, logSuccess := s.observability.StartTracingAndLogging(ctx, method)
-	defer func() { end(status) }()
+	defer func() { end(status, "grpc") }()
 
 	_, err := s.commandRepo.RestoreAllMerchantDocument(ctx)
 	if err != nil {
@@ -291,7 +299,7 @@ func (s *merchantDocumentCommandService) DeleteAllMerchantDocumentPermanent(ctx 
 	const method = "DeleteAllMerchantDocumentPermanent"
 
 	ctx, span, end, status, logSuccess := s.observability.StartTracingAndLogging(ctx, method)
-	defer func() { end(status) }()
+	defer func() { end(status, "grpc") }()
 
 	_, err := s.commandRepo.DeleteAllMerchantDocumentPermanent(ctx)
 	if err != nil {

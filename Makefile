@@ -20,7 +20,11 @@ generate-proto:
 
 
 generate-sql:
-	sqlc generate
+	@for svc in user auth card merchant role saldo topup transaction transfer withdraw; do \
+		echo "Generating sqlc for $$svc..."; \
+		(cd service/$$svc/sqlc && sqlc generate) || exit 1; \
+	done
+	@echo "✅ All sqlc regenerated."
 
 
 generate-swagger:

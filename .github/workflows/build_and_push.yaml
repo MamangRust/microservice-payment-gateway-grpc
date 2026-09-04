@@ -25,8 +25,42 @@ jobs:
       - name: Validate All Modules
         run: just validate
 
+  generated-drift:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Set up Just
+        uses: extractions/setup-just@v2
+
+      # Pin the exact tool versions that produced the committed generated code
+      # (see headers in pb/*.pb.go and pkg/database/schema/*.sql.go).
+      - name: Install pinned protoc (3.21.12)
+        run: |
+          curl -fsSL -o /tmp/protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v3.21.12/protoc-3.21.12-linux-x86_64.zip
+          unzip -o /tmp/protoc.zip -d /tmp/protoc
+          echo "/tmp/protoc/bin" >> "$GITHUB_PATH"
+
+      - name: Install pinned protoc plugins
+        run: |
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
+          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.6.2
+
+      - name: Install pinned sqlc (1.30.0)
+        run: |
+          go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.30.0
+
+      - name: Check generated code has no drift
+        run: just generate-check
+
   docker:
-    needs: validate
+    needs: [validate, generated-drift]
     runs-on: ubuntu-latest
 
     strategy:

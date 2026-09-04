@@ -2,20 +2,26 @@ package transfer_test
 
 import (
 	"context"
+	"errors"
+	carddb "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/database/schema"
+	saldodb "github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/database/schema"
+	userdb "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/database/schema"
+	"net/http"
 	"testing"
 	"time"
 
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/cache"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/observability"
-	tests "github.com/MamangRust/microservice-payment-gateway-test"
-	user_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/repository"
 	card_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/repository"
 	saldo_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/repository"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/transfer/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/transfer/repository"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/transfer/service"
+	user_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/repository"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/cache"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
+	app_errors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/observability"
+	tests "github.com/MamangRust/microservice-payment-gateway-test"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/suite"
@@ -50,11 +56,17 @@ func (s *TransferServiceTestSuite) SetupSuite() {
 	s.dbPool = pool
 
 	queries := db.New(pool)
-	
+
+	saldodbQueries := saldodb.New(pool)
+
+	carddbQueries := carddb.New(pool)
+
+	userdbQueries := userdb.New(pool)
+
 	// Repositories for seeding
-	s.userRepo = user_repo.NewUserCommandRepository(queries)
-	s.cardRepo = *card_repo.NewRepositories(queries, nil)
-	s.saldoRepo = saldo_repo.NewRepositories(queries, nil)
+	s.userRepo = user_repo.NewUserCommandRepository(userdbQueries)
+	s.cardRepo = *card_repo.NewRepositories(carddbQueries, nil)
+	s.saldoRepo = saldo_repo.NewRepositories(saldodbQueries, nil)
 
 	// Transfer repos
 	s.repos = repository.NewRepositories(queries, s.saldoRepo, s.cardRepo.CardQuery)
@@ -66,7 +78,7 @@ func (s *TransferServiceTestSuite) SetupSuite() {
 	logger.ResetInstance()
 	lp := sdklog.NewLoggerProvider()
 	log, _ := logger.NewLogger("test", lp)
-	_ , _ = observability.NewObservability("test", log)
+	_, _ = observability.NewObservability("test", log)
 	cacheMetrics, _ := observability.NewCacheMetrics("test")
 	cacheStore := cache.NewCacheStore(s.redisClient, log, cacheMetrics)
 
@@ -158,10 +170,10 @@ func (s *TransferServiceTestSuite) Test1_CreateTransfer() {
 
 	// Verify balances
 	senderSaldo, _ := s.saldoRepo.FindByCardNumber(ctx, s.senderCardNumber)
-	s.Equal(int32(900000), senderSaldo.TotalBalance)
+	s.Equal(int64(900000), senderSaldo.TotalBalance)
 
 	receiverSaldo, _ := s.saldoRepo.FindByCardNumber(ctx, s.receiverCardNumber)
-	s.Equal(int32(100000), receiverSaldo.TotalBalance)
+	s.Equal(int64(100000), receiverSaldo.TotalBalance)
 }
 
 func (s *TransferServiceTestSuite) Test2_FindTransferById() {
@@ -216,6 +228,77 @@ func (s *TransferServiceTestSuite) Test6_BulkOperations() {
 	success, err = s.transferService.DeleteAllTransferPermanent(ctx)
 	s.NoError(err)
 	s.True(success)
+}
+
+func (s *TransferServiceTestSuite) Test7_Idempotency_SameKeyReplaysWithoutDoubleTransfer() {
+	ctx := context.Background()
+
+	// Fresh sender/receiver cards so balance assertions stay deterministic.
+	sender, err := s.userRepo.CreateUser(ctx, &requests.CreateUserRequest{
+		FirstName: "Idem", LastName: "Sender", Email: "idem.sender@example.com", Password: "password123",
+	})
+	s.Require().NoError(err)
+	sCard, err := s.cardRepo.CardCommand.CreateCard(ctx, &requests.CreateCardRequest{
+		UserID: int(sender.UserID), CardType: "debit", ExpireDate: time.Now().AddDate(1, 0, 0), CVV: "333", CardProvider: "visa",
+	})
+	s.Require().NoError(err)
+	_, err = s.saldoRepo.CreateSaldo(ctx, &requests.CreateSaldoRequest{CardNumber: sCard.CardNumber, TotalBalance: 300000})
+	s.Require().NoError(err)
+
+	receiver, err := s.userRepo.CreateUser(ctx, &requests.CreateUserRequest{
+		FirstName: "Idem", LastName: "Receiver", Email: "idem.receiver@example.com", Password: "password123",
+	})
+	s.Require().NoError(err)
+	rCard, err := s.cardRepo.CardCommand.CreateCard(ctx, &requests.CreateCardRequest{
+		UserID: int(receiver.UserID), CardType: "debit", ExpireDate: time.Now().AddDate(1, 0, 0), CVV: "444", CardProvider: "mastercard",
+	})
+	s.Require().NoError(err)
+	_, err = s.saldoRepo.CreateSaldo(ctx, &requests.CreateSaldoRequest{CardNumber: rCard.CardNumber, TotalBalance: 0})
+	s.Require().NoError(err)
+
+	req := &requests.CreateTransferRequest{
+		TransferFrom:   sCard.CardNumber,
+		TransferTo:     rCard.CardNumber,
+		TransferAmount: 100000,
+		IdempotencyKey: "transfer-idem-key-1",
+	}
+
+	// First call executes and moves the balance once.
+	first, err := s.transferService.CreateTransaction(ctx, req)
+	s.Require().NoError(err)
+	s.Require().NotNil(first)
+
+	// Retry with the exact same key + payload must replay, not re-execute.
+	replay, err := s.transferService.CreateTransaction(ctx, req)
+	s.Require().NoError(err)
+	s.Require().NotNil(replay)
+	s.Equal(first.TransferID, replay.TransferID, "replay must return the original record")
+
+	senderSaldo, err := s.saldoRepo.FindByCardNumber(ctx, sCard.CardNumber)
+	s.Require().NoError(err)
+	s.Equal(int64(200000), senderSaldo.TotalBalance, "sender balance must move exactly once")
+
+	receiverSaldo, err := s.saldoRepo.FindByCardNumber(ctx, rCard.CardNumber)
+	s.Require().NoError(err)
+	s.Equal(int64(100000), receiverSaldo.TotalBalance, "receiver balance must be credited exactly once")
+
+	// Same key with a different payload must be rejected with a conflict.
+	conflictReq := &requests.CreateTransferRequest{
+		TransferFrom:   sCard.CardNumber,
+		TransferTo:     rCard.CardNumber,
+		TransferAmount: 150000,
+		IdempotencyKey: "transfer-idem-key-1",
+	}
+	_, err = s.transferService.CreateTransaction(ctx, conflictReq)
+	s.Require().Error(err)
+	var appErr *app_errors.AppError
+	s.True(errors.As(err, &appErr), "conflict must surface as an AppError")
+	s.Equal(http.StatusConflict, appErr.Code)
+
+	// Balances are still moved exactly once after the rejected retry.
+	senderSaldo, err = s.saldoRepo.FindByCardNumber(ctx, sCard.CardNumber)
+	s.Require().NoError(err)
+	s.Equal(int64(200000), senderSaldo.TotalBalance)
 }
 
 func TestTransferServiceSuite(t *testing.T) {

@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/role/database/schema"
 	"go.uber.org/zap"
 )
 

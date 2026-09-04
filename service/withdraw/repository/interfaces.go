@@ -3,15 +3,27 @@ package repository
 import (
 	"context"
 
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
+	carddb "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/database/schema"
+	saldodb "github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/database/schema"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/withdraw/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/idempotency"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/outbox"
 )
 
-type SaldoRepository interface {
-	FindByCardNumber(ctx context.Context, card_number string) (*db.Saldo, error)
+type IdempotencyRepository interface {
+	idempotency.Store
+}
 
-	UpdateSaldoBalance(ctx context.Context, request *requests.UpdateSaldoBalance) (*db.UpdateSaldoBalanceRow, error)
-	UpdateSaldoWithdraw(ctx context.Context, request *requests.UpdateSaldoWithdraw) (*db.UpdateSaldoWithdrawRow, error)
+type OutboxRepository interface {
+	outbox.Store[db.OutboxRecord]
+}
+
+type SaldoRepository interface {
+	FindByCardNumber(ctx context.Context, card_number string) (*saldodb.Saldo, error)
+
+	UpdateSaldoBalance(ctx context.Context, request *requests.UpdateSaldoBalance) (*saldodb.UpdateSaldoBalanceRow, error)
+	UpdateSaldoWithdraw(ctx context.Context, request *requests.UpdateSaldoWithdraw) (*saldodb.UpdateSaldoWithdrawRow, error)
 }
 
 type WithdrawQueryRepository interface {
@@ -20,6 +32,7 @@ type WithdrawQueryRepository interface {
 	FindByTrashed(ctx context.Context, req *requests.FindAllWithdraws) ([]*db.GetTrashedWithdrawsRow, error)
 	FindAllByCardNumber(ctx context.Context, req *requests.FindAllWithdrawCardNumber) ([]*db.GetWithdrawsByCardNumberRow, error)
 	FindById(ctx context.Context, id int) (*db.GetWithdrawByIDRow, error)
+	GetTodayWithdrawSumByCardNumber(ctx context.Context, cardNumber string) (int64, error)
 }
 
 type WithdrawCommandRepository interface {
@@ -36,5 +49,5 @@ type WithdrawCommandRepository interface {
 }
 
 type CardRepository interface {
-	FindUserCardByCardNumber(ctx context.Context, card_number string) (*db.GetUserEmailByCardNumberRow, error)
+	FindUserCardByCardNumber(ctx context.Context, card_number string) (*carddb.GetUserEmailByCardNumberRow, error)
 }

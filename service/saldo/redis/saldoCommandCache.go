@@ -24,3 +24,10 @@ func (s *saldoCommandCache) DeleteSaldoCache(ctx context.Context, saldo_id int) 
 	key := fmt.Sprintf(saldoByIdCacheKey, saldo_id)
 	sharedcachehelpers.DeleteFromCache(ctx, s.store, key)
 }
+
+// DeleteSaldoCacheByCardNumber removes the card-number cache entry. Deleting a
+// missing key is a no-op, so this is safe to call repeatedly (replay-safe).
+func (s *saldoCommandCache) DeleteSaldoCacheByCardNumber(ctx context.Context, card_number string) {
+	key := fmt.Sprintf(saldoByCardNumberKey, card_number)
+	sharedcachehelpers.DeleteFromCache(ctx, s.store, key)
+}

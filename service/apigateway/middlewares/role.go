@@ -8,9 +8,9 @@ import (
 	"sync"
 	"time"
 
-	mencache "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/redis"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/kafka"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
+	mencache "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/redis"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/response"
 	"github.com/google/uuid"

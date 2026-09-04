@@ -1,7 +1,8 @@
 package repository
 
 import (
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/topup/database/schema"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/outbox"
 )
 
 type Repositories interface {
@@ -9,6 +10,8 @@ type Repositories interface {
 	TopupCommandRepository
 	CardRepository
 	SaldoRepository
+	IdempotencyRepository
+	OutboxRepository
 }
 
 type repositories struct {
@@ -16,6 +19,8 @@ type repositories struct {
 	TopupCommandRepository
 	CardRepository
 	SaldoRepository
+	IdempotencyRepository
+	OutboxRepository
 }
 
 func NewRepositories(
@@ -24,9 +29,11 @@ func NewRepositories(
 	saldo SaldoRepository,
 ) Repositories {
 	return &repositories{
-		TopupQueryRepository:       NewTopupQueryRepository(db),
-		TopupCommandRepository:     NewTopupCommandRepository(db),
-		CardRepository:             card,
-		SaldoRepository:            saldo,
+		TopupQueryRepository:   NewTopupQueryRepository(db),
+		TopupCommandRepository: NewTopupCommandRepository(db),
+		CardRepository:         card,
+		SaldoRepository:        saldo,
+		IdempotencyRepository:  NewTopupIdempotencyRepository(db),
+		OutboxRepository:       outbox.NewStore(db.InsertOutbox),
 	}
 }

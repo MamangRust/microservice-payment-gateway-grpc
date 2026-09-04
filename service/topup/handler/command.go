@@ -2,13 +2,15 @@ package handler
 
 import (
 	"context"
+	"strconv"
 	"time"
 
 	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb/topup"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/service/topup/service"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
 	topup_errors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors/topup_errors/grpc"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/service/topup/service"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -27,9 +29,13 @@ func NewTopupCommandHandleGrpc(service service.TopupCommandService) TopupCommand
 
 func (s *topupCommandHandleGrpc) CreateTopup(ctx context.Context, req *pb.CreateTopupRequest) (*pb.ApiResponseTopup, error) {
 	request := requests.CreateTopupRequest{
-		CardNumber:  req.GetCardNumber(),
-		TopupAmount: int(req.GetTopupAmount()),
-		TopupMethod: req.GetTopupMethod(),
+		CardNumber:     req.GetCardNumber(),
+		TopupAmount:    int(req.GetTopupAmount()),
+		TopupMethod:    req.GetTopupMethod(),
+		IdempotencyKey: req.GetIdempotencyKey(),
+	}
+	if values := metadata.ValueFromIncomingContext(ctx, "x-user-id"); len(values) > 0 {
+		request.AuthenticatedUserID, _ = strconv.Atoi(values[0])
 	}
 
 	if err := request.Validate(); err != nil {
@@ -46,7 +52,7 @@ func (s *topupCommandHandleGrpc) CreateTopup(ctx context.Context, req *pb.Create
 		Id:          int32(res.TopupID),
 		CardNumber:  res.CardNumber,
 		TopupNo:     res.TopupNo.String(),
-		TopupAmount: int32(res.TopupAmount),
+		TopupAmount: int64(res.TopupAmount),
 		TopupMethod: res.TopupMethod,
 		TopupTime:   res.TopupTime.Format(time.RFC3339),
 		CreatedAt:   res.CreatedAt.Time.Format(time.RFC3339),
@@ -88,7 +94,7 @@ func (s *topupCommandHandleGrpc) UpdateTopup(ctx context.Context, req *pb.Update
 		Id:          int32(res.TopupID),
 		CardNumber:  res.CardNumber,
 		TopupNo:     res.TopupNo.String(),
-		TopupAmount: int32(res.TopupAmount),
+		TopupAmount: int64(res.TopupAmount),
 		TopupMethod: res.TopupMethod,
 		TopupTime:   res.TopupTime.Format(time.RFC3339),
 		CreatedAt:   res.CreatedAt.Time.Format(time.RFC3339),
@@ -119,7 +125,7 @@ func (s *topupCommandHandleGrpc) TrashedTopup(ctx context.Context, req *pb.FindB
 		Id:          int32(res.TopupID),
 		CardNumber:  res.CardNumber,
 		TopupNo:     res.TopupNo.String(),
-		TopupAmount: int32(res.TopupAmount),
+		TopupAmount: int64(res.TopupAmount),
 		TopupMethod: res.TopupMethod,
 		TopupTime:   res.TopupTime.Format(time.RFC3339),
 		CreatedAt:   res.CreatedAt.Time.Format(time.RFC3339),
@@ -151,7 +157,7 @@ func (s *topupCommandHandleGrpc) RestoreTopup(ctx context.Context, req *pb.FindB
 		Id:          int32(res.TopupID),
 		CardNumber:  res.CardNumber,
 		TopupNo:     res.TopupNo.String(),
-		TopupAmount: int32(res.TopupAmount),
+		TopupAmount: int64(res.TopupAmount),
 		TopupMethod: res.TopupMethod,
 		TopupTime:   res.TopupTime.Format(time.RFC3339),
 		CreatedAt:   res.CreatedAt.Time.Format(time.RFC3339),

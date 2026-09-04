@@ -2,13 +2,15 @@ package handler
 
 import (
 	"context"
+	"strconv"
 	"time"
 
 	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb/withdraw"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/service/withdraw/service"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
 	withdraw_errors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors/withdraw_errors/grpc"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/service/withdraw/service"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -32,6 +34,10 @@ func (w *withdrawCommandHandleGrpc) CreateWithdraw(ctx context.Context, req *pb.
 		CardNumber:     req.CardNumber,
 		WithdrawAmount: int(req.WithdrawAmount),
 		WithdrawTime:   req.WithdrawTime.AsTime(),
+		IdempotencyKey: req.GetIdempotencyKey(),
+	}
+	if values := metadata.ValueFromIncomingContext(ctx, "x-user-id"); len(values) > 0 {
+		request.AuthenticatedUserID, _ = strconv.Atoi(values[0])
 	}
 
 	if err := request.Validate(); err != nil {
@@ -51,7 +57,7 @@ func (w *withdrawCommandHandleGrpc) CreateWithdraw(ctx context.Context, req *pb.
 			WithdrawId:     int32(withdraw.WithdrawID),
 			WithdrawNo:     withdraw.WithdrawNo.String(),
 			CardNumber:     withdraw.CardNumber,
-			WithdrawAmount: int32(withdraw.WithdrawAmount),
+			WithdrawAmount: int64(withdraw.WithdrawAmount),
 			WithdrawTime:   withdraw.WithdrawTime.Format(time.RFC3339),
 			CreatedAt:      withdraw.CreatedAt.Time.Format(time.RFC3339),
 			UpdatedAt:      withdraw.UpdatedAt.Time.Format(time.RFC3339),
@@ -90,7 +96,7 @@ func (w *withdrawCommandHandleGrpc) UpdateWithdraw(ctx context.Context, req *pb.
 			WithdrawId:     int32(withdraw.WithdrawID),
 			WithdrawNo:     withdraw.WithdrawNo.String(),
 			CardNumber:     withdraw.CardNumber,
-			WithdrawAmount: int32(withdraw.WithdrawAmount),
+			WithdrawAmount: int64(withdraw.WithdrawAmount),
 			WithdrawTime:   withdraw.WithdrawTime.Format(time.RFC3339),
 			CreatedAt:      withdraw.CreatedAt.Time.Format(time.RFC3339),
 			UpdatedAt:      withdraw.UpdatedAt.Time.Format(time.RFC3339),
@@ -118,7 +124,7 @@ func (w *withdrawCommandHandleGrpc) TrashedWithdraw(ctx context.Context, req *pb
 			WithdrawId:     int32(withdraw.WithdrawID),
 			WithdrawNo:     withdraw.WithdrawNo.String(),
 			CardNumber:     withdraw.CardNumber,
-			WithdrawAmount: int32(withdraw.WithdrawAmount),
+			WithdrawAmount: int64(withdraw.WithdrawAmount),
 			WithdrawTime:   withdraw.WithdrawTime.Format(time.RFC3339),
 			CreatedAt:      withdraw.CreatedAt.Time.Format(time.RFC3339),
 			UpdatedAt:      withdraw.UpdatedAt.Time.Format(time.RFC3339),
@@ -147,7 +153,7 @@ func (w *withdrawCommandHandleGrpc) RestoreWithdraw(ctx context.Context, req *pb
 			WithdrawId:     int32(withdraw.WithdrawID),
 			WithdrawNo:     withdraw.WithdrawNo.String(),
 			CardNumber:     withdraw.CardNumber,
-			WithdrawAmount: int32(withdraw.WithdrawAmount),
+			WithdrawAmount: int64(withdraw.WithdrawAmount),
 			WithdrawTime:   withdraw.WithdrawTime.Format(time.RFC3339),
 			CreatedAt:      withdraw.CreatedAt.Time.Format(time.RFC3339),
 			UpdatedAt:      withdraw.UpdatedAt.Time.Format(time.RFC3339),

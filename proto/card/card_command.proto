@@ -35,6 +35,20 @@ message ApiResponseCardAll {
   string message = 2;
 }
 
+message ToggleCardStatusRequest {
+  int32 card_id = 1;
+}
+
+message UpdateCreditLimitRequest {
+  int32 card_id = 1;
+  int32 credit_limit = 2;
+}
+
+message RedeemPointsRequest {
+  int32 card_id = 1;
+  int32 points = 2;
+}
+
 service CardCommandService {
   rpc CreateCard(CreateCardRequest) returns (ApiResponseCard) {}
   rpc UpdateCard(UpdateCardRequest) returns (ApiResponseCard) {}
@@ -47,4 +61,9 @@ service CardCommandService {
   rpc RestoreAllCard(google.protobuf.Empty) returns (ApiResponseCardAll) {}
   rpc DeleteAllCardPermanent(google.protobuf.Empty)
       returns (ApiResponseCardAll) {}
+
+  rpc ToggleCardStatus(ToggleCardStatusRequest) returns (ApiResponseCard) {}
+  rpc UpdateCreditLimit(UpdateCreditLimitRequest) returns (ApiResponseCard) {}
+  rpc RedeemPoints(RedeemPointsRequest) returns (ApiResponseCard) {}
+  rpc ProcessBillingCycles(google.protobuf.Empty) returns (google.protobuf.Empty) {}
 }

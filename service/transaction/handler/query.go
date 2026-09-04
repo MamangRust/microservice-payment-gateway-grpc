@@ -65,7 +65,7 @@ func (t *transactionQueryHandleGrpc) FindAllTransaction(ctx context.Context, req
 			Id:              int32(transaction.TransactionID),
 			CardNumber:      transaction.CardNumber,
 			TransactionNo:   transaction.TransactionNo.String(),
-			Amount:          int32(transaction.Amount),
+			Amount:          int64(transaction.Amount),
 			PaymentMethod:   transaction.PaymentMethod,
 			MerchantId:      int32(transaction.MerchantID),
 			TransactionTime: transaction.TransactionTime.Format(time.RFC3339),
@@ -122,7 +122,7 @@ func (t *transactionQueryHandleGrpc) FindAllTransactionByCardNumber(ctx context.
 			Id:              int32(transaction.TransactionID),
 			CardNumber:      transaction.CardNumber,
 			TransactionNo:   transaction.TransactionNo.String(),
-			Amount:          int32(transaction.Amount),
+			Amount:          int64(transaction.Amount),
 			PaymentMethod:   transaction.PaymentMethod,
 			MerchantId:      int32(transaction.MerchantID),
 			TransactionTime: transaction.TransactionTime.Format(time.RFC3339),
@@ -159,13 +159,48 @@ func (t *transactionQueryHandleGrpc) FindByIdTransaction(ctx context.Context, re
 			Id:              int32(transaction.TransactionID),
 			CardNumber:      transaction.CardNumber,
 			TransactionNo:   transaction.TransactionNo.String(),
-			Amount:          int32(transaction.Amount),
+			Amount:          int64(transaction.Amount),
 			PaymentMethod:   transaction.PaymentMethod,
 			MerchantId:      int32(transaction.MerchantID),
 			TransactionTime: transaction.TransactionTime.Format(time.RFC3339),
 			CreatedAt:       transaction.CreatedAt.Time.Format(time.RFC3339),
 			UpdatedAt:       transaction.UpdatedAt.Time.Format(time.RFC3339),
 		},
+	}, nil
+}
+
+func (t *transactionQueryHandleGrpc) FindTransactionByMerchantId(ctx context.Context, request *pb.FindTransactionByMerchantIdRequest) (*pb.ApiResponseTransactions, error) {
+	merchantID := int(request.GetMerchantId())
+
+	if merchantID == 0 {
+		return nil, transaction_errors.ErrGrpcTransactionInvalidID
+	}
+
+	transactions, err := t.service.FindTransactionByMerchantId(ctx, merchantID)
+
+	if err != nil {
+		return nil, errors.ToGrpcError(err)
+	}
+
+	transactionResponses := make([]*pb.TransactionResponse, len(transactions))
+	for i, transaction := range transactions {
+		transactionResponses[i] = &pb.TransactionResponse{
+			Id:              transaction.TransactionID,
+			CardNumber:      transaction.CardNumber,
+			TransactionNo:   transaction.TransactionNo.String(),
+			Amount:          int64(transaction.Amount),
+			PaymentMethod:   transaction.PaymentMethod,
+			MerchantId:      transaction.MerchantID,
+			TransactionTime: transaction.TransactionTime.Format(time.RFC3339),
+			CreatedAt:       transaction.CreatedAt.Time.Format(time.RFC3339),
+			UpdatedAt:       transaction.UpdatedAt.Time.Format(time.RFC3339),
+		}
+	}
+
+	return &pb.ApiResponseTransactions{
+		Status:  "success",
+		Message: "Successfully fetched transaction records",
+		Data:    transactionResponses,
 	}, nil
 }
 
@@ -208,7 +243,7 @@ func (t *transactionQueryHandleGrpc) FindByActiveTransaction(ctx context.Context
 			Id:              int32(transaction.TransactionID),
 			CardNumber:      transaction.CardNumber,
 			TransactionNo:   transaction.TransactionNo.String(),
-			Amount:          int32(transaction.Amount),
+			Amount:          int64(transaction.Amount),
 			PaymentMethod:   transaction.PaymentMethod,
 			MerchantId:      int32(transaction.MerchantID),
 			TransactionTime: transaction.TransactionTime.Format(time.RFC3339),
@@ -265,7 +300,7 @@ func (t *transactionQueryHandleGrpc) FindByTrashedTransaction(ctx context.Contex
 			Id:              int32(transaction.TransactionID),
 			CardNumber:      transaction.CardNumber,
 			TransactionNo:   transaction.TransactionNo.String(),
-			Amount:          int32(transaction.Amount),
+			Amount:          int64(transaction.Amount),
 			PaymentMethod:   transaction.PaymentMethod,
 			MerchantId:      int32(transaction.MerchantID),
 			TransactionTime: transaction.TransactionTime.Format(time.RFC3339),

@@ -57,7 +57,7 @@ func (h *TransferStatsHandler) FindYearlyTransferAmounts(ctx context.Context, re
 }
 
 func (h *TransferStatsHandler) FindMonthlyTransferAmountsBySenderCardNumber(ctx context.Context, req *transfer.FindByCardNumberTransferRequest) (*pbTransferStats.ApiResponseTransferMonthAmount, error) {
-	data, err := h.repo.GetMonthlyAmounts(ctx, "transfer_events", "transfer_from", req.CardNumber, int(req.Year))
+	data, err := h.repo.GetMonthlyAmounts(ctx, "transfer_events", "source_card", req.CardNumber, int(req.Year))
 	if err != nil {
 		return nil, err
 	}
@@ -69,7 +69,7 @@ func (h *TransferStatsHandler) FindMonthlyTransferAmountsBySenderCardNumber(ctx 
 }
 
 func (h *TransferStatsHandler) FindMonthlyTransferAmountsByReceiverCardNumber(ctx context.Context, req *transfer.FindByCardNumberTransferRequest) (*pbTransferStats.ApiResponseTransferMonthAmount, error) {
-	data, err := h.repo.GetMonthlyAmounts(ctx, "transfer_events", "transfer_to", req.CardNumber, int(req.Year))
+	data, err := h.repo.GetMonthlyAmounts(ctx, "transfer_events", "destination_card", req.CardNumber, int(req.Year))
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +81,7 @@ func (h *TransferStatsHandler) FindMonthlyTransferAmountsByReceiverCardNumber(ct
 }
 
 func (h *TransferStatsHandler) FindYearlyTransferAmountsBySenderCardNumber(ctx context.Context, req *transfer.FindByCardNumberTransferRequest) (*pbTransferStats.ApiResponseTransferYearAmount, error) {
-	data, err := h.repo.GetYearlyAmounts(ctx, "transfer_events", "transfer_from", req.CardNumber, int(req.Year), int(req.Year))
+	data, err := h.repo.GetYearlyAmounts(ctx, "transfer_events", "source_card", req.CardNumber, int(req.Year), int(req.Year))
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +93,7 @@ func (h *TransferStatsHandler) FindYearlyTransferAmountsBySenderCardNumber(ctx c
 }
 
 func (h *TransferStatsHandler) FindYearlyTransferAmountsByReceiverCardNumber(ctx context.Context, req *transfer.FindByCardNumberTransferRequest) (*pbTransferStats.ApiResponseTransferYearAmount, error) {
-	data, err := h.repo.GetYearlyAmounts(ctx, "transfer_events", "transfer_to", req.CardNumber, int(req.Year), int(req.Year))
+	data, err := h.repo.GetYearlyAmounts(ctx, "transfer_events", "destination_card", req.CardNumber, int(req.Year), int(req.Year))
 	if err != nil {
 		return nil, err
 	}
@@ -153,7 +153,7 @@ func (h *TransferStatsHandler) FindYearlyTransferStatusFailed(ctx context.Contex
 }
 
 func (h *TransferStatsHandler) FindMonthlyTransferStatusSuccessByCardNumber(ctx context.Context, req *transfer.FindMonthlyTransferStatusCardNumber) (*pbTransferStats.ApiResponseTransferMonthStatusSuccess, error) {
-	data, err := h.repo.GetMonthlyStatusStats(ctx, "transfer_events", "transfer_from", req.CardNumber, int(req.Year), "success")
+	data, err := h.repo.GetMonthlyStatusStats(ctx, "transfer_events", "source_card", req.CardNumber, int(req.Year), "success")
 	if err != nil {
 		return nil, err
 	}
@@ -165,7 +165,7 @@ func (h *TransferStatsHandler) FindMonthlyTransferStatusSuccessByCardNumber(ctx 
 }
 
 func (h *TransferStatsHandler) FindYearlyTransferStatusSuccessByCardNumber(ctx context.Context, req *transfer.FindYearTransferStatusCardNumber) (*pbTransferStats.ApiResponseTransferYearStatusSuccess, error) {
-	data, err := h.repo.GetYearlyStatusStats(ctx, "transfer_events", "transfer_from", req.CardNumber, int(req.Year), "success")
+	data, err := h.repo.GetYearlyStatusStats(ctx, "transfer_events", "source_card", req.CardNumber, int(req.Year), "success")
 	if err != nil {
 		return nil, err
 	}
@@ -177,7 +177,7 @@ func (h *TransferStatsHandler) FindYearlyTransferStatusSuccessByCardNumber(ctx c
 }
 
 func (h *TransferStatsHandler) FindMonthlyTransferStatusFailedByCardNumber(ctx context.Context, req *transfer.FindMonthlyTransferStatusCardNumber) (*pbTransferStats.ApiResponseTransferMonthStatusFailed, error) {
-	data, err := h.repo.GetMonthlyStatusStats(ctx, "transfer_events", "transfer_from", req.CardNumber, int(req.Year), "failed")
+	data, err := h.repo.GetMonthlyStatusStats(ctx, "transfer_events", "source_card", req.CardNumber, int(req.Year), "failed")
 	if err != nil {
 		return nil, err
 	}
@@ -189,7 +189,7 @@ func (h *TransferStatsHandler) FindMonthlyTransferStatusFailedByCardNumber(ctx c
 }
 
 func (h *TransferStatsHandler) FindYearlyTransferStatusFailedByCardNumber(ctx context.Context, req *transfer.FindYearTransferStatusCardNumber) (*pbTransferStats.ApiResponseTransferYearStatusFailed, error) {
-	data, err := h.repo.GetYearlyStatusStats(ctx, "transfer_events", "transfer_from", req.CardNumber, int(req.Year), "failed")
+	data, err := h.repo.GetYearlyStatusStats(ctx, "transfer_events", "source_card", req.CardNumber, int(req.Year), "failed")
 	if err != nil {
 		return nil, err
 	}
@@ -207,7 +207,7 @@ func (h *TransferStatsHandler) mapToTransferMonthAmountData(data []repository.Mo
 	for _, d := range data {
 		results = append(results, &pbTransferStats.TransferMonthAmountResponse{
 			Month:       d.Month,
-			TotalAmount: int32(d.TotalAmount),
+			TotalAmount: d.TotalAmount,
 		})
 	}
 	return results
@@ -218,7 +218,7 @@ func (h *TransferStatsHandler) mapToTransferYearAmountData(data []repository.Yea
 	for _, d := range data {
 		results = append(results, &pbTransferStats.TransferYearAmountResponse{
 			Year:        d.Year,
-			TotalAmount: int32(d.TotalAmount),
+			TotalAmount: d.TotalAmount,
 		})
 	}
 	return results
@@ -231,7 +231,7 @@ func (h *TransferStatsHandler) mapToTransferMonthStatusSuccessData(data []reposi
 			Year:         d.Year,
 			Month:        d.Month,
 			TotalSuccess: int32(d.TotalTransactions),
-			TotalAmount:  int32(d.TotalAmount),
+			TotalAmount:  d.TotalAmount,
 		})
 	}
 	return results
@@ -243,7 +243,7 @@ func (h *TransferStatsHandler) mapToTransferYearStatusSuccessData(data []reposit
 		results = append(results, &pbTransferStats.TransferYearStatusSuccessResponse{
 			Year:         d.Year,
 			TotalSuccess: int32(d.TotalTransactions),
-			TotalAmount:  int32(d.TotalAmount),
+			TotalAmount:  d.TotalAmount,
 		})
 	}
 	return results
@@ -256,7 +256,7 @@ func (h *TransferStatsHandler) mapToTransferMonthStatusFailedData(data []reposit
 			Year:        d.Year,
 			Month:       d.Month,
 			TotalFailed: int32(d.TotalTransactions),
-			TotalAmount: int32(d.TotalAmount),
+			TotalAmount: d.TotalAmount,
 		})
 	}
 	return results
@@ -268,7 +268,7 @@ func (h *TransferStatsHandler) mapToTransferYearStatusFailedData(data []reposito
 		results = append(results, &pbTransferStats.TransferYearStatusFailedResponse{
 			Year:        d.Year,
 			TotalFailed: int32(d.TotalTransactions),
-			TotalAmount: int32(d.TotalAmount),
+			TotalAmount: d.TotalAmount,
 		})
 	}
 	return results

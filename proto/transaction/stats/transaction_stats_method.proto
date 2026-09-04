@@ -10,14 +10,14 @@ message TransactionMonthMethodResponse {
   string month = 1;
   string payment_method = 2;
   int32 total_transactions = 3;
-  int32 total_amount = 4;
+  int64 total_amount = 4;
 }
 
 message TransactionYearMethodResponse {
   string year = 1;
   string payment_method = 2;
   int32 total_transactions = 3;
-  int32 total_amount = 4;
+  int64 total_amount = 4;
 }
 
 message ApiResponseTransactionMonthMethod {

@@ -3,9 +3,10 @@ package repository
 import (
 	"context"
 
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
+	database "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/role/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
-	role_errors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors/role_errors/repository"
+	sharedErrors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
 )
 
 // roleCommandRepository is a struct that implements the RoleCommandRepository interface
@@ -33,7 +34,10 @@ func (r *roleCommandRepository) CreateRole(ctx context.Context, req *requests.Cr
 	res, err := r.db.CreateRole(ctx, req.Name)
 
 	if err != nil {
-		return nil, role_errors.ErrCreateRole.WithInternal(err)
+		if database.IsUniqueViolation(err) {
+			return nil, sharedErrors.NewConflictError("role name already exists").WithInternal(err)
+		}
+		return nil, sharedErrors.ErrFailed("create role").WithInternal(err)
 	}
 
 	return res, nil
@@ -46,7 +50,10 @@ func (r *roleCommandRepository) UpdateRole(ctx context.Context, req *requests.Up
 	})
 
 	if err != nil {
-		return nil, role_errors.ErrUpdateRole.WithInternal(err)
+		if database.IsUniqueViolation(err) {
+			return nil, sharedErrors.NewConflictError("role name already exists").WithInternal(err)
+		}
+		return nil, sharedErrors.ErrNoRowsOrFailed(err, "role", "update role")
 	}
 
 	return res, nil
@@ -55,7 +62,7 @@ func (r *roleCommandRepository) UpdateRole(ctx context.Context, req *requests.Up
 func (r *roleCommandRepository) TrashedRole(ctx context.Context, id int) (*db.Role, error) {
 	res, err := r.db.TrashRole(ctx, int32(id))
 	if err != nil {
-		return nil, role_errors.ErrTrashedRole.WithInternal(err)
+		return nil, sharedErrors.ErrNoRowsOrFailed(err, "role", "trash role")
 	}
 	return res, nil
 }
@@ -63,7 +70,7 @@ func (r *roleCommandRepository) TrashedRole(ctx context.Context, id int) (*db.Ro
 func (r *roleCommandRepository) RestoreRole(ctx context.Context, id int) (*db.Role, error) {
 	res, err := r.db.RestoreRole(ctx, int32(id))
 	if err != nil {
-		return nil, role_errors.ErrRestoreRole.WithInternal(err)
+		return nil, sharedErrors.ErrNoRowsOrFailed(err, "role", "restore role")
 	}
 	return res, nil
 }
@@ -71,7 +78,7 @@ func (r *roleCommandRepository) RestoreRole(ctx context.Context, id int) (*db.Ro
 func (r *roleCommandRepository) DeleteRolePermanent(ctx context.Context, role_id int) (bool, error) {
 	err := r.db.DeletePermanentRole(ctx, int32(role_id))
 	if err != nil {
-		return false, role_errors.ErrDeleteRolePermanent.WithInternal(err)
+		return false, sharedErrors.ErrNoRowsOrFailed(err, "role", "delete role permanently")
 	}
 	return true, nil
 }
@@ -80,7 +87,7 @@ func (r *roleCommandRepository) RestoreAllRole(ctx context.Context) (bool, error
 	err := r.db.RestoreAllRoles(ctx)
 
 	if err != nil {
-		return false, role_errors.ErrRestoreAllRoles.WithInternal(err)
+		return false, sharedErrors.ErrFailed("restore all roles").WithInternal(err)
 	}
 
 	return true, nil
@@ -90,7 +97,7 @@ func (r *roleCommandRepository) DeleteAllRolePermanent(ctx context.Context) (boo
 	err := r.db.DeleteAllPermanentRoles(ctx)
 
 	if err != nil {
-		return false, role_errors.ErrDeleteAllRoles.WithInternal(err)
+		return false, sharedErrors.ErrFailed("delete all roles").WithInternal(err)
 	}
 
 	return true, nil
@@ -103,7 +110,7 @@ func (r *roleCommandRepository) CreateUserRole(ctx context.Context, userID, role
 	})
 
 	if err != nil {
-		return nil, role_errors.ErrCreateRole.WithInternal(err) // Should have a specific association error
+		return nil, sharedErrors.ErrFailed("create user role").WithInternal(err)
 	}
 
 	// This method returns *db.UserRole, but we need *db.Role or similar.
@@ -112,7 +119,7 @@ func (r *roleCommandRepository) CreateUserRole(ctx context.Context, userID, role
 	// I'll fetch the role info to satisfy the contract.
 	role, err := r.db.GetRole(ctx, int32(roleID))
 	if err != nil {
-		return nil, role_errors.ErrUpdateRole.WithInternal(err)
+		return nil, sharedErrors.ErrFailed("get role for user role").WithInternal(err)
 	}
 
 	return role, nil
@@ -125,7 +132,7 @@ func (r *roleCommandRepository) DeleteUserRole(ctx context.Context, userID, role
 	})
 
 	if err != nil {
-		return false, role_errors.ErrUpdateRole.WithInternal(err)
+		return false, sharedErrors.ErrNoRowsOrFailed(err, "user role", "delete user role")
 	}
 
 	return true, nil

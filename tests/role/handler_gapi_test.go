@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb/role"
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/role/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/role/handler"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/role/repository"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/role/service"

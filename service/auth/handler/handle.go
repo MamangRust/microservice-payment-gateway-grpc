@@ -1,8 +1,8 @@
 package handler
 
 import (
-	"github.com/MamangRust/microservice-payment-gateway-grpc/service/auth/service"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/service/auth/service"
 )
 
 type Deps struct {

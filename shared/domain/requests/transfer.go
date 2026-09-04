@@ -49,6 +49,7 @@ type CreateTransferRequest struct {
 	TransferFrom   string `json:"transfer_from" validate:"required"`             // Source account/card number
 	TransferTo     string `json:"transfer_to" validate:"required,min=1"`         // Destination account/card number (minimum 1 character)
 	TransferAmount int    `json:"transfer_amount" validate:"required,min=50000"` // Amount to transfer (minimum 50,000 in smallest unit)
+	IdempotencyKey string `json:"-"`                                             // Client retry key; transported through gRPC metadata field
 }
 
 // UpdateTransferRequest represents the payload for modifying a transfer record.
@@ -105,6 +106,10 @@ func (r *UpdateTransferRequest) Validate() error {
 	validate := validator.New()
 	if err := validate.Struct(r); err != nil {
 		return err
+	}
+
+	if r.TransferID == nil {
+		return errors.New("transfer ID is required")
 	}
 
 	if *r.TransferID <= 0 {

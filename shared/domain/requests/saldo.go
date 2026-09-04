@@ -44,6 +44,57 @@ type UpdateSaldoBalance struct {
 	TotalBalance int    `json:"total_balance" validate:"required,min=50000"` // New balance (minimum 50,000 in smallest unit)
 }
 
+// ApplySaldoAdjustmentRequest represents an append-only admin correction.
+type ApplySaldoAdjustmentRequest struct {
+	CardNumber  string `json:"card_number" validate:"required,min=1"`
+	Delta       int64  `json:"delta" validate:"required"`
+	OperationID string `json:"operation_id" validate:"required,min=1,max=128"`
+	SourceType  string `json:"source_type" validate:"required,min=1,max=64"`
+	SourceID    string `json:"source_id,omitempty" validate:"max=128"`
+	Note        string `json:"note" validate:"required,min=1,max=1000"`
+}
+
+func (r *ApplySaldoAdjustmentRequest) Validate() error {
+	validate := validator.New()
+	if err := validate.Struct(r); err != nil {
+		return err
+	}
+	if r.Delta == 0 {
+		return errors.New("adjustment delta must not be zero")
+	}
+	return nil
+}
+
+// DebitSaldoRequest represents an atomic debit command for a card balance.
+type DebitSaldoRequest struct {
+	CardNumber  string `json:"card_number" validate:"required,min=1"`
+	Amount      int    `json:"amount" validate:"required,gt=0"`
+	OperationID string `json:"operation_id,omitempty"`
+	SourceType  string `json:"source_type,omitempty"`
+	SourceID    string `json:"source_id,omitempty"`
+}
+
+// CreditSaldoRequest represents an atomic credit command for a card balance.
+type CreditSaldoRequest struct {
+	CardNumber  string `json:"card_number" validate:"required,min=1"`
+	Amount      int    `json:"amount" validate:"required,gt=0"`
+	OperationID string `json:"operation_id,omitempty"`
+	SourceType  string `json:"source_type,omitempty"`
+	SourceID    string `json:"source_id,omitempty"`
+}
+
+// Validate performs validation of DebitSaldoRequest fields.
+func (r *DebitSaldoRequest) Validate() error {
+	validate := validator.New()
+	return validate.Struct(r)
+}
+
+// Validate performs validation of CreditSaldoRequest fields.
+func (r *CreditSaldoRequest) Validate() error {
+	validate := validator.New()
+	return validate.Struct(r)
+}
+
 // UpdateSaldoWithdraw represents the payload for withdrawal operations.
 // Used when processing balance withdrawals from cards.
 type UpdateSaldoWithdraw struct {

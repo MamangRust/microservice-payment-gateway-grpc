@@ -4,7 +4,8 @@ import (
 	"context"
 
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pb/user"
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/database/schema"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/resilience"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/user/repository"
 )
 
@@ -14,17 +15,31 @@ type UserAdapter interface {
 
 type userGRPCAdapter struct {
 	queryClient user.UserQueryServiceClient
+	guard       *resilience.DependencyGuard
 }
 
-func NewUserAdapter(queryClient user.UserQueryServiceClient) UserAdapter {
-	return &userGRPCAdapter{
+func (a *userGRPCAdapter) setGuard(g *resilience.DependencyGuard) {
+	a.guard = g
+}
+
+func NewUserAdapter(queryClient user.UserQueryServiceClient, opts ...func(guardSetter)) UserAdapter {
+	a := &userGRPCAdapter{
 		queryClient: queryClient,
 	}
+	for _, opt := range opts {
+		opt(a)
+	}
+	return a
 }
 
 func (a *userGRPCAdapter) FindById(ctx context.Context, userID int) (*db.User, error) {
-	resp, err := a.queryClient.FindById(ctx, &user.FindByIdUserRequest{
-		Id: int32(userID),
+	var resp *user.ApiResponseUser
+	err := a.guard.Call(ctx, func(callCtx context.Context) error {
+		var callErr error
+		resp, callErr = a.queryClient.FindById(callCtx, &user.FindByIdUserRequest{
+			Id: int32(userID),
+		})
+		return callErr
 	})
 	if err != nil {
 		return nil, err

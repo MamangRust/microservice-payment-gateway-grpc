@@ -3,12 +3,13 @@ package repository
 import (
 	"context"
 
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/merchant/database/schema"
+	userdb "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 )
 
 type UserRepository interface {
-	FindById(ctx context.Context, user_id int) (*db.GetUserByIDRow, error)
+	FindById(ctx context.Context, user_id int) (*userdb.GetUserByIDRow, error)
 }
 
 type MerchantQueryRepository interface {

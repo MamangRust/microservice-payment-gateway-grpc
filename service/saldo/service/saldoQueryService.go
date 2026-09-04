@@ -3,13 +3,13 @@ package service
 import (
 	"context"
 
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
 	mencache "github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/redis"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/repository"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/errorhandler"
-	saldo_errors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors/saldo_errors/service"
+	sharedErrors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/observability"
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
@@ -40,6 +40,14 @@ func NewSaldoQueryService(
 	}
 }
 
+func (s *saldoQueryService) ListReconciliationQueue(ctx context.Context, status string, limit int32) ([]*db.ReconciliationQueueRow, error) {
+	return s.saldoQueryRepository.ListReconciliationQueue(ctx, status, limit)
+}
+
+func (s *saldoQueryService) ListLedgerEntries(ctx context.Context, cardNumber string, limit int32) ([]*db.LedgerEntry, error) {
+	return s.saldoQueryRepository.ListLedgerEntries(ctx, cardNumber, limit)
+}
+
 func (s *saldoQueryService) FindAll(ctx context.Context, req *requests.FindAllSaldos) ([]*db.GetSaldosRow, *int, error) {
 	const method = "FindAll"
 
@@ -52,7 +60,7 @@ func (s *saldoQueryService) FindAll(ctx context.Context, req *requests.FindAllSa
 		attribute.String("search", search))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	res, err := s.saldoQueryRepository.FindAllSaldos(ctx, req)
@@ -60,7 +68,7 @@ func (s *saldoQueryService) FindAll(ctx context.Context, req *requests.FindAllSa
 		status = "error"
 		return errorhandler.HandlerErrorPagination[[]*db.GetSaldosRow](
 			s.logger,
-			saldo_errors.ErrFailedFindAllSaldos,
+			sharedErrors.ErrFailed("find all saldo"),
 			method,
 			span,
 
@@ -98,7 +106,7 @@ func (s *saldoQueryService) FindByActive(ctx context.Context, req *requests.Find
 		attribute.String("search", search))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	res, err := s.saldoQueryRepository.FindByActive(ctx, req)
@@ -106,7 +114,7 @@ func (s *saldoQueryService) FindByActive(ctx context.Context, req *requests.Find
 		status = "error"
 		return errorhandler.HandlerErrorPagination[[]*db.GetActiveSaldosRow](
 			s.logger,
-			saldo_errors.ErrFailedFindActiveSaldos,
+			sharedErrors.ErrFailed("find active saldo"),
 			method,
 			span,
 
@@ -144,7 +152,7 @@ func (s *saldoQueryService) FindByTrashed(ctx context.Context, req *requests.Fin
 		attribute.String("search", search))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	res, err := s.saldoQueryRepository.FindByTrashed(ctx, req)
@@ -152,7 +160,7 @@ func (s *saldoQueryService) FindByTrashed(ctx context.Context, req *requests.Fin
 		status = "error"
 		return errorhandler.HandlerErrorPagination[[]*db.GetTrashedSaldosRow](
 			s.logger,
-			saldo_errors.ErrFailedFindTrashedSaldos,
+			sharedErrors.ErrFailed("find trashed saldo"),
 			method,
 			span,
 
@@ -185,7 +193,7 @@ func (s *saldoQueryService) FindById(ctx context.Context, saldo_id int) (*db.Get
 		attribute.Int("saldo_id", saldo_id))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	res, err := s.saldoQueryRepository.FindById(ctx, saldo_id)
@@ -193,7 +201,7 @@ func (s *saldoQueryService) FindById(ctx context.Context, saldo_id int) (*db.Get
 		status = "error"
 		return errorhandler.HandleError[*db.GetSaldoByIDRow](
 			s.logger,
-			saldo_errors.ErrFailedSaldoNotFound,
+			sharedErrors.ErrNotFoundResponse("Saldo"),
 			method,
 			span,
 
@@ -213,7 +221,7 @@ func (s *saldoQueryService) FindByCardNumber(ctx context.Context, card_number st
 		attribute.String("card_number", card_number))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	res, err := s.saldoQueryRepository.FindByCardNumber(ctx, card_number)
@@ -221,7 +229,7 @@ func (s *saldoQueryService) FindByCardNumber(ctx context.Context, card_number st
 		status = "error"
 		return errorhandler.HandleError[*db.Saldo](
 			s.logger,
-			saldo_errors.ErrFailedSaldoNotFound,
+			sharedErrors.ErrNotFoundResponse("Saldo"),
 			method,
 			span,
 

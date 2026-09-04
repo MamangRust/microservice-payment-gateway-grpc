@@ -3,7 +3,7 @@ import { check, sleep } from 'k6';
 
 const BASE_URL = 'http://localhost:5000';
 const TOKEN =
-  'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwiYXVkIjpbImFjY2VzcyJdLCJleHAiOjE3NjgwNTk3NTJ9.VuOk4oEkHakBGSJa8SUa2Eq4RJKLk-CTYB5dAfvrjqc';
+  'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwiYXVkIjpbImFjY2VzcyJdLCJleHAiOjE3ODU1NTY2MTJ9.O2__bTSOSd-SA0yX5Girec-v4VGkrj3rgwmrImocCdk';
 
 const USER_ID = 1;
 const ROLE_ID = 1;

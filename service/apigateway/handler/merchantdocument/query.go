@@ -4,9 +4,9 @@ import (
 	"net/http"
 	"strconv"
 
-	merchantdocument_cache "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/redis/api/merchantdocument"
 	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb/merchant_document"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
+	merchantdocument_cache "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/redis/api/merchantdocument"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
 	merchantdocumentapimapper "github.com/MamangRust/microservice-payment-gateway-grpc/shared/mapper/merchantdocument"
@@ -51,10 +51,10 @@ func NewMerchantQueryDocumentHandler(params *merchantDocumentQueryDocumentHandle
 
 	routerMerchantDocument := params.router.Group("/api/merchant-document-query")
 
-	routerMerchantDocument.GET("", merchantDocumentHandler.FindAll)
-	routerMerchantDocument.GET("/:id", merchantDocumentHandler.FindById)
-	routerMerchantDocument.GET("/active", merchantDocumentHandler.FindAllActive)
-	routerMerchantDocument.GET("/trashed", merchantDocumentHandler.FindAllTrashed)
+	routerMerchantDocument.GET("", params.apiHandler.Handle("find-all-merchant-documents", merchantDocumentHandler.FindAll))
+	routerMerchantDocument.GET("/:id", params.apiHandler.Handle("find-merchant-document-by-id", merchantDocumentHandler.FindById))
+	routerMerchantDocument.GET("/active", params.apiHandler.Handle("find-active-merchant-documents", merchantDocumentHandler.FindAllActive))
+	routerMerchantDocument.GET("/trashed", params.apiHandler.Handle("find-trashed-merchant-documents", merchantDocumentHandler.FindAllTrashed))
 
 	return merchantDocumentHandler
 }

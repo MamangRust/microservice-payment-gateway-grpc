@@ -5,7 +5,7 @@ import (
 
 	mencache "github.com/MamangRust/microservice-payment-gateway-grpc/service/merchant/redis"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/merchant/repository"
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/merchant/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/errorhandler"
@@ -48,7 +48,7 @@ func (s *merchantDocumentQueryService) FindAll(ctx context.Context, req *request
 	search := req.Search
 
 	ctx, span, end, status, logSuccess := s.observability.StartTracingAndLogging(ctx, method, attribute.Int("page", page), attribute.Int("pageSize", pageSize), attribute.String("search", search))
-	defer func() { end(status) }()
+	defer func() { end(status, "grpc") }()
 
 	if data, total, found := s.cache.GetCachedMerchantDocuments(ctx, req); found {
 		logSuccess("Successfully retrieved all merchant document records from cache", zap.Int("total", *total), zap.Int("page", page), zap.Int("pageSize", pageSize), zap.String("search", search))
@@ -80,7 +80,7 @@ func (s *merchantDocumentQueryService) FindById(ctx context.Context, documentID 
 	const method = "FindById"
 
 	ctx, span, end, status, logSuccess := s.observability.StartTracingAndLogging(ctx, method, attribute.Int("merchantDocument.id", documentID))
-	defer func() { end(status) }()
+	defer func() { end(status, "grpc") }()
 
 	if cachedMerchant, found := s.cache.GetCachedMerchantDocument(ctx, documentID); found {
 		logSuccess("Successfully found merchant document by ID from cache", zap.Int("merchantDocument.id", documentID))
@@ -106,7 +106,7 @@ func (s *merchantDocumentQueryService) FindByActive(ctx context.Context, req *re
 	search := req.Search
 
 	ctx, span, end, status, logSuccess := s.observability.StartTracingAndLogging(ctx, method, attribute.Int("page", page), attribute.Int("pageSize", pageSize), attribute.String("search", search))
-	defer func() { end(status) }()
+	defer func() { end(status, "grpc") }()
 
 	if data, total, found := s.cache.GetCachedMerchantDocumentsActive(ctx, req); found {
 		logSuccess("Successfully retrieved active merchant document records from cache", zap.Int("total", *total), zap.Int("page", page), zap.Int("pageSize", pageSize), zap.String("search", search))
@@ -140,7 +140,7 @@ func (s *merchantDocumentQueryService) FindByTrashed(ctx context.Context, req *r
 	search := req.Search
 
 	ctx, span, end, status, logSuccess := s.observability.StartTracingAndLogging(ctx, method, attribute.Int("page", page), attribute.Int("pageSize", pageSize), attribute.String("search", search))
-	defer func() { end(status) }()
+	defer func() { end(status, "grpc") }()
 
 	if data, total, found := s.cache.GetCachedMerchantDocumentsTrashed(ctx, req); found {
 		logSuccess("Successfully retrieved trashed merchant document records from cache", zap.Int("total", *total), zap.Int("page", page), zap.Int("pageSize", pageSize), zap.String("search", search))

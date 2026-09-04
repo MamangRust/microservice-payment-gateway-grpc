@@ -2,7 +2,8 @@ package main
 
 import (
 	"context"
-	"log"
+	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -34,7 +35,8 @@ func main() {
 
 	logger, err := logger.NewLogger("email-service", telemetry.GetLogger())
 	if err != nil {
-		log.Fatalf("Error creating logger: %v", err)
+		fmt.Fprintf(os.Stderr, "Error creating logger: %v\n", err)
+		os.Exit(1)
 	}
 
 	if err := dotenv.Viper(); err != nil {
@@ -68,24 +70,28 @@ func main() {
 
 	h := handler.NewEmailHandler(ctx, logger, m)
 
-	myKafka := kafka.NewKafka(logger, cfg.KafkaBrokers)
-
+	myKafka, err := kafka.NewKafka(logger, cfg.KafkaBrokers)
+	if err != nil {
+		logger.Fatal("Failed to create Kafka producer", zap.Error(err))
+	}
 	err = myKafka.StartConsumers([]string{
-		"email-service-topic-auth-register",
-		"email-service-topic-auth-forgot-password",
-		"email-service-topic-auth-verify-code-success",
-		"email-service-topic-saldo-create",
-		"email-service-topic-topup-create",
-		"email-service-topic-transaction-create",
-		"email-service-topic-transfer-create",
-		"email-service-topic-merchant-create",
-		"email-service-topic-merchant-update-status",
-		"email-service-topic-merchant-document-create",
-		"email-service-topic-merchant-document-update-status",
-	}, "email-service-group", h)
+			"email-service-topic-auth-register",
+			"email-service-topic-auth-forgot-password",
+			"email-service-topic-auth-verify-code-success",
+			"email-service-topic-saldo-create",
+			"email-service-topic-topup-create",
+			"email-service-topic-transaction-create",
+			"email-service-topic-transfer-create",
+			"email-service-topic-withdraw-create",
+			"email-service-topic-withdraw-update",
+			"email-service-topic-merchant-create",
+			"email-service-topic-merchant-update-status",
+			"email-service-topic-merchant-document-create",
+			"email-service-topic-merchant-document-update-status",
+		}, "email-service-group", h)
 
 	if err != nil {
-		log.Fatalf("Error starting consumer: %v", err)
+		logger.Fatal("Failed to start Kafka consumers", zap.Error(err))
 	}
 
 	logger.Info("Email service started", zap.String("service", "email-service"))

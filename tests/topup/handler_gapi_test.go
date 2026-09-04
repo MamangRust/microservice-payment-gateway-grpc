@@ -2,6 +2,9 @@ package topup_test
 
 import (
 	"context"
+	carddb "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/database/schema"
+	saldodb "github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/database/schema"
+	userdb "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/database/schema"
 	"net"
 	"testing"
 	"time"
@@ -9,12 +12,12 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2"
 	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb/topup"
 	pbStats "github.com/MamangRust/microservice-payment-gateway-grpc/pb/topup/stats"
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
 	card_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/repository"
 	saldo_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/repository"
 	stats_handler "github.com/MamangRust/microservice-payment-gateway-grpc/service/stats-reader/handler"
 	stats_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/stats-reader/repository"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/topup/database/schema"
 	gapi "github.com/MamangRust/microservice-payment-gateway-grpc/service/topup/handler"
 	topup_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/topup/repository"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/topup/service"
@@ -96,9 +99,15 @@ func (s *TopupGapiTestSuite) SetupSuite() {
 
 	queries := db.New(pool)
 
-	userRepos := user_repo.NewRepositories(queries)
-	cardRepos := card_repo.NewRepositories(queries, nil)
-	saldoRepos := saldo_repo.NewRepositories(queries, nil)
+	saldodbQueries := saldodb.New(pool)
+
+	carddbQueries := carddb.New(pool)
+
+	userdbQueries := userdb.New(pool)
+
+	userRepos := user_repo.NewRepositories(userdbQueries)
+	cardRepos := card_repo.NewRepositories(carddbQueries, nil)
+	saldoRepos := saldo_repo.NewRepositories(saldodbQueries, nil)
 
 	cardAdapter := &topupCardRepoAdapter{
 		CardQueryRepository:   cardRepos.CardQuery,
@@ -201,13 +210,13 @@ func (s *TopupGapiTestSuite) Test1_Create() {
 	}
 	res, err := s.commandClient.CreateTopup(ctx, createReq)
 	s.NoError(err)
-	s.Equal(int32(100000), res.Data.TopupAmount)
+	s.Equal(int64(100000), res.Data.TopupAmount)
 
 	s.topupID = res.Data.Id
 
 	// Verify balance
 	saldo, _ := s.saldoRepo.FindByCardNumber(ctx, s.cardNumber)
-	s.Equal(int32(100000), saldo.TotalBalance)
+	s.Equal(int64(100000), saldo.TotalBalance)
 }
 
 func (s *TopupGapiTestSuite) Test2_FindById() {
@@ -231,11 +240,11 @@ func (s *TopupGapiTestSuite) Test3_Update() {
 	}
 	updated, err := s.commandClient.UpdateTopup(ctx, updateReq)
 	s.NoError(err)
-	s.Equal(int32(150000), updated.Data.TopupAmount)
+	s.Equal(int64(150000), updated.Data.TopupAmount)
 
 	// Verify adjusted balance
 	saldo, _ := s.saldoRepo.FindByCardNumber(ctx, s.cardNumber)
-	s.Equal(int32(150000), saldo.TotalBalance)
+	s.Equal(int64(150000), saldo.TotalBalance)
 }
 
 func (s *TopupGapiTestSuite) Test4_Trashed() {

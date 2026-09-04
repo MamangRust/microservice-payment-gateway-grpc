@@ -3,14 +3,15 @@ package service
 import (
 	"context"
 
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/transaction/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/errorhandler"
-	transaction_errors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors/transaction_errors/service"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/observability"
 	mencache "github.com/MamangRust/microservice-payment-gateway-grpc/service/transaction/redis"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/transaction/repository"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/errorhandler"
+	sharedErrors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/observability"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/security"
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 )
@@ -54,7 +55,7 @@ func (s *transactionQueryService) FindAll(ctx context.Context, req *requests.Fin
 		attribute.String("search", search))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	if data, total, found := s.cache.GetCachedTransactionsCache(ctx, req); found {
@@ -67,7 +68,7 @@ func (s *transactionQueryService) FindAll(ctx context.Context, req *requests.Fin
 		status = "error"
 		return errorhandler.HandlerErrorPagination[[]*db.GetTransactionsRow](
 			s.logger,
-			transaction_errors.ErrFailedFindAllTransactions,
+			sharedErrors.ErrFailed("find all transactions"),
 			method,
 			span,
 
@@ -105,10 +106,10 @@ func (s *transactionQueryService) FindAllByCardNumber(ctx context.Context, req *
 		attribute.Int("page", page),
 		attribute.Int("pageSize", pageSize),
 		attribute.String("search", search),
-		attribute.String("card_number", req.CardNumber))
+		attribute.String("card_number", security.MaskCardNumber(req.CardNumber)))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	if data, total, found := s.cache.GetCachedTransactionByCardNumberCache(ctx, req); found {
@@ -121,14 +122,14 @@ func (s *transactionQueryService) FindAllByCardNumber(ctx context.Context, req *
 		status = "error"
 		return errorhandler.HandlerErrorPagination[[]*db.GetTransactionsByCardNumberRow](
 			s.logger,
-			transaction_errors.ErrFailedFindAllByCardNumber,
+			sharedErrors.ErrFailed("find all by card number"),
 			method,
 			span,
 
 			zap.Int("page", page),
 			zap.Int("pageSize", pageSize),
 			zap.String("search", search),
-			zap.String("card_number", req.CardNumber),
+			zap.String("card_number", security.MaskCardNumber(req.CardNumber)),
 		)
 	}
 
@@ -146,7 +147,7 @@ func (s *transactionQueryService) FindAllByCardNumber(ctx context.Context, req *
 		zap.Int("totalRecords", totalCount),
 		zap.Int("page", page),
 		zap.Int("pageSize", pageSize),
-		zap.String("card_number", req.CardNumber))
+		zap.String("card_number", security.MaskCardNumber(req.CardNumber)))
 
 	return transactions, &totalCount, nil
 }
@@ -158,7 +159,7 @@ func (s *transactionQueryService) FindById(ctx context.Context, transactionID in
 		attribute.Int("transaction_id", transactionID))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	if data, found := s.cache.GetCachedTransactionCache(ctx, transactionID); found {
@@ -172,7 +173,7 @@ func (s *transactionQueryService) FindById(ctx context.Context, transactionID in
 		status = "error"
 		return errorhandler.HandleError[*db.GetTransactionByIDRow](
 			s.logger,
-			transaction_errors.ErrTransactionNotFound,
+			sharedErrors.ErrNotFoundResponse("Transaction"),
 			method,
 			span,
 
@@ -199,7 +200,7 @@ func (s *transactionQueryService) FindByActive(ctx context.Context, req *request
 		attribute.String("search", req.Search))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	if data, total, found := s.cache.GetCachedTransactionActiveCache(ctx, req); found {
@@ -212,7 +213,7 @@ func (s *transactionQueryService) FindByActive(ctx context.Context, req *request
 		status = "error"
 		return errorhandler.HandlerErrorPagination[[]*db.GetActiveTransactionsRow](
 			s.logger,
-			transaction_errors.ErrFailedFindByActiveTransactions,
+			sharedErrors.ErrFailed("find active transactions"),
 			method,
 			span,
 
@@ -252,7 +253,7 @@ func (s *transactionQueryService) FindByTrashed(ctx context.Context, req *reques
 		attribute.String("search", search))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	if data, total, found := s.cache.GetCachedTransactionTrashedCache(ctx, req); found {
@@ -265,7 +266,7 @@ func (s *transactionQueryService) FindByTrashed(ctx context.Context, req *reques
 		status = "error"
 		return errorhandler.HandlerErrorPagination[[]*db.GetTrashedTransactionsRow](
 			s.logger,
-			transaction_errors.ErrFailedFindByTrashedTransactions,
+			sharedErrors.ErrFailed("find trashed transactions"),
 			method,
 			span,
 
@@ -300,7 +301,7 @@ func (s *transactionQueryService) FindTransactionByMerchantId(ctx context.Contex
 		attribute.Int("merchant_id", merchant_id))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	if data, found := s.cache.GetCachedTransactionByMerchantIdCache(ctx, merchant_id); found {
@@ -314,7 +315,7 @@ func (s *transactionQueryService) FindTransactionByMerchantId(ctx context.Contex
 		status = "error"
 		return errorhandler.HandleError[[]*db.GetTransactionsByMerchantIDRow](
 			s.logger,
-			transaction_errors.ErrFailedFindByMerchantID,
+			sharedErrors.ErrFailed("find by merchant ID"),
 			method,
 			span,
 

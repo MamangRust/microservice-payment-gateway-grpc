@@ -10,14 +10,15 @@ import "transfer/transfer.proto";
 message CreateTransferRequest {
   string transfer_from = 1;
   string transfer_to = 2;
-  int32 transfer_amount = 3;
+  int64 transfer_amount = 3;
+  string idempotency_key = 4;
 }
 
 message UpdateTransferRequest {
   int32 transfer_id = 1;
   string transfer_from = 2;
   string transfer_to = 3;
-  int32 transfer_amount = 4;
+  int64 transfer_amount = 4;
 }
 
 message ApiResponseTransferDelete {

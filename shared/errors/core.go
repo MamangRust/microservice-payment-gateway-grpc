@@ -1,11 +1,14 @@
 package errors
 
 import (
+	"database/sql"
+	"errors"
 	"fmt"
 	"net/http"
 )
 
 type ErrorType string
+
 const (
 	ErrorTypeInternal     ErrorType = "INTERNAL"
 	ErrorTypeNotFound     ErrorType = "NOT_FOUND"
@@ -30,7 +33,6 @@ type AppError struct {
 	Validations []ValidationError `json:"validations,omitempty"`
 	Internal    error             `json:"-"`
 }
-
 
 func (e *AppError) Error() string {
 	if e.Internal != nil {
@@ -78,6 +80,47 @@ func NewValidationError(validations []ValidationError) *AppError {
 	return ErrValidationFailed.WithValidations(validations)
 }
 
+// --- Sentinel Errors (Repository Layer) ---
+
+// ErrUserNotFound is a sentinel error for when a user is not found.
+var ErrUserNotFound = ErrNotFound.WithMessage("user not found")
+
+// ErrRoleNotFound is a sentinel error for when a role is not found.
+var ErrRoleNotFound = ErrNotFound.WithMessage("role not found")
+
+// ErrTokenNotFound is a sentinel error for when a refresh token is not found.
+var ErrTokenNotFound = ErrNotFound.WithMessage("refresh token not found")
+
+// ErrFindByUserID is a sentinel error for when a refresh token by user ID is not found.
+var ErrFindByUserID = ErrNotFound.WithMessage("refresh token not found by user ID")
+
+// ErrParseDate is returned when parsing the expiration date of a token fails.
+var ErrParseDate = ErrInternal.WithMessage("failed to parse expiration date")
+
+// ErrFailed creates a generic repository error with the given operation description.
+// This single function replaces dozens of individual error variables across all services.
+func ErrFailed(operation string) *AppError {
+	return ErrInternal.WithMessage("Failed to " + operation)
+}
+
+// ErrNotFoundResponse creates a not-found error response with the given entity name.
+// The entity name should be capitalized (e.g., "User", "Transaction") for proper response formatting.
+// This replaces individual ErrXxxNotFound variables across all services.
+func ErrNotFoundResponse(entity string) *AppError {
+	return ErrNotFound.WithMessage(entity + " not found")
+}
+
+// ErrNoRowsOrFailed maps a single-row mutation error: a "no rows in result set"
+// error (pgx.ErrNoRows proxies sql.ErrNoRows) becomes a 404 not-found AppError
+// for the given entity, and any other error becomes a generic failure for the
+// given operation. This avoids leaking a misleading 500 INTERNAL when a
+// mutation targets a row that does not exist (or is in the wrong state).
+func ErrNoRowsOrFailed(err error, entity, operation string) *AppError {
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrNotFoundResponse(entity).WithInternal(err)
+	}
+	return ErrFailed(operation).WithInternal(err)
+}
 
 var (
 	ErrBadRequest = &AppError{
@@ -143,4 +186,3 @@ var (
 		Retryable: true,
 	}
 )
-

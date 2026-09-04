@@ -90,7 +90,7 @@ func (h *SaldoStatsHandler) mapToSaldoMonthBalanceData(data []repository.Monthly
 	for _, d := range data {
 		results = append(results, &pbSaldoStats.SaldoMonthBalanceResponse{
 			Month:        d.Month,
-			TotalBalance: int32(d.TotalAmount),
+			TotalBalance: d.TotalAmount,
 		})
 	}
 	return results
@@ -101,7 +101,7 @@ func (h *SaldoStatsHandler) mapToSaldoYearBalanceData(data []repository.YearlyAm
 	for _, d := range data {
 		results = append(results, &pbSaldoStats.SaldoYearBalanceResponse{
 			Year:         d.Year,
-			TotalBalance: int32(d.TotalAmount),
+			TotalBalance: d.TotalAmount,
 		})
 	}
 	return results
@@ -113,7 +113,7 @@ func (h *SaldoStatsHandler) mapToSaldoMonthTotalData(data []repository.MonthlyAm
 		results = append(results, &pbSaldoStats.SaldoMonthTotalBalanceResponse{
 			Month:        d.Month,
 			Year:         d.Year,
-			TotalBalance: int32(d.TotalAmount),
+			TotalBalance: d.TotalAmount,
 		})
 	}
 	return results
@@ -124,7 +124,7 @@ func (h *SaldoStatsHandler) mapToSaldoYearTotalData(data []repository.YearlyAmou
 	for _, d := range data {
 		results = append(results, &pbSaldoStats.SaldoYearTotalBalanceResponse{
 			Year:         d.Year,
-			TotalBalance: int32(d.TotalAmount),
+			TotalBalance: d.TotalAmount,
 		})
 	}
 	return results

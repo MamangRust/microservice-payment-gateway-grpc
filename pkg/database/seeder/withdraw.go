@@ -6,14 +6,16 @@ import (
 	"math/rand"
 	"time"
 
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
+	carddb "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/database/schema"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/withdraw/database/schema"
 	"go.uber.org/zap"
 )
 
 // withdrawSeeder is a struct that represents a seeder for the withdraws table.
 type withdrawSeeder struct {
 	db     *db.Queries
+	carddb *carddb.Queries
 	ctx    context.Context
 	logger logger.LoggerInterface
 }
@@ -28,9 +30,10 @@ type withdrawSeeder struct {
 //
 // Returns:
 // a pointer to the withdrawSeeder struct
-func NewWithdrawSeeder(db *db.Queries, ctx context.Context, logger logger.LoggerInterface) *withdrawSeeder {
+func NewWithdrawSeeder(db *db.Queries, carddb *carddb.Queries, ctx context.Context, logger logger.LoggerInterface) *withdrawSeeder {
 	return &withdrawSeeder{
 		db:     db,
+		carddb: carddb,
 		ctx:    ctx,
 		logger: logger,
 	}
@@ -53,9 +56,9 @@ func (r *withdrawSeeder) Seed() error {
 	active := 180
 	trashed := total - active
 
-	var cards []db.GetCardByUserIDRow
+	var cards []carddb.GetCardByUserIDRow
 	for i := 1; i <= total; i++ {
-		card, err := r.db.GetCardByUserID(r.ctx, int32(i))
+		card, err := r.carddb.GetCardByUserID(r.ctx, int32(i))
 		if err != nil {
 			r.logger.Debug("failed to get card for user", zap.Int("userID", i), zap.Error(err))
 			continue
@@ -85,9 +88,10 @@ func (r *withdrawSeeder) Seed() error {
 		monthIndex := i % 12
 		withdrawTime := months[monthIndex].Add(time.Duration(rand.Intn(28)) * 24 * time.Hour)
 
+		withdrawAmount := amountToInt64(int64(rand.Intn(1000000) + 50000))
 		req := db.CreateWithdrawParams{
 			CardNumber:     card.CardNumber,
-			WithdrawAmount: int32(rand.Intn(1000000) + 50000),
+			WithdrawAmount: withdrawAmount,
 			WithdrawTime:   withdrawTime,
 		}
 

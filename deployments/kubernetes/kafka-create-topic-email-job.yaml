@@ -23,6 +23,8 @@ spec:
                 email-service-topic-topup-create \
                 email-service-topic-transaction-create \
                 email-service-topic-transfer-create \
+                email-service-topic-withdraw-create \
+                email-service-topic-withdraw-update \
                 email-service-topic-merchant-create \
                 email-service-topic-merchant-update-status \
                 email-service-topic-merchant-document-create \

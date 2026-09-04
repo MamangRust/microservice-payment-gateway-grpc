@@ -5,10 +5,9 @@ import (
 	"database/sql"
 	"errors"
 
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/merchant/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 	sharedErrors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
-	merchant_errors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors/merchant_errors/repository"
 )
 
 type merchantQueryRepository struct {
@@ -33,7 +32,7 @@ func (r *merchantQueryRepository) FindAllMerchants(ctx context.Context, req *req
 	merchant, err := r.db.GetMerchants(ctx, reqDb)
 
 	if err != nil {
-		return nil, merchant_errors.ErrFindAllMerchantsFailed.WithInternal(err)
+		return nil, sharedErrors.ErrFailed("find all merchants").WithInternal(err)
 	}
 
 	return merchant, nil
@@ -51,7 +50,7 @@ func (r *merchantQueryRepository) FindByActive(ctx context.Context, req *request
 	res, err := r.db.GetActiveMerchants(ctx, reqDb)
 
 	if err != nil {
-		return nil, merchant_errors.ErrFindActiveMerchantsFailed.WithInternal(err)
+		return nil, sharedErrors.ErrFailed("find active merchants").WithInternal(err)
 	}
 
 	return res, nil
@@ -69,7 +68,7 @@ func (r *merchantQueryRepository) FindByTrashed(ctx context.Context, req *reques
 	res, err := r.db.GetTrashedMerchants(ctx, reqDb)
 
 	if err != nil {
-		return nil, merchant_errors.ErrFindTrashedMerchantsFailed.WithInternal(err)
+		return nil, sharedErrors.ErrFailed("find trashed merchants").WithInternal(err)
 	}
 
 	return res, nil
@@ -80,7 +79,7 @@ func (r *merchantQueryRepository) FindByMerchantId(ctx context.Context, merchant
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, merchant_errors.ErrFindMerchantByIdFailed.WithInternal(err)
+			return nil, sharedErrors.ErrNotFoundResponse("merchant").WithInternal(err)
 		}
 		return nil, sharedErrors.ErrInternal.WithInternal(err)
 	}
@@ -93,7 +92,7 @@ func (r *merchantQueryRepository) FindByApiKey(ctx context.Context, api_key stri
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, merchant_errors.ErrFindMerchantByApiKeyFailed.WithInternal(err)
+			return nil, sharedErrors.ErrNotFoundResponse("merchant").WithInternal(err)
 		}
 		return nil, sharedErrors.ErrInternal.WithInternal(err)
 	}
@@ -106,7 +105,7 @@ func (r *merchantQueryRepository) FindByName(ctx context.Context, name string) (
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, merchant_errors.ErrFindMerchantByNameFailed.WithInternal(err)
+			return nil, sharedErrors.ErrNotFoundResponse("merchant").WithInternal(err)
 		}
 		return nil, sharedErrors.ErrInternal.WithInternal(err)
 	}
@@ -119,7 +118,7 @@ func (r *merchantQueryRepository) FindByMerchantUserId(ctx context.Context, user
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, merchant_errors.ErrFindMerchantByUserIdFailed.WithInternal(err)
+			return nil, sharedErrors.ErrNotFoundResponse("merchant").WithInternal(err)
 		}
 		return nil, sharedErrors.ErrInternal.WithInternal(err)
 	}

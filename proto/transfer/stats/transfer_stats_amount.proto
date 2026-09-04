@@ -8,12 +8,12 @@ import "transfer/transfer.proto";
 
 message TransferMonthAmountResponse {
   string month = 1;
-  int32 total_amount = 2;
+  int64 total_amount = 2;
 }
 
 message TransferYearAmountResponse {
   string year = 1;
-  int32 total_amount = 2;
+  int64 total_amount = 2;
 }
 
 message ApiResponseTransferMonthAmount {

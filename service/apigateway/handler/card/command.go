@@ -2,6 +2,7 @@ package cardhandler
 
 import (
 	"fmt"
+	"math"
 	"net/http"
 	"strconv"
 
@@ -61,6 +62,11 @@ func NewCardCommandHandleApi(params *cardCommandHandleApiDeps) *cardCommandHandl
 	routerCard.DELETE("/permanent/:id", params.apiHandler.Handle("delete-card-permanent", cardHandler.DeleteCardPermanent))
 	routerCard.POST("/restore/all", params.apiHandler.Handle("restore-all-card", cardHandler.RestoreAllCard))
 	routerCard.POST("/permanent/all", params.apiHandler.Handle("delete-all-card-permanent", cardHandler.DeleteAllCardPermanent))
+	// VCC card commands.
+	routerCard.POST("/toggle-status", params.apiHandler.Handle("toggle-card-status", cardHandler.ToggleCardStatus))
+	routerCard.POST("/update-credit-limit/:id", params.apiHandler.Handle("update-credit-limit", cardHandler.UpdateCreditLimit))
+	routerCard.POST("/redeem-points/:id", params.apiHandler.Handle("redeem-points", cardHandler.RedeemPoints))
+	routerCard.POST("/process-billing", params.apiHandler.Handle("process-billing-cycles", cardHandler.ProcessBillingCycles))
 
 	return cardHandler
 }
@@ -321,6 +327,152 @@ func (h *cardCommandHandleApi) DeleteAllCardPermanent(c echo.Context) error {
 	so := h.mapper.ToApiResponseCardAll(res)
 
 	return c.JSON(http.StatusOK, so)
+}
+
+// ToggleCardStatus toggles a card between active and suspended states.
+// @Security Bearer
+// @Summary Toggle card status
+// @Tags Card Command
+// @Accept json
+// @Produce json
+// @Param ToggleCardStatusRequest body requests.ToggleCardStatusRequest true "Toggle card status request"
+// @Success 200 {object} response.ApiResponseCard
+// @Router /api/card-command/toggle-status [post]
+func (h *cardCommandHandleApi) ToggleCardStatus(c echo.Context) error {
+	var body requests.ToggleCardStatusRequest
+	if err := c.Bind(&body); err != nil {
+		return errors.NewBadRequestError("Invalid request")
+	}
+	if err := body.Validate(); err != nil {
+		return errors.NewValidationError(h.parseValidationErrors(err))
+	}
+
+	cardID, err := safeInt32(body.CardID, "card id")
+	if err != nil {
+		return err
+	}
+	res, err := h.card.ToggleCardStatus(c.Request().Context(), &pb.ToggleCardStatusRequest{CardId: cardID})
+	if err != nil {
+		return errors.ParseGrpcError(err)
+	}
+	return c.JSON(http.StatusOK, h.mapper.ToApiResponseCard(res))
+}
+
+// UpdateCreditLimit updates the credit limit for a card.
+// @Security Bearer
+// @Summary Update credit limit
+// @Tags Card Command
+// @Accept json
+// @Produce json
+// @Param id path int true "Card ID"
+// @Param UpdateCreditLimitRequest body requests.UpdateCreditLimitRequest true "Credit limit request"
+// @Success 200 {object} response.ApiResponseCard
+// @Router /api/card-command/update-credit-limit/{id} [post]
+func (h *cardCommandHandleApi) UpdateCreditLimit(c echo.Context) error {
+	id, err := parsePositiveCardID(c.Param("id"))
+	if err != nil {
+		return err
+	}
+
+	var body requests.UpdateCreditLimitRequest
+	if err := c.Bind(&body); err != nil {
+		return errors.NewBadRequestError("Invalid request")
+	}
+	// The path parameter is authoritative; do not trust a body card_id.
+	body.CardID = id
+	if err := body.Validate(); err != nil {
+		return errors.NewValidationError(h.parseValidationErrors(err))
+	}
+
+	cardID, err := safeInt32(id, "card id")
+	if err != nil {
+		return err
+	}
+	creditLimit, err := safeInt32(body.CreditLimit, "credit limit")
+	if err != nil {
+		return err
+	}
+	res, err := h.card.UpdateCreditLimit(c.Request().Context(), &pb.UpdateCreditLimitRequest{
+		CardId: cardID, CreditLimit: creditLimit,
+	})
+	if err != nil {
+		return errors.ParseGrpcError(err)
+	}
+	return c.JSON(http.StatusOK, h.mapper.ToApiResponseCard(res))
+}
+
+// RedeemPoints redeems reward points from a card.
+// @Security Bearer
+// @Summary Redeem reward points
+// @Tags Card Command
+// @Accept json
+// @Produce json
+// @Param id path int true "Card ID"
+// @Param RedeemPointsRequest body requests.RedeemPointsRequest true "Redeem points request"
+// @Success 200 {object} response.ApiResponseCard
+// @Router /api/card-command/redeem-points/{id} [post]
+func (h *cardCommandHandleApi) RedeemPoints(c echo.Context) error {
+	id, err := parsePositiveCardID(c.Param("id"))
+	if err != nil {
+		return err
+	}
+
+	var body requests.RedeemPointsRequest
+	if err := c.Bind(&body); err != nil {
+		return errors.NewBadRequestError("Invalid request")
+	}
+	body.CardID = id
+	if err := body.Validate(); err != nil {
+		return errors.NewValidationError(h.parseValidationErrors(err))
+	}
+
+	cardID, err := safeInt32(id, "card id")
+	if err != nil {
+		return err
+	}
+	points, err := safeInt32(body.Points, "points")
+	if err != nil {
+		return err
+	}
+	res, err := h.card.RedeemPoints(c.Request().Context(), &pb.RedeemPointsRequest{
+		CardId: cardID, Points: points,
+	})
+	if err != nil {
+		return errors.ParseGrpcError(err)
+	}
+	return c.JSON(http.StatusOK, h.mapper.ToApiResponseCard(res))
+}
+
+// ProcessBillingCycles triggers the latest closed billing period.
+// @Security Bearer
+// @Summary Process billing cycles
+// @Tags Card Command
+// @Accept json
+// @Produce json
+// @Success 200 {object} map[string]interface{}
+// @Router /api/card-command/process-billing [post]
+func (h *cardCommandHandleApi) ProcessBillingCycles(c echo.Context) error {
+	if _, err := h.card.ProcessBillingCycles(c.Request().Context(), &emptypb.Empty{}); err != nil {
+		return errors.ParseGrpcError(err)
+	}
+	return c.JSON(http.StatusOK, map[string]string{
+		"status": "success", "message": "Successfully processed billing cycles",
+	})
+}
+
+func parsePositiveCardID(raw string) (int, error) {
+	id, err := strconv.Atoi(raw)
+	if err != nil || id <= 0 {
+		return 0, errors.NewBadRequestError("id must be a positive integer")
+	}
+	return id, nil
+}
+
+func safeInt32(value int, field string) (int32, error) {
+	if value < math.MinInt32 || value > math.MaxInt32 {
+		return 0, errors.NewBadRequestError(field + " is out of range")
+	}
+	return int32(value), nil
 }
 
 func (h *cardCommandHandleApi) parseValidationErrors(err error) []errors.ValidationError {

@@ -53,7 +53,7 @@ func (s *merchantTransactionHandleGrpc) FindAllTransactionMerchant(ctx context.C
 		protoTransactions[i] = &pb.MerchantTransactionResponse{
 			Id:              int32(txn.TransactionID),
 			CardNumber:      txn.CardNumber,
-			Amount:          int32(txn.Amount),
+			Amount:          int64(txn.Amount),
 			PaymentMethod:   txn.PaymentMethod,
 			MerchantId:      int32(txn.MerchantID),
 			MerchantName:    txn.MerchantName,
@@ -110,7 +110,7 @@ func (s *merchantTransactionHandleGrpc) FindAllTransactionByMerchant(ctx context
 		protoTransactions[i] = &pb.MerchantTransactionResponse{
 			Id:              int32(txn.TransactionID),
 			CardNumber:      txn.CardNumber,
-			Amount:          int32(txn.Amount),
+			Amount:          int64(txn.Amount),
 			PaymentMethod:   txn.PaymentMethod,
 			MerchantId:      int32(txn.MerchantID),
 			MerchantName:    txn.MerchantName,
@@ -167,7 +167,7 @@ func (s *merchantTransactionHandleGrpc) FindAllTransactionByApikey(ctx context.C
 		protoTransactions[i] = &pb.MerchantTransactionResponse{
 			Id:              int32(txn.TransactionID),
 			CardNumber:      txn.CardNumber,
-			Amount:          int32(txn.Amount),
+			Amount:          int64(txn.Amount),
 			PaymentMethod:   txn.PaymentMethod,
 			MerchantId:      int32(txn.MerchantID),
 			MerchantName:    txn.MerchantName,

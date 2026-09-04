@@ -66,7 +66,7 @@ func (s *transferQueryHandleGrpc) FindAllTransfer(ctx context.Context, request *
 			TransferNo:     transfer.TransferNo.String(),
 			TransferFrom:   transfer.TransferFrom,
 			TransferTo:     transfer.TransferTo,
-			TransferAmount: int32(transfer.TransferAmount),
+			TransferAmount: int64(transfer.TransferAmount),
 			TransferTime:   transfer.TransferTime.Format(time.RFC3339),
 			CreatedAt:      transfer.CreatedAt.Time.Format(time.RFC3339),
 			UpdatedAt:      transfer.UpdatedAt.Time.Format(time.RFC3339),
@@ -102,7 +102,7 @@ func (s *transferQueryHandleGrpc) FindByIdTransfer(ctx context.Context, request 
 			TransferNo:     transfer.TransferNo.String(),
 			TransferFrom:   transfer.TransferFrom,
 			TransferTo:     transfer.TransferTo,
-			TransferAmount: int32(transfer.TransferAmount),
+			TransferAmount: int64(transfer.TransferAmount),
 			TransferTime:   transfer.TransferTime.Format(time.RFC3339),
 			CreatedAt:      transfer.CreatedAt.Time.Format(time.RFC3339),
 			UpdatedAt:      transfer.UpdatedAt.Time.Format(time.RFC3339),
@@ -110,7 +110,7 @@ func (s *transferQueryHandleGrpc) FindByIdTransfer(ctx context.Context, request 
 	}, nil
 }
 
-func (s *transferQueryHandleGrpc) FindByTransferByTransferFrom(ctx context.Context, request *pb.FindTransferByTransferFromRequest) (*pb.ApiResponseTransfers, error) {
+func (s *transferQueryHandleGrpc) FindTransferByTransferFrom(ctx context.Context, request *pb.FindTransferByTransferFromRequest) (*pb.ApiResponseTransfers, error) {
 	transfer_from := request.GetTransferFrom()
 
 	if transfer_from == "" {
@@ -130,7 +130,7 @@ func (s *transferQueryHandleGrpc) FindByTransferByTransferFrom(ctx context.Conte
 			TransferNo:     transfer.TransferNo.String(),
 			TransferFrom:   transfer.TransferFrom,
 			TransferTo:     transfer.TransferTo,
-			TransferAmount: int32(transfer.TransferAmount),
+			TransferAmount: int64(transfer.TransferAmount),
 			TransferTime:   transfer.TransferTime.Format(time.RFC3339),
 			CreatedAt:      transfer.CreatedAt.Time.Format(time.RFC3339),
 			UpdatedAt:      transfer.UpdatedAt.Time.Format(time.RFC3339),
@@ -144,7 +144,7 @@ func (s *transferQueryHandleGrpc) FindByTransferByTransferFrom(ctx context.Conte
 	}, nil
 }
 
-func (s *transferQueryHandleGrpc) FindByTransferByTransferTo(ctx context.Context, request *pb.FindTransferByTransferToRequest) (*pb.ApiResponseTransfers, error) {
+func (s *transferQueryHandleGrpc) FindTransferByTransferTo(ctx context.Context, request *pb.FindTransferByTransferToRequest) (*pb.ApiResponseTransfers, error) {
 	transfer_to := request.GetTransferTo()
 
 	if transfer_to == "" {
@@ -164,7 +164,7 @@ func (s *transferQueryHandleGrpc) FindByTransferByTransferTo(ctx context.Context
 			TransferNo:     transfer.TransferNo.String(),
 			TransferFrom:   transfer.TransferFrom,
 			TransferTo:     transfer.TransferTo,
-			TransferAmount: int32(transfer.TransferAmount),
+			TransferAmount: int64(transfer.TransferAmount),
 			TransferTime:   transfer.TransferTime.Format(time.RFC3339),
 			CreatedAt:      transfer.CreatedAt.Time.Format(time.RFC3339),
 			UpdatedAt:      transfer.UpdatedAt.Time.Format(time.RFC3339),
@@ -218,7 +218,7 @@ func (s *transferQueryHandleGrpc) FindByActiveTransfer(ctx context.Context, req 
 			TransferNo:     transfer.TransferNo.String(),
 			TransferFrom:   transfer.TransferFrom,
 			TransferTo:     transfer.TransferTo,
-			TransferAmount: int32(transfer.TransferAmount),
+			TransferAmount: int64(transfer.TransferAmount),
 			TransferTime:   transfer.TransferTime.Format(time.RFC3339),
 			CreatedAt:      transfer.CreatedAt.Time.Format(time.RFC3339),
 			UpdatedAt:      transfer.UpdatedAt.Time.Format(time.RFC3339),
@@ -274,7 +274,7 @@ func (s *transferQueryHandleGrpc) FindByTrashedTransfer(ctx context.Context, req
 			TransferNo:     transfer.TransferNo.String(),
 			TransferFrom:   transfer.TransferFrom,
 			TransferTo:     transfer.TransferTo,
-			TransferAmount: int32(transfer.TransferAmount),
+			TransferAmount: int64(transfer.TransferAmount),
 			TransferTime:   transfer.TransferTime.Format(time.RFC3339),
 			CreatedAt:      transfer.CreatedAt.Time.Format(time.RFC3339),
 			UpdatedAt:      transfer.UpdatedAt.Time.Format(time.RFC3339),

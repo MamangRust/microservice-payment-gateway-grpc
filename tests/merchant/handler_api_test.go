@@ -12,22 +12,23 @@ import (
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
-	api "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/handler/merchant"
 	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb/merchant"
 	pbStats "github.com/MamangRust/microservice-payment-gateway-grpc/pb/merchant/stats"
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/cache"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
-	app_errors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/observability"
-	tests "github.com/MamangRust/microservice-payment-gateway-test"
+	api "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/handler/merchant"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/merchant/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/merchant/handler"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/merchant/repository"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/merchant/service"
 	stats_handler "github.com/MamangRust/microservice-payment-gateway-grpc/service/stats-reader/handler"
 	stats_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/stats-reader/repository"
+	userdb "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/database/schema"
 	user_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/repository"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/cache"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
+	app_errors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/observability"
+	tests "github.com/MamangRust/microservice-payment-gateway-test"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo/v4"
@@ -40,10 +41,10 @@ import (
 
 type MerchantHandlerTestSuite struct {
 	suite.Suite
-	ts          *tests.TestSuite
-	dbPool      *pgxpool.Pool
-	redisClient redis.UniversalClient
-	grpcServer  *grpc.Server
+	ts                *tests.TestSuite
+	dbPool            *pgxpool.Pool
+	redisClient       redis.UniversalClient
+	grpcServer        *grpc.Server
 	chConn            clickhouse.Conn
 	conn              *grpc.ClientConn
 	statsClient       pbStats.MerchantStatsAmountServiceClient
@@ -51,9 +52,9 @@ type MerchantHandlerTestSuite struct {
 	totalAmountClient pbStats.MerchantStatsTotalAmountServiceClient
 	transactionClient pb.MerchantTransactionServiceClient
 	router            *echo.Echo
-	userRepo    user_repo.UserCommandRepository
-	userID      int
-	merchantID  int
+	userRepo          user_repo.UserCommandRepository
+	userID            int
+	merchantID        int
 }
 
 func (s *MerchantHandlerTestSuite) SetupSuite() {
@@ -96,8 +97,10 @@ func (s *MerchantHandlerTestSuite) SetupSuite() {
 	s.Require().NoError(err)
 
 	queries := db.New(pool)
+
+	userQueries := userdb.New(pool)
 	repos := repository.NewRepositories(queries, nil)
-	s.userRepo = user_repo.NewUserCommandRepository(queries)
+	s.userRepo = user_repo.NewUserCommandRepository(userQueries)
 
 	logger.ResetInstance()
 	lp := sdklog.NewLoggerProvider()
@@ -125,7 +128,7 @@ func (s *MerchantHandlerTestSuite) SetupSuite() {
 	s.userID = int(user.UserID)
 
 	merchantHandler := handler.NewHandler(merchantService)
-	
+
 	// Stats Handler
 	chRepo := stats_repo.NewRepository(s.chConn)
 	merchantStatsHandler := stats_handler.NewMerchantStatsHandler(chRepo, log)
@@ -218,7 +221,7 @@ func (s *MerchantHandlerTestSuite) Test3_MerchantStats_MonthlyAmount() {
 
 	rec := httptest.NewRecorder()
 	httpReq := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/merchant/stats/amount/monthly?year=%d", now.Year()), nil)
-	
+
 	s.router.ServeHTTP(rec, httpReq)
 
 	s.Equal(http.StatusOK, rec.Code)
@@ -233,7 +236,7 @@ func (s *MerchantHandlerTestSuite) Test4_MerchantStats_MonthlyMethod() {
 
 	rec := httptest.NewRecorder()
 	httpReq := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/merchant/stats/method/monthly?year=%d", now.Year()), nil)
-	
+
 	s.router.ServeHTTP(rec, httpReq)
 
 	s.Equal(http.StatusOK, rec.Code)

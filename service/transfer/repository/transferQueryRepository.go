@@ -5,10 +5,9 @@ import (
 	"database/sql"
 	"errors"
 
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/transfer/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 	sharedErrors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
-	transfer_errors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors/transfer_errors/repository"
 )
 
 type transferQueryRepository struct {
@@ -33,7 +32,7 @@ func (r *transferQueryRepository) FindAll(ctx context.Context, req *requests.Fin
 	res, err := r.db.GetTransfers(ctx, reqDb)
 
 	if err != nil {
-		return nil, transfer_errors.ErrFindAllTransfersFailed.WithInternal(err)
+		return nil, sharedErrors.ErrFailed("find all transfers").WithInternal(err)
 	}
 
 	return res, nil
@@ -51,7 +50,7 @@ func (r *transferQueryRepository) FindByActive(ctx context.Context, req *request
 	res, err := r.db.GetActiveTransfers(ctx, reqDb)
 
 	if err != nil {
-		return nil, transfer_errors.ErrFindActiveTransfersFailed.WithInternal(err)
+		return nil, sharedErrors.ErrFailed("find active transfers").WithInternal(err)
 	}
 
 	return res, nil
@@ -69,7 +68,7 @@ func (r *transferQueryRepository) FindByTrashed(ctx context.Context, req *reques
 	res, err := r.db.GetTrashedTransfers(ctx, reqDb)
 
 	if err != nil {
-		return nil, transfer_errors.ErrFindTrashedTransfersFailed.WithInternal(err)
+		return nil, sharedErrors.ErrFailed("find trashed transfers").WithInternal(err)
 	}
 
 	return res, nil
@@ -80,7 +79,7 @@ func (r *transferQueryRepository) FindById(ctx context.Context, id int) (*db.Get
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, transfer_errors.ErrFindTransferByIdFailed.WithInternal(err)
+			return nil, sharedErrors.ErrNotFoundResponse("transfer").WithInternal(err)
 		}
 		return nil, sharedErrors.ErrInternal.WithInternal(err)
 	}
@@ -93,7 +92,7 @@ func (r *transferQueryRepository) FindTransferByTransferFrom(ctx context.Context
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, transfer_errors.ErrFindTransferByTransferFromFailed.WithInternal(err)
+			return nil, sharedErrors.ErrNotFoundResponse("transfer").WithInternal(err)
 		}
 		return nil, sharedErrors.ErrInternal.WithInternal(err)
 	}
@@ -106,7 +105,7 @@ func (r *transferQueryRepository) FindTransferByTransferTo(ctx context.Context, 
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, transfer_errors.ErrFindTransferByTransferToFailed.WithInternal(err)
+			return nil, sharedErrors.ErrNotFoundResponse("transfer").WithInternal(err)
 		}
 		return nil, sharedErrors.ErrInternal.WithInternal(err)
 	}

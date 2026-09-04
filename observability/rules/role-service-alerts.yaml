@@ -1,62 +1,65 @@
+# Role service alerts.
+# Metrics recorded by shared/observability/tracing_metrics.go, exported by the
+# OTel collector under the golang_app namespace with the service_name label.
 groups:
   - name: role-service-alerts
     rules:
       - alert: HighFailureRate_RoleCommandService
-        expr: increase(role_command_service_request_total{status="error"}[5m]) > 5
+        expr: increase(golang_app_requests_total{service_name="role-service", method=~"CreateRole|UpdateRole|TrashedRole|RestoreRole|DeleteRolePermanent|RestoreAllRole|DeleteAllRolePermanent|CreateUserRole|DeleteUserRole", status="error"}[5m]) > 5
         for: 2m
         labels:
           severity: warning
           service: role_command_service
         annotations:
-          summary: "High failure rate on role_command_service"
-          description: "More than 5 error requests in the last 5 minutes for role_command_service."
+          summary: "High failure rate on role command service"
+          description: "More than 5 error requests in the last 5 minutes."
 
       - alert: HighLatency_RoleCommandService
-        expr: histogram_quantile(0.95, rate(role_command_service_request_duration_seconds_bucket[5m])) > 1
+        expr: histogram_quantile(0.95, rate(golang_app_request_duration_seconds_bucket{service_name="role-service", method=~"CreateRole|UpdateRole|TrashedRole|RestoreRole|DeleteRolePermanent|RestoreAllRole|DeleteAllRolePermanent|CreateUserRole|DeleteUserRole"}[5m])) > 1
         for: 2m
         labels:
           severity: warning
           service: role_command_service
         annotations:
-          summary: "High latency detected on role_command_service"
-          description: "P95 latency for role_command_service is greater than 1 second in the last 5 minutes."
+          summary: "High latency on role command service"
+          description: "P95 latency is greater than 1 second."
 
       - alert: NoTraffic_RoleCommandService
-        expr: rate(role_command_service_request_total[5m]) == 0
+        expr: rate(golang_app_requests_total{service_name="role-service", method=~"CreateRole|UpdateRole|TrashedRole|RestoreRole|DeleteRolePermanent|RestoreAllRole|DeleteAllRolePermanent|CreateUserRole|DeleteUserRole"}[5m]) == 0
         for: 2m
         labels:
           severity: warning
           service: role_command_service
         annotations:
-          summary: "No traffic detected on role_command_service"
-          description: "No traffic detected on role_command_service in the last 5 minutes."
+          summary: "No traffic on role command service"
+          description: "No requests received in the last 5 minutes."
 
       - alert: HighFailureRate_RoleQueryService
-        expr: increase(role_query_service_request_total{status="error"}[5m]) > 5
+        expr: increase(golang_app_requests_total{service_name="role-service", method=~"Find.*", status="error"}[5m]) > 5
         for: 2m
         labels:
           severity: warning
           service: role_query_service
         annotations:
-          summary: "High failure rate on role_query_service"
-          description: "More than 5 error requests in the last 5 minutes for role_query_service."
+          summary: "High failure rate on role query service"
+          description: "More than 5 error requests in the last 5 minutes."
 
       - alert: HighLatency_RoleQueryService
-        expr: histogram_quantile(0.95, rate(role_query_service_request_duration_seconds_bucket[5m])) > 1
+        expr: histogram_quantile(0.95, rate(golang_app_request_duration_seconds_bucket{service_name="role-service", method=~"Find.*"}[5m])) > 1
         for: 2m
         labels:
           severity: warning
           service: role_query_service
         annotations:
-          summary: "High latency detected on role_query_service"
-          description: "P95 latency for role_query_service is greater than 1 second in the last 5 minutes."
+          summary: "High latency on role query service"
+          description: "P95 latency is greater than 1 second."
 
       - alert: NoTraffic_RoleQueryService
-        expr: rate(role_query_service_request_total[5m]) == 0
+        expr: rate(golang_app_requests_total{service_name="role-service", method=~"Find.*"}[5m]) == 0
         for: 2m
         labels:
           severity: warning
           service: role_query_service
         annotations:
-          summary: "No traffic detected on role_query_service"
-          description: "No traffic detected on role_query_service in the last 5 minutes."
+          summary: "No traffic on role query service"
+          description: "No requests received in the last 5 minutes."

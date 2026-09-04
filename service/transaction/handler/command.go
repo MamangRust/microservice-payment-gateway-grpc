@@ -5,10 +5,10 @@ import (
 	"time"
 
 	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb/transaction"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/service/transaction/service"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
 	transaction_errors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors/transaction_errors/grpc"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/service/transaction/service"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -35,6 +35,7 @@ func (t *transactionCommandHandleGrpc) CreateTransaction(ctx context.Context, re
 		PaymentMethod:   request.GetPaymentMethod(),
 		MerchantID:      &merchantID,
 		TransactionTime: transactionTime,
+		IdempotencyKey:  request.GetIdempotencyKey(),
 	}
 
 	if err := req.Validate(); err != nil {
@@ -53,7 +54,7 @@ func (t *transactionCommandHandleGrpc) CreateTransaction(ctx context.Context, re
 			Id:              int32(res.TransactionID),
 			CardNumber:      res.CardNumber,
 			TransactionNo:   res.TransactionNo.String(),
-			Amount:          int32(res.Amount),
+			Amount:          int64(res.Amount),
 			PaymentMethod:   res.PaymentMethod,
 			MerchantId:      int32(res.MerchantID),
 			TransactionTime: res.TransactionTime.Format(time.RFC3339),
@@ -69,7 +70,6 @@ func (t *transactionCommandHandleGrpc) UpdateTransaction(ctx context.Context, re
 	if id == 0 {
 		return nil, transaction_errors.ErrGrpcTransactionInvalidID
 	}
-
 	transactionTime := request.GetTransactionTime().AsTime()
 	merchantID := int(request.GetMerchantId())
 
@@ -98,7 +98,7 @@ func (t *transactionCommandHandleGrpc) UpdateTransaction(ctx context.Context, re
 			Id:              int32(res.TransactionID),
 			CardNumber:      res.CardNumber,
 			TransactionNo:   res.TransactionNo.String(),
-			Amount:          int32(res.Amount),
+			Amount:          int64(res.Amount),
 			PaymentMethod:   res.PaymentMethod,
 			MerchantId:      int32(res.MerchantID),
 			TransactionTime: res.TransactionTime.Format(time.RFC3339),
@@ -128,7 +128,7 @@ func (t *transactionCommandHandleGrpc) TrashedTransaction(ctx context.Context, r
 			Id:              int32(res.TransactionID),
 			CardNumber:      res.CardNumber,
 			TransactionNo:   res.TransactionNo.String(),
-			Amount:          int32(res.Amount),
+			Amount:          int64(res.Amount),
 			PaymentMethod:   res.PaymentMethod,
 			MerchantId:      int32(res.MerchantID),
 			TransactionTime: res.TransactionTime.Format(time.RFC3339),
@@ -159,7 +159,7 @@ func (t *transactionCommandHandleGrpc) RestoreTransaction(ctx context.Context, r
 			Id:              int32(res.TransactionID),
 			CardNumber:      res.CardNumber,
 			TransactionNo:   res.TransactionNo.String(),
-			Amount:          int32(res.Amount),
+			Amount:          int64(res.Amount),
 			PaymentMethod:   res.PaymentMethod,
 			MerchantId:      int32(res.MerchantID),
 			TransactionTime: res.TransactionTime.Format(time.RFC3339),

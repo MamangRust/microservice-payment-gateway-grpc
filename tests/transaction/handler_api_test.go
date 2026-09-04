@@ -5,6 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	carddb "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/database/schema"
+	merchantdb "github.com/MamangRust/microservice-payment-gateway-grpc/service/merchant/database/schema"
+	saldodb "github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/database/schema"
+	userdb "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/database/schema"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -17,7 +21,6 @@ import (
 	pb_merchant "github.com/MamangRust/microservice-payment-gateway-grpc/pb/merchant"
 	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb/transaction"
 	pbStats "github.com/MamangRust/microservice-payment-gateway-grpc/pb/transaction/stats"
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
 	api_transaction "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/handler/transaction"
 	mencache "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/redis"
@@ -26,6 +29,7 @@ import (
 	saldo_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/repository"
 	stats_handler "github.com/MamangRust/microservice-payment-gateway-grpc/service/stats-reader/handler"
 	stats_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/stats-reader/repository"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/transaction/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/transaction/handler"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/transaction/repository"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/transaction/service"
@@ -107,11 +111,19 @@ func (s *TransactionHandlerTestSuite) SetupSuite() {
 
 	queries := db.New(pool)
 
+	merchantdbQueries := merchantdb.New(pool)
+
+	saldodbQueries := saldodb.New(pool)
+
+	carddbQueries := carddb.New(pool)
+
+	userdbQueries := userdb.New(pool)
+
 	// Repositories for seeding
-	s.userRepo = user_repo.NewUserCommandRepository(queries)
-	s.cardRepo = *card_repo.NewRepositories(queries, nil)
-	s.saldoRepo = saldo_repo.NewRepositories(queries, nil)
-	s.merchantRepo = merchant_repo.NewRepositories(queries, nil)
+	s.userRepo = user_repo.NewUserCommandRepository(userdbQueries)
+	s.cardRepo = *card_repo.NewRepositories(carddbQueries, nil)
+	s.saldoRepo = saldo_repo.NewRepositories(saldodbQueries, nil)
+	s.merchantRepo = merchant_repo.NewRepositories(merchantdbQueries, nil)
 
 	opts, err := redis.ParseURL(s.ts.RedisURL)
 	s.Require().NoError(err)
@@ -290,6 +302,7 @@ func (s *TransactionHandlerTestSuite) Test1_CreateTransaction() {
 	request := httptest.NewRequest(http.MethodPost, "/api/transaction-command/create", bytes.NewBuffer(body))
 	request.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	request.Header.Set("X-API-Key", s.merchantApiKey)
+	request.Header.Set("Idempotency-Key", "transaction-create-handler-1")
 	rec := httptest.NewRecorder()
 
 	s.router.ServeHTTP(rec, request)
@@ -302,10 +315,10 @@ func (s *TransactionHandlerTestSuite) Test1_CreateTransaction() {
 
 	// Verify balances
 	customerSaldo, _ := s.saldoRepo.FindByCardNumber(context.Background(), s.customerCardNumber)
-	s.Equal(int32(950000), customerSaldo.TotalBalance)
+	s.Equal(int64(950000), customerSaldo.TotalBalance)
 
 	merchantSaldo, _ := s.saldoRepo.FindByCardNumber(context.Background(), s.merchantCardNumber)
-	s.Equal(int32(50000), merchantSaldo.TotalBalance)
+	s.Equal(int64(50000), merchantSaldo.TotalBalance)
 }
 
 func (s *TransactionHandlerTestSuite) Test2_FindTransactionById() {
@@ -346,7 +359,7 @@ func (s *TransactionHandlerTestSuite) Test4_UpdateTransaction() {
 
 	// Verify adjusted balance (950k - 10k = 940k)
 	customerSaldo, _ := s.saldoRepo.FindByCardNumber(context.Background(), s.customerCardNumber)
-	s.Equal(int32(940000), customerSaldo.TotalBalance)
+	s.Equal(int64(940000), customerSaldo.TotalBalance)
 }
 
 func (s *TransactionHandlerTestSuite) Test5_TrashedTransaction() {

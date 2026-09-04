@@ -3,13 +3,25 @@ package repository
 import (
 	"context"
 
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
+	carddb "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/database/schema"
+	saldodb "github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/database/schema"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/topup/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/idempotency"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/outbox"
 )
 
+type IdempotencyRepository interface {
+	idempotency.Store
+}
+
+type OutboxRepository interface {
+	outbox.Store[db.OutboxRecord]
+}
+
 type SaldoRepository interface {
-	FindByCardNumber(ctx context.Context, card_number string) (*db.Saldo, error)
-	UpdateSaldoBalance(ctx context.Context, request *requests.UpdateSaldoBalance) (*db.UpdateSaldoBalanceRow, error)
+	FindByCardNumber(ctx context.Context, card_number string) (*saldodb.Saldo, error)
+	UpdateSaldoBalance(ctx context.Context, request *requests.UpdateSaldoBalance) (*saldodb.UpdateSaldoBalanceRow, error)
 }
 
 type TopupQueryRepository interface {
@@ -37,7 +49,7 @@ type TopupCommandRepository interface {
 }
 
 type CardRepository interface {
-	FindUserCardByCardNumber(ctx context.Context, card_number string) (*db.GetUserEmailByCardNumberRow, error)
-	FindCardByCardNumber(ctx context.Context, card_number string) (*db.GetCardByCardNumberRow, error)
-	UpdateCard(ctx context.Context, request *requests.UpdateCardRequest) (*db.UpdateCardRow, error)
+	FindUserCardByCardNumber(ctx context.Context, card_number string) (*carddb.GetUserEmailByCardNumberRow, error)
+	FindCardByCardNumber(ctx context.Context, card_number string) (*carddb.GetCardByCardNumberRow, error)
+	UpdateCard(ctx context.Context, request *requests.UpdateCardRequest) (*carddb.UpdateCardRow, error)
 }

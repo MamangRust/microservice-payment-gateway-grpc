@@ -1055,95 +1055,64 @@ data:
       - name: saldo-services-alerts
         rules:
           - alert: HighFailureRate_SaldoCommandService
-            expr: increase(saldo_command_service_request_total{status="failed"}[5m]) > 5
+            expr: increase(golang_app_requests_total{service_name="saldo-service", method=~"CreateSaldo|UpdateSaldo|DebitSaldo|CreditSaldo|ApplySaldoAdjustment|UpdateSaldoWithdraw|TrashSaldo|RestoreSaldo|DeleteSaldoPermanent|RestoreAllSaldo|DeleteAllSaldoPermanent", status="error"}[5m]) > 5
             for: 2m
             labels:
               severity: warning
               service: saldo_command_service
             annotations:
-              summary: "High failure rate on saldo_command_service"
-              description: "More than 5 failed requests in the last 5 minutes for saldo_command_service."
+              summary: "High failure rate on saldo command service"
+              description: "More than 5 error requests in the last 5 minutes."
 
           - alert: HighLatency_SaldoCommandService
-            expr: histogram_quantile(0.95, rate(saldo_command_service_request_duration_seconds_bucket[5m])) > 1
+            expr: histogram_quantile(0.95, rate(golang_app_request_duration_seconds_bucket{service_name="saldo-service", method=~"CreateSaldo|UpdateSaldo|DebitSaldo|CreditSaldo|ApplySaldoAdjustment|UpdateSaldoWithdraw|TrashSaldo|RestoreSaldo|DeleteSaldoPermanent|RestoreAllSaldo|DeleteAllSaldoPermanent"}[5m])) > 1
             for: 2m
             labels:
               severity: warning
               service: saldo_command_service
             annotations:
-              summary: "High latency detected on saldo_command_service"
-              description: "P95 latency for saldo_command_service is greater than 1 second."
+              summary: "High latency on saldo command service"
+              description: "P95 latency is greater than 1 second."
 
           - alert: NoTraffic_SaldoCommandService
-            expr: rate(saldo_command_service_request_total[5m]) == 0
+            expr: rate(golang_app_requests_total{service_name="saldo-service", method=~"CreateSaldo|UpdateSaldo|DebitSaldo|CreditSaldo|ApplySaldoAdjustment|UpdateSaldoWithdraw|TrashSaldo|RestoreSaldo|DeleteSaldoPermanent|RestoreAllSaldo|DeleteAllSaldoPermanent"}[5m]) == 0
             for: 2m
             labels:
               severity: warning
               service: saldo_command_service
             annotations:
-              summary: "No traffic on saldo_command_service"
-              description: "No requests received for saldo_command_service in the last 5 minutes."
+              summary: "No traffic on saldo command service"
+              description: "No requests received in the last 5 minutes."
 
           - alert: HighFailureRate_SaldoQueryService
-            expr: increase(saldo_query_service_request_total{status="failed"}[5m]) > 5
+            expr: increase(golang_app_requests_total{service_name="saldo-service", method=~"Find.*", status="error"}[5m]) > 5
             for: 2m
             labels:
               severity: warning
               service: saldo_query_service
             annotations:
-              summary: "High failure rate on saldo_query_service"
-              description: "More than 5 failed requests in the last 5 minutes for saldo_query_service."
+              summary: "High failure rate on saldo query service"
+              description: "More than 5 error requests in the last 5 minutes."
 
           - alert: HighLatency_SaldoQueryService
-            expr: histogram_quantile(0.95, rate(saldo_query_service_request_duration_seconds_bucket[5m])) > 1
+            expr: histogram_quantile(0.95, rate(golang_app_request_duration_seconds_bucket{service_name="saldo-service", method=~"Find.*"}[5m])) > 1
             for: 2m
             labels:
               severity: warning
               service: saldo_query_service
             annotations:
-              summary: "High latency detected on saldo_query_service"
-              description: "P95 latency for saldo_query_service is greater than 1 second."
+              summary: "High latency on saldo query service"
+              description: "P95 latency is greater than 1 second."
 
           - alert: NoTraffic_SaldoQueryService
-            expr: rate(saldo_query_service_request_total[5m]) == 0
+            expr: rate(golang_app_requests_total{service_name="saldo-service", method=~"Find.*"}[5m]) == 0
             for: 2m
             labels:
               severity: warning
               service: saldo_query_service
             annotations:
-              summary: "No traffic on saldo_query_service"
-              description: "No requests received for saldo_query_service in the last 5 minutes."
-
-          
-          - alert: HighFailureRate_SaldoStatisticsService
-            expr: increase(saldo_statistics_service_request_total{status="failed"}[5m]) > 5
-            for: 2m
-            labels:
-              severity: warning
-              service: saldo_statistics_service
-            annotations:
-              summary: "High failure rate on saldo_statistics_service"
-              description: "More than 5 failed requests in the last 5 minutes for saldo_statistics_service."
-
-          - alert: HighLatency_SaldoStatisticsService
-            expr: histogram_quantile(0.95, rate(saldo_statistics_service_request_duration_seconds_bucket[5m])) > 1
-            for: 2m
-            labels:
-              severity: warning
-              service: saldo_statistics_service
-            annotations:
-              summary: "High latency detected on saldo_statistics_service"
-              description: "P95 latency for saldo_statistics_service is greater than 1 second."
-
-          - alert: NoTraffic_SaldoStatisticsService
-            expr: rate(saldo_statistics_service_request_total[5m]) == 0
-            for: 2m
-            labels:
-              severity: warning
-              service: saldo_statistics_service
-            annotations:
-              summary: "No traffic on saldo_statistics_service"
-              description: "No requests received for saldo_statistics_service in the last 5 minutes."
+              summary: "No traffic on saldo query service"
+              description: "No requests received in the last 5 minutes."
 
   
   topup-service-alerts.yaml: |
@@ -1151,125 +1120,64 @@ data:
       - name: topup-services-alerts
         rules:
           - alert: HighFailureRate_TopupCommandService
-            expr: increase(topup_command_service_request_total{status="failed"}[5m]) > 5
+            expr: increase(golang_app_requests_total{service_name="topup-service", method=~"CreateTopup|UpdateTopup|TrashedTopup|RestoreTopup|DeleteTopupPermanent|RestoreAllTopup|DeleteAllTopupPermanent", status="error"}[5m]) > 5
             for: 2m
             labels:
               severity: warning
               service: topup_command_service
             annotations:
-              summary: "High failure rate on topup_command_service"
-              description: "More than 5 failed requests in the last 5 minutes for topup_command_service."
+              summary: "High failure rate on topup command service"
+              description: "More than 5 error requests in the last 5 minutes."
 
           - alert: HighLatency_TopupCommandService
-            expr: histogram_quantile(0.95, rate(topup_command_service_request_duration_seconds_bucket[5m])) > 1
+            expr: histogram_quantile(0.95, rate(golang_app_request_duration_seconds_bucket{service_name="topup-service", method=~"CreateTopup|UpdateTopup|TrashedTopup|RestoreTopup|DeleteTopupPermanent|RestoreAllTopup|DeleteAllTopupPermanent"}[5m])) > 1
             for: 2m
             labels:
               severity: warning
               service: topup_command_service
             annotations:
-              summary: "High latency on topup_command_service"
-              description: "P95 latency for topup_command_service is greater than 1 second."
+              summary: "High latency on topup command service"
+              description: "P95 latency is greater than 1 second."
 
           - alert: NoTraffic_TopupCommandService
-            expr: rate(topup_command_service_request_total[5m]) == 0
+            expr: rate(golang_app_requests_total{service_name="topup-service", method=~"CreateTopup|UpdateTopup|TrashedTopup|RestoreTopup|DeleteTopupPermanent|RestoreAllTopup|DeleteAllTopupPermanent"}[5m]) == 0
             for: 2m
             labels:
               severity: warning
               service: topup_command_service
             annotations:
-              summary: "No traffic on topup_command_service"
-              description: "No requests received for topup_command_service in the last 5 minutes."
+              summary: "No traffic on topup command service"
+              description: "No requests received in the last 5 minutes."
 
           - alert: HighFailureRate_TopupQueryService
-            expr: increase(topup_query_service_request_total{status="failed"}[5m]) > 5
+            expr: increase(golang_app_requests_total{service_name="topup-service", method=~"Find.*", status="error"}[5m]) > 5
             for: 2m
             labels:
               severity: warning
               service: topup_query_service
             annotations:
-              summary: "High failure rate on topup_query_service"
-              description: "More than 5 failed requests in the last 5 minutes for topup_query_service."
+              summary: "High failure rate on topup query service"
+              description: "More than 5 error requests in the last 5 minutes."
 
           - alert: HighLatency_TopupQueryService
-            expr: histogram_quantile(0.95, rate(topup_query_service_request_duration_seconds_bucket[5m])) > 1
+            expr: histogram_quantile(0.95, rate(golang_app_request_duration_seconds_bucket{service_name="topup-service", method=~"Find.*"}[5m])) > 1
             for: 2m
             labels:
               severity: warning
               service: topup_query_service
             annotations:
-              summary: "High latency on topup_query_service"
-              description: "P95 latency for topup_query_service is greater than 1 second."
+              summary: "High latency on topup query service"
+              description: "P95 latency is greater than 1 second."
 
           - alert: NoTraffic_TopupQueryService
-            expr: rate(topup_query_service_request_total[5m]) == 0
+            expr: rate(golang_app_requests_total{service_name="topup-service", method=~"Find.*"}[5m]) == 0
             for: 2m
             labels:
               severity: warning
               service: topup_query_service
             annotations:
-              summary: "No traffic on topup_query_service"
-              description: "No requests received for topup_query_service in the last 5 minutes."
-
-
-          - alert: HighFailureRate_TopupStatisticByCardService
-            expr: increase(topup_statistic_by_card_service_request_total{status="failed"}[5m]) > 5
-            for: 2m
-            labels:
-              severity: warning
-              service: topup_statistic_by_card_service
-            annotations:
-              summary: "High failure rate on topup_statistic_by_card_service"
-              description: "More than 5 failed requests in the last 5 minutes for topup_statistic_by_card_service."
-
-          - alert: HighLatency_TopupStatisticByCardService
-            expr: histogram_quantile(0.95, rate(topup_statistic_by_card_service_request_duration_seconds_bucket[5m])) > 1
-            for: 2m
-            labels:
-              severity: warning
-              service: topup_statistic_by_card_service
-            annotations:
-              summary: "High latency on topup_statistic_by_card_service"
-              description: "P95 latency for topup_statistic_by_card_service is greater than 1 second."
-
-          - alert: NoTraffic_TopupStatisticByCardService
-            expr: rate(topup_statistic_by_card_service_request_total[5m]) == 0
-            for: 2m
-            labels:
-              severity: warning
-              service: topup_statistic_by_card_service
-            annotations:
-              summary: "No traffic on topup_statistic_by_card_service"
-              description: "No requests received for topup_statistic_by_card_service in the last 5 minutes."
-
-          - alert: HighFailureRate_TopupStatisticService
-            expr: increase(topup_statistic_service_request_total{status="failed"}[5m]) > 5
-            for: 2m
-            labels:
-              severity: warning
-              service: topup_statistic_service
-            annotations:
-              summary: "High failure rate on topup_statistic_service"
-              description: "More than 5 failed requests in the last 5 minutes for topup_statistic_service."
-
-          - alert: HighLatency_TopupStatisticService
-            expr: histogram_quantile(0.95, rate(topup_statistic_service_request_duration_seconds_bucket[5m])) > 1
-            for: 2m
-            labels:
-              severity: warning
-              service: topup_statistic_service
-            annotations:
-              summary: "High latency on topup_statistic_service"
-              description: "P95 latency for topup_statistic_service is greater than 1 second."
-
-          - alert: NoTraffic_TopupStatisticService
-            expr: rate(topup_statistic_service_request_total[5m]) == 0
-            for: 2m
-            labels:
-              severity: warning
-              service: topup_statistic_service
-            annotations:
-              summary: "No traffic on topup_statistic_service"
-              description: "No requests received for topup_statistic_service in the last 5 minutes."
+              summary: "No traffic on topup query service"
+              description: "No requests received in the last 5 minutes."
 
 
   transaction-service-alerts.yaml: |
@@ -1277,123 +1185,63 @@ data:
       - name: transaction-services-alerts
         rules:
           - alert: HighFailureRate_TransactionCommandService
-            expr: increase(transaction_command_service_request_total{status="failed"}[5m]) > 5
+            expr: increase(golang_app_requests_total{service_name="transaction-service", method=~"CreateTransaction|UpdateTransaction|TrashedTransaction|RestoreTransaction|DeleteTransactionPermanent|RestoreAllTransaction|DeleteAllTransactionPermanent", status="error"}[5m]) > 5
             for: 2m
             labels:
               severity: warning
               service: transaction_command_service
             annotations:
-              summary: "High failure rate on transaction_command_service"
-              description: "More than 5 failed requests in the last 5 minutes."
+              summary: "High failure rate on transaction command service"
+              description: "More than 5 error requests in the last 5 minutes."
 
           - alert: HighLatency_TransactionCommandService
-            expr: histogram_quantile(0.95, rate(transaction_command_service_request_duration_seconds_bucket[5m])) > 1
+            expr: histogram_quantile(0.95, rate(golang_app_request_duration_seconds_bucket{service_name="transaction-service", method=~"CreateTransaction|UpdateTransaction|TrashedTransaction|RestoreTransaction|DeleteTransactionPermanent|RestoreAllTransaction|DeleteAllTransactionPermanent"}[5m])) > 1
             for: 2m
             labels:
               severity: warning
               service: transaction_command_service
             annotations:
-              summary: "High latency on transaction_command_service"
+              summary: "High latency on transaction command service"
               description: "P95 latency is greater than 1 second."
 
           - alert: NoTraffic_TransactionCommandService
-            expr: rate(transaction_command_service_request_total[5m]) == 0
+            expr: rate(golang_app_requests_total{service_name="transaction-service", method=~"CreateTransaction|UpdateTransaction|TrashedTransaction|RestoreTransaction|DeleteTransactionPermanent|RestoreAllTransaction|DeleteAllTransactionPermanent"}[5m]) == 0
             for: 2m
             labels:
               severity: warning
               service: transaction_command_service
             annotations:
-              summary: "No traffic on transaction_command_service"
+              summary: "No traffic on transaction command service"
               description: "No requests received in the last 5 minutes."
 
           - alert: HighFailureRate_TransactionQueryService
-            expr: increase(transaction_query_service_request_total{status="failed"}[5m]) > 5
+            expr: increase(golang_app_requests_total{service_name="transaction-service", method=~"Find.*", status="error"}[5m]) > 5
             for: 2m
             labels:
               severity: warning
               service: transaction_query_service
             annotations:
-              summary: "High failure rate on transaction_query_service"
-              description: "More than 5 failed requests in the last 5 minutes."
+              summary: "High failure rate on transaction query service"
+              description: "More than 5 error requests in the last 5 minutes."
 
           - alert: HighLatency_TransactionQueryService
-            expr: histogram_quantile(0.95, rate(transaction_query_service_request_duration_seconds_bucket[5m])) > 1
+            expr: histogram_quantile(0.95, rate(golang_app_request_duration_seconds_bucket{service_name="transaction-service", method=~"Find.*"}[5m])) > 1
             for: 2m
             labels:
               severity: warning
               service: transaction_query_service
             annotations:
-              summary: "High latency on transaction_query_service"
+              summary: "High latency on transaction query service"
               description: "P95 latency is greater than 1 second."
 
           - alert: NoTraffic_TransactionQueryService
-            expr: rate(transaction_query_service_request_total[5m]) == 0
+            expr: rate(golang_app_requests_total{service_name="transaction-service", method=~"Find.*"}[5m]) == 0
             for: 2m
             labels:
               severity: warning
               service: transaction_query_service
             annotations:
-              summary: "No traffic on transaction_query_service"
-              description: "No requests received in the last 5 minutes."
-
-          - alert: HighFailureRate_TransactionStatisticByCardService
-            expr: increase(transaction_statistic_by_card_service_request_total{status="failed"}[5m]) > 5
-            for: 2m
-            labels:
-              severity: warning
-              service: transaction_statistic_by_card_service
-            annotations:
-              summary: "High failure rate on transaction_statistic_by_card_service"
-              description: "More than 5 failed requests in the last 5 minutes."
-
-          - alert: HighLatency_TransactionStatisticByCardService
-            expr: histogram_quantile(0.95, rate(transaction_statistic_by_card_service_request_duration_seconds_bucket[5m])) > 1
-            for: 2m
-            labels:
-              severity: warning
-              service: transaction_statistic_by_card_service
-            annotations:
-              summary: "High latency on transaction_statistic_by_card_service"
-              description: "P95 latency is greater than 1 second."
-
-          - alert: NoTraffic_TransactionStatisticByCardService
-            expr: rate(transaction_statistic_by_card_service_request_total[5m]) == 0
-            for: 2m
-            labels:
-              severity: warning
-              service: transaction_statistic_by_card_service
-            annotations:
-              summary: "No traffic on transaction_statistic_by_card_service"
-              description: "No requests received in the last 5 minutes."
-
-          - alert: HighFailureRate_TransactionStatisticService
-            expr: increase(transaction_statistic_service_request_total{status="failed"}[5m]) > 5
-            for: 2m
-            labels:
-              severity: warning
-              service: transaction_statistic_service
-            annotations:
-              summary: "High failure rate on transaction_statistic_service"
-              description: "More than 5 failed requests in the last 5 minutes."
-
-          - alert: HighLatency_TransactionStatisticService
-            expr: histogram_quantile(0.95, rate(transaction_statistic_service_request_duration_seconds_bucket[5m])) > 1
-            for: 2m
-            labels:
-              severity: warning
-              service: transaction_statistic_service
-            annotations:
-              summary: "High latency on transaction_statistic_service"
-              description: "P95 latency is greater than 1 second."
-
-          - alert: NoTraffic_TransactionStatisticService
-            expr: rate(transaction_statistic_service_request_total[5m]) == 0
-            for: 2m
-            labels:
-              severity: warning
-              service: transaction_statistic_service
-            annotations:
-              summary: "No traffic on transaction_statistic_service"
+              summary: "No traffic on transaction query service"
               description: "No requests received in the last 5 minutes."
 
 
@@ -1402,124 +1250,63 @@ data:
       - name: transfer-services-alerts
         rules:
           - alert: HighFailureRate_TransferCommandService
-            expr: increase(transfer_command_service_request_total{status="failed"}[5m]) > 5
+            expr: increase(golang_app_requests_total{service_name="transfer-service", method=~"CreateTransaction|UpdateTransaction|TrashedTransfer|RestoreTransfer|DeleteTransferPermanent|RestoreAllTransfer|DeleteAllTransferPermanent", status="error"}[5m]) > 5
             for: 2m
             labels:
               severity: warning
               service: transfer_command_service
             annotations:
-              summary: "High failure rate on transfer_command_service"
-              description: "More than 5 failed requests in the last 5 minutes."
+              summary: "High failure rate on transfer command service"
+              description: "More than 5 error requests in the last 5 minutes."
 
           - alert: HighLatency_TransferCommandService
-            expr: histogram_quantile(0.95, rate(transfer_command_service_request_duration_seconds_bucket[5m])) > 1
+            expr: histogram_quantile(0.95, rate(golang_app_request_duration_seconds_bucket{service_name="transfer-service", method=~"CreateTransaction|UpdateTransaction|TrashedTransfer|RestoreTransfer|DeleteTransferPermanent|RestoreAllTransfer|DeleteAllTransferPermanent"}[5m])) > 1
             for: 2m
             labels:
               severity: warning
               service: transfer_command_service
             annotations:
-              summary: "High latency on transfer_command_service"
+              summary: "High latency on transfer command service"
               description: "P95 latency is greater than 1 second."
 
           - alert: NoTraffic_TransferCommandService
-            expr: rate(transfer_command_service_request_total[5m]) == 0
+            expr: rate(golang_app_requests_total{service_name="transfer-service", method=~"CreateTransaction|UpdateTransaction|TrashedTransfer|RestoreTransfer|DeleteTransferPermanent|RestoreAllTransfer|DeleteAllTransferPermanent"}[5m]) == 0
             for: 2m
             labels:
               severity: warning
               service: transfer_command_service
             annotations:
-              summary: "No traffic on transfer_command_service"
+              summary: "No traffic on transfer command service"
               description: "No requests received in the last 5 minutes."
 
           - alert: HighFailureRate_TransferQueryService
-            expr: increase(transfer_query_service_request_total{status="failed"}[5m]) > 5
+            expr: increase(golang_app_requests_total{service_name="transfer-service", method=~"Find.*", status="error"}[5m]) > 5
             for: 2m
             labels:
               severity: warning
               service: transfer_query_service
             annotations:
-              summary: "High failure rate on transfer_query_service"
-              description: "More than 5 failed requests in the last 5 minutes."
+              summary: "High failure rate on transfer query service"
+              description: "More than 5 error requests in the last 5 minutes."
 
           - alert: HighLatency_TransferQueryService
-            expr: histogram_quantile(0.95, rate(transfer_query_service_request_duration_seconds_bucket[5m])) > 1
+            expr: histogram_quantile(0.95, rate(golang_app_request_duration_seconds_bucket{service_name="transfer-service", method=~"Find.*"}[5m])) > 1
             for: 2m
             labels:
               severity: warning
               service: transfer_query_service
             annotations:
-              summary: "High latency on transfer_query_service"
+              summary: "High latency on transfer query service"
               description: "P95 latency is greater than 1 second."
 
           - alert: NoTraffic_TransferQueryService
-            expr: rate(transfer_query_service_request_total[5m]) == 0
+            expr: rate(golang_app_requests_total{service_name="transfer-service", method=~"Find.*"}[5m]) == 0
             for: 2m
             labels:
               severity: warning
               service: transfer_query_service
             annotations:
-              summary: "No traffic on transfer_query_service"
-              description: "No requests received in the last 5 minutes."
-
-          - alert: HighFailureRate_TransferStatisticByCardService
-            expr: increase(transfer_statistic_by_card_service_request_total{status="failed"}[5m]) > 5
-            for: 2m
-            labels:
-              severity: warning
-              service: transfer_statistic_by_card_service
-            annotations:
-              summary: "High failure rate on transfer_statistic_by_card_service"
-              description: "More than 5 failed requests in the last 5 minutes."
-
-          - alert: HighLatency_TransferStatisticByCardService
-            expr: histogram_quantile(0.95, rate(transfer_statistic_by_card_service_request_duration_seconds_bucket[5m])) > 1
-            for: 2m
-            labels:
-              severity: warning
-              service: transfer_statistic_by_card_service
-            annotations:
-              summary: "High latency on transfer_statistic_by_card_service"
-              description: "P95 latency is greater than 1 second."
-
-          - alert: NoTraffic_TransferStatisticByCardService
-            expr: rate(transfer_statistic_by_card_service_request_total[5m]) == 0
-            for: 2m
-            labels:
-              severity: warning
-              service: transfer_statistic_by_card_service
-            annotations:
-              summary: "No traffic on transfer_statistic_by_card_service"
-              description: "No requests received in the last 5 minutes."
-
-          
-          - alert: HighFailureRate_TransferStatisticService
-            expr: increase(transfer_statistic_service_request_total{status="failed"}[5m]) > 5
-            for: 2m
-            labels:
-              severity: warning
-              service: transfer_statistic_service
-            annotations:
-              summary: "High failure rate on transfer_statistic_service"
-              description: "More than 5 failed requests in the last 5 minutes."
-
-          - alert: HighLatency_TransferStatisticService
-            expr: histogram_quantile(0.95, rate(transfer_statistic_service_request_duration_seconds_bucket[5m])) > 1
-            for: 2m
-            labels:
-              severity: warning
-              service: transfer_statistic_service
-            annotations:
-              summary: "High latency on transfer_statistic_service"
-              description: "P95 latency is greater than 1 second."
-
-          - alert: NoTraffic_TransferStatisticService
-            expr: rate(transfer_statistic_service_request_total[5m]) == 0
-            for: 2m
-            labels:
-              severity: warning
-              service: transfer_statistic_service
-            annotations:
-              summary: "No traffic on transfer_statistic_service"
+              summary: "No traffic on transfer query service"
               description: "No requests received in the last 5 minutes."
 
 
@@ -1593,122 +1380,152 @@ data:
       - name: withdraw-services-alerts
         rules:
           - alert: HighFailureRate_WithdrawCommandService
-            expr: increase(withdraw_command_service_request_total{status="failed"}[5m]) > 5
+            expr: increase(golang_app_requests_total{service_name="withdraw-service", method=~"CreateWithdraw|UpdateWithdraw|TrashedWithdraw|RestoreWithdraw|DeleteWithdrawPermanent|RestoreAllWithdraw|DeleteAllWithdrawPermanent", status="error"}[5m]) > 5
             for: 2m
             labels:
               severity: warning
               service: withdraw_command_service
             annotations:
-              summary: "High failure rate on withdraw_command_service"
-              description: "More than 5 failed requests in the last 5 minutes."
+              summary: "High failure rate on withdraw command service"
+              description: "More than 5 error requests in the last 5 minutes."
 
           - alert: HighLatency_WithdrawCommandService
-            expr: histogram_quantile(0.95, rate(withdraw_command_service_request_duration_seconds_bucket[5m])) > 1
+            expr: histogram_quantile(0.95, rate(golang_app_request_duration_seconds_bucket{service_name="withdraw-service", method=~"CreateWithdraw|UpdateWithdraw|TrashedWithdraw|RestoreWithdraw|DeleteWithdrawPermanent|RestoreAllWithdraw|DeleteAllWithdrawPermanent"}[5m])) > 1
             for: 2m
             labels:
               severity: warning
               service: withdraw_command_service
             annotations:
-              summary: "High latency on withdraw_command_service"
-              description: "P95 latency > 1 second in the last 5 minutes."
+              summary: "High latency on withdraw command service"
+              description: "P95 latency is greater than 1 second."
 
           - alert: NoTraffic_WithdrawCommandService
-            expr: rate(withdraw_command_service_request_total[5m]) == 0
+            expr: rate(golang_app_requests_total{service_name="withdraw-service", method=~"CreateWithdraw|UpdateWithdraw|TrashedWithdraw|RestoreWithdraw|DeleteWithdrawPermanent|RestoreAllWithdraw|DeleteAllWithdrawPermanent"}[5m]) == 0
             for: 2m
             labels:
               severity: warning
               service: withdraw_command_service
             annotations:
-              summary: "No traffic on withdraw_command_service"
-              description: "No traffic detected in the last 5 minutes."
+              summary: "No traffic on withdraw command service"
+              description: "No requests received in the last 5 minutes."
 
           - alert: HighFailureRate_WithdrawQueryService
-            expr: increase(withdraw_query_service_request_total{status="failed"}[5m]) > 5
+            expr: increase(golang_app_requests_total{service_name="withdraw-service", method=~"Find.*", status="error"}[5m]) > 5
             for: 2m
             labels:
               severity: warning
               service: withdraw_query_service
             annotations:
-              summary: "High failure rate on withdraw_query_service"
-              description: "More than 5 failed requests in the last 5 minutes."
+              summary: "High failure rate on withdraw query service"
+              description: "More than 5 error requests in the last 5 minutes."
 
           - alert: HighLatency_WithdrawQueryService
-            expr: histogram_quantile(0.95, rate(withdraw_query_service_request_duration_seconds_bucket[5m])) > 1
+            expr: histogram_quantile(0.95, rate(golang_app_request_duration_seconds_bucket{service_name="withdraw-service", method=~"Find.*"}[5m])) > 1
             for: 2m
             labels:
               severity: warning
               service: withdraw_query_service
             annotations:
-              summary: "High latency on withdraw_query_service"
-              description: "P95 latency > 1 second in the last 5 minutes."
+              summary: "High latency on withdraw query service"
+              description: "P95 latency is greater than 1 second."
 
           - alert: NoTraffic_WithdrawQueryService
-            expr: rate(withdraw_query_service_request_total[5m]) == 0
+            expr: rate(golang_app_requests_total{service_name="withdraw-service", method=~"Find.*"}[5m]) == 0
             for: 2m
             labels:
               severity: warning
               service: withdraw_query_service
             annotations:
-              summary: "No traffic on withdraw_query_service"
-              description: "No traffic detected in the last 5 minutes."
+              summary: "No traffic on withdraw query service"
+              description: "No requests received in the last 5 minutes."
 
-          - alert: HighFailureRate_WithdrawStatisticByCardService
-            expr: increase(withdraw_statistic_by_card_service_request_total{status="failed"}[5m]) > 5
-            for: 2m
+  financial-slo-alerts.yaml: |
+    groups:
+      - name: financial-slo-alerts
+        rules:
+          # Error budget burn alerts for money-moving commands. SLO: 99.9%
+          # availability, 30-day budget. Metric names match the actual
+          # instrumentation (golang_app_ namespace, requests_total with
+          # method/status/protocol labels, service_name from resource attrs).
+          - alert: FinancialCommandErrorBudgetFastBurn
+            expr: |
+              (
+                sum(rate(golang_app_requests_total{service_name=~"transaction-service|transfer-service", status="error"}[5m]))
+                / sum(rate(golang_app_requests_total{service_name=~"transaction-service|transfer-service"}[5m]))
+              ) > 0.0014
+              or
+              (
+                sum(rate(golang_app_requests_total{service_name=~"topup-service|withdraw-service", status="error"}[5m]))
+                / sum(rate(golang_app_requests_total{service_name=~"topup-service|withdraw-service"}[5m]))
+              ) > 0.0014
+            for: 2h
+            labels:
+              severity: critical
+              service: financial_commands
+            annotations:
+              summary: "Financial command error budget burning fast"
+              description: "Error rate above 0.14% sustained for 2h. Investigate transaction/transfer/topup/withdraw command failures immediately."
+
+          - alert: FinancialCommandErrorBudgetSlowBurn
+            expr: |
+              (
+                sum(rate(golang_app_requests_total{service_name=~"transaction-service|transfer-service", status="error"}[30m]))
+                / sum(rate(golang_app_requests_total{service_name=~"transaction-service|transfer-service"}[30m]))
+              ) > 0.0006
+              or
+              (
+                sum(rate(golang_app_requests_total{service_name=~"topup-service|withdraw-service", status="error"}[30m]))
+                / sum(rate(golang_app_requests_total{service_name=~"topup-service|withdraw-service"}[30m]))
+              ) > 0.0006
+            for: 5h
             labels:
               severity: warning
-              service: withdraw_statistic_by_card_service
+              service: financial_commands
             annotations:
-              summary: "High failure rate on withdraw_statistic_by_card_service"
-              description: "More than 5 failed requests in the last 5 minutes."
+              summary: "Financial command error budget burning slow"
+              description: "Error rate above 0.06% sustained for 5h. Schedule remediation before monthly budget is exhausted."
 
-          - alert: HighLatency_WithdrawStatisticByCardService
-            expr: histogram_quantile(0.95, rate(withdraw_statistic_by_card_service_request_duration_seconds_bucket[5m])) > 1
-            for: 2m
+          - alert: FinancialCommandP99Latency
+            expr: |
+              histogram_quantile(0.99, rate(golang_app_request_duration_seconds_bucket{service_name=~"transaction-service|transfer-service"}[5m])) > 1
+              or
+              histogram_quantile(0.99, rate(golang_app_request_duration_seconds_bucket{service_name=~"topup-service|withdraw-service"}[5m])) > 1
+            for: 10m
             labels:
               severity: warning
-              service: withdraw_statistic_by_card_service
+              service: financial_commands
             annotations:
-              summary: "High latency on withdraw_statistic_by_card_service"
-              description: "P95 latency > 1 second in the last 5 minutes."
+              summary: "Financial command p99 latency above 1s"
+              description: "p99 latency of money-moving commands exceeds 1s for 10 minutes."
 
-          - alert: NoTraffic_WithdrawStatisticByCardService
-            expr: rate(withdraw_statistic_by_card_service_request_total[5m]) == 0
-            for: 2m
+          - alert: ReconciliationQueueGrowing
+            expr: sum(increase(golang_app_ledger_reconciliation_mismatch_total[30m])) > 10
+            for: 30m
             labels:
               severity: warning
-              service: withdraw_statistic_by_card_service
+              service: saldo
             annotations:
-              summary: "No traffic on withdraw_statistic_by_card_service"
-              description: "No traffic detected in the last 5 minutes."
+              summary: "Reconciliation keeps detecting balance mismatches"
+              description: "Reconciler reported more than 10 new balance mismatches in 30m. Review GET /api/saldo-query/reconciliation and resolve via adjustment + resolve endpoint."
 
-
-          - alert: HighFailureRate_WithdrawStatisticService
-            expr: increase(withdraw_statistic_service_request_total{status="failed"}[5m]) > 5
-            for: 2m
+          # Outbox lag: pending events accumulate when the broker is down or
+          # the publisher is starved. Gauge exported by shared/outbox Publisher.
+          - alert: OutboxLagGrowing
+            expr: sum(golang_app_outbox_events_pending) > 500
+            for: 15m
             labels:
               severity: warning
-              service: withdraw_statistic_service
+              service: outbox
             annotations:
-              summary: "High failure rate on withdraw_statistic_service"
-              description: "More than 5 failed requests in the last 5 minutes."
+              summary: "Outbox backlog is growing"
+              description: "More than 500 outbox events waiting for delivery for 15 minutes. Check Kafka broker and publisher workers."
 
-          - alert: HighLatency_WithdrawStatisticService
-            expr: histogram_quantile(0.95, rate(withdraw_statistic_service_request_duration_seconds_bucket[5m])) > 1
-            for: 2m
+          - alert: OutboxStaleEvents
+            expr: sum(increase(golang_app_outbox_events_failed_total[15m])) > 100
+            for: 15m
             labels:
               severity: warning
-              service: withdraw_statistic_service
+              service: outbox
             annotations:
-              summary: "High latency on withdraw_statistic_service"
-              description: "P95 latency > 1 second in the last 5 minutes."
-
-          - alert: NoTraffic_WithdrawStatisticService
-            expr: rate(withdraw_statistic_service_request_total[5m]) == 0
-            for: 2m
-            labels:
-              severity: warning
-              service: withdraw_statistic_service
-            annotations:
-              summary: "No traffic on withdraw_statistic_service"
-              description: "No traffic detected in the last 5 minutes."
+              summary: "Outbox publisher failing to deliver events"
+              description: "More than 100 outbox events failed to publish in 15 minutes. Check Kafka broker and publisher workers."

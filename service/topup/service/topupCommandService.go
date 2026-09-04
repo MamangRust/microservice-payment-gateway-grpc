@@ -7,19 +7,24 @@ import (
 	"strconv"
 	"time"
 
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/email"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/kafka"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
+	carddb "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/database/schema"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/topup/database/schema"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/async"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/validation"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/errorhandler"
-	topup_errors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors/topup_errors/service"
+	sharedErrors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/idempotency"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/observability"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/security"
 
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/adapter"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/events"
 	mencache "github.com/MamangRust/microservice-payment-gateway-grpc/service/topup/redis"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/topup/repository"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/events"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -33,6 +38,8 @@ type topupCommandDeps struct {
 	TopupQueryRepository   repository.TopupQueryRepository
 	TopupCommandRepository repository.TopupCommandRepository
 	SaldoAdapter           adapter.SaldoAdapter
+	IdempotencyStore       idempotency.Store
+	OutboxStore            repository.OutboxRepository
 	Logger                 logger.LoggerInterface
 	Observability          observability.TraceLoggerObservability
 }
@@ -45,6 +52,8 @@ type topupCommandService struct {
 	cardAdapter            adapter.CardAdapter
 	topupCommandRepository repository.TopupCommandRepository
 	saldoAdapter           adapter.SaldoAdapter
+	idempotencyStore       idempotency.Store
+	outboxStore            repository.OutboxRepository
 	logger                 logger.LoggerInterface
 	observability          observability.TraceLoggerObservability
 }
@@ -58,6 +67,8 @@ func NewTopupCommandService(
 		topupQueryRepository:   params.TopupQueryRepository,
 		topupCommandRepository: params.TopupCommandRepository,
 		saldoAdapter:           params.SaldoAdapter,
+		idempotencyStore:       params.IdempotencyStore,
+		outboxStore:            params.OutboxStore,
 		cardAdapter:            params.CardAdapter,
 		logger:                 params.Logger,
 		observability:          params.Observability,
@@ -68,37 +79,92 @@ func (s *topupCommandService) CreateTopup(ctx context.Context, request *requests
 	const method = "CreateTopup"
 
 	ctx, span, end, status, logSuccess := s.observability.StartTracingAndLogging(ctx, method)
-	defer func() { end(status) }()
+	defer func() { end(status, "grpc") }()
 
-	card, err := s.cardAdapter.FindUserCardByCardNumber(ctx, request.CardNumber)
+	// Idempotency guard: claim the client retry key before any balance mutation.
+	// Retries with the same key and payload replay the stored response; the same
+	// key with a different payload is rejected so money is never moved twice.
+	var idemHash string
+	if request.IdempotencyKey != "" && s.idempotencyStore != nil {
+		idemHash = idempotency.HashRequest(request)
+		if _, err := s.idempotencyStore.Claim(ctx, "topup", request.IdempotencyKey, idemHash); err == nil {
+			defer func() {
+				if status == "error" {
+					if relErr := s.idempotencyStore.Release(ctx, "topup", request.IdempotencyKey, idemHash); relErr != nil {
+						s.logger.Error("idempotency: failed to release key", zap.Error(relErr), zap.String("idempotency_key", request.IdempotencyKey))
+					}
+				}
+			}()
+		} else {
+			existing, gErr := s.idempotencyStore.Get(ctx, "topup", request.IdempotencyKey)
+			if gErr != nil {
+				status = "error"
+				return errorhandler.HandleError[*db.UpdateTopupStatusRow](s.logger, gErr, method, span, zap.String("idempotency_key", request.IdempotencyKey))
+			}
+			if existing.RequestHash != idemHash {
+				status = "error"
+				return errorhandler.HandleError[*db.UpdateTopupStatusRow](s.logger, idempotency.ConflictError(), method, span, zap.String("idempotency_key", request.IdempotencyKey))
+			}
+			if existing.Status == idempotency.StatusSuccess {
+				var row db.UpdateTopupStatusRow
+				if uErr := json.Unmarshal(existing.ResponseJSON, &row); uErr != nil {
+					status = "error"
+					return errorhandler.HandleError[*db.UpdateTopupStatusRow](s.logger, uErr, method, span, zap.String("idempotency_key", request.IdempotencyKey))
+				}
+				logSuccess("Replayed idempotent topup response", zap.String("idempotency_key", request.IdempotencyKey))
+				return &row, nil
+			}
+			status = "error"
+			return errorhandler.HandleError[*db.UpdateTopupStatusRow](s.logger, idempotency.ProcessingError(), method, span, zap.String("idempotency_key", request.IdempotencyKey))
+		}
+	}
+
+	// P1.7: reject non-positive / overflowing amounts before any balance
+	// mutation or remote call.
+	if err := validation.ValidateAmount(request.TopupAmount); err != nil {
+		status = "error"
+		return errorhandler.HandleError[*db.UpdateTopupStatusRow](s.logger, err, method, span, zap.String("card_number", security.MaskCardNumber(request.CardNumber)))
+	}
+
+	// Money movement only needs card identity and ownership metadata. Do not make
+	// a valid top-up depend on synchronous user/email enrichment; notifications
+	// are best-effort and can be retried by their consumer.
+	cardIdentity, err := s.cardAdapter.FindCardByCardNumber(ctx, request.CardNumber)
 	if err != nil {
 		status = "error"
-		return errorhandler.HandleError[*db.UpdateTopupStatusRow](s.logger, err, method, span, zap.String("card_number", request.CardNumber))
+		return errorhandler.HandleError[*db.UpdateTopupStatusRow](s.logger, err, method, span, zap.String("card_number", security.MaskCardNumber(request.CardNumber)))
+	}
+	if request.AuthenticatedUserID > 0 && int(cardIdentity.UserID) != request.AuthenticatedUserID {
+		status = "error"
+		return errorhandler.HandleError[*db.UpdateTopupStatusRow](s.logger, sharedErrors.NewForbiddenError("card does not belong to authenticated user"), method, span)
+	}
+	card := &carddb.GetUserEmailByCardNumberRow{
+		CardID: cardIdentity.CardID, UserID: cardIdentity.UserID,
+		CardNumber: cardIdentity.CardNumber, CardType: cardIdentity.CardType,
+		ExpireDate: cardIdentity.ExpireDate, Cvv: cardIdentity.Cvv,
+		CardProvider: cardIdentity.CardProvider, CreatedAt: cardIdentity.CreatedAt,
+		UpdatedAt: cardIdentity.UpdatedAt,
 	}
 
 	topup, err := s.topupCommandRepository.CreateTopup(ctx, request)
 	if err != nil {
 		status = "error"
-		return errorhandler.HandleError[*db.UpdateTopupStatusRow](s.logger, err, method, span, zap.String("card_number", request.CardNumber))
+		return errorhandler.HandleError[*db.UpdateTopupStatusRow](s.logger, err, method, span, zap.String("card_number", security.MaskCardNumber(request.CardNumber)))
 	}
 
-	saldo, err := s.saldoAdapter.FindByCardNumber(ctx, request.CardNumber)
-	if err != nil {
-		status = "error"
-		s.markTopupAsFailed(ctx, int(topup.TopupID), method, span)
-		return errorhandler.HandleError[*db.UpdateTopupStatusRow](s.logger, err, method, span, zap.String("card_number", request.CardNumber))
-	}
-
-	newBalance := int(saldo.TotalBalance) + request.TopupAmount
-	_, err = s.saldoAdapter.UpdateSaldoBalance(ctx, &requests.UpdateSaldoBalance{
-		CardNumber:   request.CardNumber,
-		TotalBalance: newBalance,
+	creditedSaldo, err := s.saldoAdapter.CreditSaldo(ctx, &requests.CreditSaldoRequest{
+		CardNumber:  request.CardNumber,
+		Amount:      request.TopupAmount,
+		OperationID: "topup:" + strconv.Itoa(int(topup.TopupID)) + ":credit",
+		SourceType:  "topup",
+		SourceID:    strconv.Itoa(int(topup.TopupID)),
 	})
 	if err != nil {
 		status = "error"
 		s.markTopupAsFailed(ctx, int(topup.TopupID), method, span)
-		return errorhandler.HandleError[*db.UpdateTopupStatusRow](s.logger, err, method, span, zap.String("card_number", request.CardNumber))
+		return errorhandler.HandleError[*db.UpdateTopupStatusRow](s.logger, err, method, span, zap.String("card_number", security.MaskCardNumber(request.CardNumber)))
 	}
+	newBalance := int(creditedSaldo.TotalBalance)
 
 	expireDate := card.ExpireDate.Time
 
@@ -112,8 +178,18 @@ func (s *topupCommandService) CreateTopup(ctx context.Context, request *requests
 	})
 	if err != nil {
 		status = "error"
+		_, rollbackErr := s.saldoAdapter.DebitSaldo(ctx, &requests.DebitSaldoRequest{
+			CardNumber:  request.CardNumber,
+			Amount:      request.TopupAmount,
+			OperationID: "topup:" + strconv.Itoa(int(topup.TopupID)) + ":rollback",
+			SourceType:  "topup_compensation",
+			SourceID:    strconv.Itoa(int(topup.TopupID)),
+		})
+		if rollbackErr != nil {
+			return errorhandler.HandleError[*db.UpdateTopupStatusRow](s.logger, rollbackErr, method, span, zap.String("rollback_for", "saldo"))
+		}
 		s.markTopupAsFailed(ctx, int(topup.TopupID), method, span)
-		return errorhandler.HandleError[*db.UpdateTopupStatusRow](s.logger, err, method, span, zap.String("card_number", request.CardNumber))
+		return errorhandler.HandleError[*db.UpdateTopupStatusRow](s.logger, err, method, span, zap.String("card_number", security.MaskCardNumber(request.CardNumber)))
 	}
 
 	updatedTopup, err := s.topupCommandRepository.UpdateTopupStatus(ctx, &requests.UpdateTopupStatus{
@@ -122,59 +198,37 @@ func (s *topupCommandService) CreateTopup(ctx context.Context, request *requests
 	})
 	if err != nil {
 		status = "error"
+		_, rollbackErr := s.saldoAdapter.DebitSaldo(ctx, &requests.DebitSaldoRequest{
+			CardNumber:  request.CardNumber,
+			Amount:      request.TopupAmount,
+			OperationID: "topup:" + strconv.Itoa(int(topup.TopupID)) + ":rollback",
+			SourceType:  "topup_compensation",
+			SourceID:    strconv.Itoa(int(topup.TopupID)),
+		})
+		if rollbackErr != nil {
+			return errorhandler.HandleError[*db.UpdateTopupStatusRow](s.logger, rollbackErr, method, span, zap.String("rollback_for", "saldo"))
+		}
+		s.markTopupAsFailed(ctx, int(topup.TopupID), method, span)
 		return errorhandler.HandleError[*db.UpdateTopupStatusRow](s.logger, err, method, span, zap.Int("topup_id", int(topup.TopupID)))
 	}
 
-	go func() {
-		// Email Notification
-		htmlBody := email.GenerateEmailHTML(map[string]string{
-			"Title":   "Topup Successful",
-			"Message": fmt.Sprintf("Your topup of %d has been processed successfully.", request.TopupAmount),
-			"Button":  "View History",
-			"Link":    "https://sanedge.example.com/topup/history",
-		})
+	// Phase 3: Outbox instead of fire-and-forget goroutine
+	s.enqueueTopupEvents(ctx, topup, updatedTopup, card, request, newBalance)
 
-		emailPayload := map[string]any{
-			"email":   card.Email,
-			"subject": "Topup Successful - SanEdge",
-			"body":    htmlBody,
-		}
+	logSuccess("Topup created successfully", zap.String("cardNumber", security.MaskCardNumber(request.CardNumber)), zap.Int("topupID", int(topup.TopupID)), zap.Float64("topupAmount", float64(request.TopupAmount)))
 
-		payloadBytes, _ := json.Marshal(emailPayload)
-		if s.kafka != nil {
-			_ = s.kafka.SendMessage("email-service-topic-topup-create", strconv.Itoa(int(updatedTopup.TopupID)), payloadBytes)
+	if request.IdempotencyKey != "" && s.idempotencyStore != nil {
+		if respBytes, mErr := json.Marshal(updatedTopup); mErr == nil {
+			resourceID := updatedTopup.TopupID
+			if cErr := s.idempotencyStore.Complete(ctx, "topup", request.IdempotencyKey, idemHash, idempotency.Outcome{
+				Status:       idempotency.StatusSuccess,
+				ResponseJSON: respBytes,
+				ResourceID:   &resourceID,
+			}); cErr != nil {
+				s.logger.Error("idempotency: failed to complete key", zap.Error(cErr), zap.String("idempotency_key", request.IdempotencyKey))
+			}
 		}
-
-		// Stats Event
-		statsEvent := events.TopupEvent{
-			TopupID:       uint64(updatedTopup.TopupID),
-			TopupNo:       fmt.Sprintf("%x-%x-%x-%x-%x", updatedTopup.TopupNo.Bytes[0:4], updatedTopup.TopupNo.Bytes[4:6], updatedTopup.TopupNo.Bytes[6:8], updatedTopup.TopupNo.Bytes[8:10], updatedTopup.TopupNo.Bytes[10:16]),
-			CardNumber:    request.CardNumber,
-			CardType:      card.CardType,
-			CardProvider:  card.CardProvider,
-			Amount:        int64(request.TopupAmount),
-			PaymentMethod: request.TopupMethod,
-			Status:        "success",
-			CreatedAt:     time.Now(),
-		}
-		statsBytes, _ := json.Marshal(statsEvent)
-		if s.kafka != nil {
-			_ = s.kafka.SendMessage("stats-topic-topup-events", strconv.Itoa(int(updatedTopup.TopupID)), statsBytes)
-		}
-
-		// Saldo Event
-		saldoEvent := events.SaldoEvent{
-			CardNumber:   request.CardNumber,
-			TotalBalance: int64(newBalance),
-			CreatedAt:    time.Now(),
-		}
-		saldoBytes, _ := json.Marshal(saldoEvent)
-		if s.kafka != nil {
-			_ = s.kafka.SendMessage("stats-topic-saldo-events", request.CardNumber, saldoBytes)
-		}
-	}()
-
-	logSuccess("Topup created successfully", zap.String("cardNumber", request.CardNumber), zap.Int("topupID", int(topup.TopupID)), zap.Float64("topupAmount", float64(request.TopupAmount)))
+	}
 
 	return updatedTopup, nil
 }
@@ -183,13 +237,13 @@ func (s *topupCommandService) UpdateTopup(ctx context.Context, request *requests
 	const method = "UpdateTopup"
 
 	ctx, span, end, status, logSuccess := s.observability.StartTracingAndLogging(ctx, method)
-	defer func() { end(status) }()
+	defer func() { end(status, "grpc") }()
 
 	_, err := s.cardAdapter.FindCardByCardNumber(ctx, request.CardNumber)
 	if err != nil {
 		status = "error"
 		s.markTopupAsFailed(ctx, *request.TopupID, method, span)
-		return errorhandler.HandleError[*db.UpdateTopupStatusRow](s.logger, err, method, span, zap.String("card_number", request.CardNumber))
+		return errorhandler.HandleError[*db.UpdateTopupStatusRow](s.logger, err, method, span, zap.String("card_number", security.MaskCardNumber(request.CardNumber)))
 	}
 
 	existingTopup, err := s.topupQueryRepository.FindById(ctx, *request.TopupID)
@@ -206,20 +260,26 @@ func (s *topupCommandService) UpdateTopup(ctx context.Context, request *requests
 		return errorhandler.HandleError[*db.UpdateTopupStatusRow](s.logger, err, method, span, zap.Int("topup_id", *request.TopupID))
 	}
 
-	currentSaldo, err := s.saldoAdapter.FindByCardNumber(ctx, request.CardNumber)
-	if err != nil {
-		status = "error"
-		s.markTopupAsFailed(ctx, *request.TopupID, method, span)
-		return errorhandler.HandleError[*db.UpdateTopupStatusRow](s.logger, err, method, span, zap.String("card_number", request.CardNumber))
-	}
-
 	topupDifference := request.TopupAmount - int(existingTopup.TopupAmount)
-
-	newBalance := int(currentSaldo.TotalBalance) + topupDifference
-	_, err = s.saldoAdapter.UpdateSaldoBalance(ctx, &requests.UpdateSaldoBalance{
-		CardNumber:   request.CardNumber,
-		TotalBalance: newBalance,
-	})
+	if topupDifference > 0 {
+		_, creditErr := s.saldoAdapter.CreditSaldo(ctx, &requests.CreditSaldoRequest{
+			CardNumber:  request.CardNumber,
+			Amount:      topupDifference,
+			OperationID: "topup:update:" + strconv.Itoa(*request.TopupID) + ":credit",
+			SourceType:  "topup_update",
+			SourceID:    strconv.Itoa(*request.TopupID),
+		})
+		err = creditErr
+	} else if topupDifference < 0 {
+		_, debitErr := s.saldoAdapter.DebitSaldo(ctx, &requests.DebitSaldoRequest{
+			CardNumber:  request.CardNumber,
+			Amount:      -topupDifference,
+			OperationID: "topup:update:" + strconv.Itoa(*request.TopupID) + ":debit",
+			SourceType:  "topup_update",
+			SourceID:    strconv.Itoa(*request.TopupID),
+		})
+		err = debitErr
+	}
 	if err != nil {
 		status = "error"
 		// 6. Jalankan logika rollback
@@ -231,7 +291,7 @@ func (s *topupCommandService) UpdateTopup(ctx context.Context, request *requests
 			return errorhandler.HandleError[*db.UpdateTopupStatusRow](s.logger, rollbackErr, method, span, zap.Int("topup_id", *request.TopupID))
 		}
 		s.markTopupAsFailed(ctx, *request.TopupID, method, span)
-		return errorhandler.HandleError[*db.UpdateTopupStatusRow](s.logger, err, method, span, zap.String("card_number", request.CardNumber))
+		return errorhandler.HandleError[*db.UpdateTopupStatusRow](s.logger, err, method, span, zap.String("card_number", security.MaskCardNumber(request.CardNumber)))
 	}
 
 	updatedTopup, err := s.topupCommandRepository.UpdateTopupStatus(ctx, &requests.UpdateTopupStatus{
@@ -255,7 +315,7 @@ func (s *topupCommandService) TrashedTopup(ctx context.Context, topup_id int) (*
 		attribute.Int("topup_id", topup_id))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	s.logger.Debug("Starting TrashedTopup process", zap.Int("topup_id", topup_id))
@@ -265,7 +325,7 @@ func (s *topupCommandService) TrashedTopup(ctx context.Context, topup_id int) (*
 		status = "error"
 		return errorhandler.HandleError[*db.Topup](
 			s.logger,
-			topup_errors.ErrFailedTrashTopup,
+			err,
 			method,
 			span,
 
@@ -285,7 +345,7 @@ func (s *topupCommandService) RestoreTopup(ctx context.Context, topup_id int) (*
 		attribute.Int("topup_id", topup_id))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	s.logger.Debug("Starting RestoreTopup process", zap.Int("topup_id", topup_id))
@@ -295,7 +355,7 @@ func (s *topupCommandService) RestoreTopup(ctx context.Context, topup_id int) (*
 		status = "error"
 		return errorhandler.HandleError[*db.Topup](
 			s.logger,
-			topup_errors.ErrFailedRestoreTopup,
+			err,
 			method,
 			span,
 
@@ -315,7 +375,7 @@ func (s *topupCommandService) DeleteTopupPermanent(ctx context.Context, topup_id
 		attribute.Int("topup_id", topup_id))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	s.logger.Debug("Starting DeleteTopupPermanent process", zap.Int("topup_id", topup_id))
@@ -325,7 +385,7 @@ func (s *topupCommandService) DeleteTopupPermanent(ctx context.Context, topup_id
 		status = "error"
 		return errorhandler.HandleError[bool](
 			s.logger,
-			topup_errors.ErrFailedDeleteTopup,
+			err,
 			method,
 			span,
 
@@ -344,7 +404,7 @@ func (s *topupCommandService) RestoreAllTopup(ctx context.Context) (bool, error)
 	ctx, span, end, status, logSuccess := s.observability.StartTracingAndLogging(ctx, method)
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	s.logger.Debug("Restoring all topups")
@@ -354,7 +414,7 @@ func (s *topupCommandService) RestoreAllTopup(ctx context.Context) (bool, error)
 		status = "error"
 		return errorhandler.HandleError[bool](
 			s.logger,
-			topup_errors.ErrFailedRestoreAllTopups,
+			sharedErrors.ErrFailed("restore all topups"),
 			method,
 			span,
 		)
@@ -370,7 +430,7 @@ func (s *topupCommandService) DeleteAllTopupPermanent(ctx context.Context) (bool
 	ctx, span, end, status, logSuccess := s.observability.StartTracingAndLogging(ctx, method)
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	s.logger.Debug("Permanently deleting all topups")
@@ -380,7 +440,7 @@ func (s *topupCommandService) DeleteAllTopupPermanent(ctx context.Context) (bool
 		status = "error"
 		return errorhandler.HandleError[bool](
 			s.logger,
-			topup_errors.ErrFailedDeleteAllTopups,
+			sharedErrors.ErrFailed("delete all topups permanently"),
 			method,
 			span,
 		)
@@ -390,14 +450,74 @@ func (s *topupCommandService) DeleteAllTopupPermanent(ctx context.Context) (bool
 	return true, nil
 }
 
+func (s *topupCommandService) enqueueTopupEvents(ctx context.Context, topup *db.CreateTopupRow, updatedTopup *db.UpdateTopupStatusRow, card *carddb.GetUserEmailByCardNumberRow, request *requests.CreateTopupRequest, newBalance int) {
+	if s.outboxStore == nil {
+		return
+	}
+	topupID := strconv.Itoa(int(topup.TopupID))
+
+	// Email enrichment is intentionally outside the money path. Older callers
+	// may still provide an email, but an empty recipient must not create a
+	// malformed notification or fail the already-committed top-up.
+	if card.Email != "" {
+		htmlBody, err := email.GenerateEmailHTML(map[string]string{
+			"Title":   "Topup Successful",
+			"Message": fmt.Sprintf("Your topup of %d has been processed successfully.", request.TopupAmount),
+			"Button":  "View History",
+			"Link":    "https://sanedge.example.com/topup/history",
+		})
+		if err == nil {
+			emailPayload, _ := json.Marshal(map[string]any{"email": card.Email, "subject": "Topup Successful - SanEdge", "body": htmlBody})
+			if iErr := s.outboxStore.Insert(ctx, db.OutboxRecord{
+				AggregateType: "topup", AggregateID: topupID,
+				EventType: "topup.created", Payload: emailPayload,
+			}); iErr != nil {
+				s.logger.Error("outbox: failed to enqueue topup email event", zap.Error(iErr))
+			}
+		}
+	}
+
+	// Stats event
+	statsEvent := events.TopupEvent{
+		TopupID:       uint64(updatedTopup.TopupID),
+		TopupNo:       fmt.Sprintf("%x-%x-%x-%x-%x", updatedTopup.TopupNo.Bytes[0:4], updatedTopup.TopupNo.Bytes[4:6], updatedTopup.TopupNo.Bytes[6:8], updatedTopup.TopupNo.Bytes[8:10], updatedTopup.TopupNo.Bytes[10:16]),
+		CardNumber:    request.CardNumber,
+		CardType:      card.CardType,
+		CardProvider:  card.CardProvider,
+		Amount:        int64(request.TopupAmount),
+		PaymentMethod: request.TopupMethod,
+		Status:        "success",
+		CreatedAt:     time.Now(),
+	}
+	statsBytes, _ := json.Marshal(statsEvent)
+	if iErr := s.outboxStore.Insert(ctx, db.OutboxRecord{
+		AggregateType: "topup", AggregateID: topupID,
+		EventType: "topup.stats", Payload: statsBytes,
+	}); iErr != nil {
+		s.logger.Error("outbox: failed to enqueue topup stats event", zap.Error(iErr))
+	}
+
+	// Saldo event
+	saldoEvent := events.SaldoEvent{CardNumber: request.CardNumber, TotalBalance: int64(newBalance), CreatedAt: time.Now()}
+	saldoBytes, _ := json.Marshal(saldoEvent)
+	if iErr := s.outboxStore.Insert(ctx, db.OutboxRecord{
+		AggregateType: "topup", AggregateID: request.CardNumber,
+		EventType: "topup.saldo", Payload: saldoBytes,
+	}); iErr != nil {
+		s.logger.Error("outbox: failed to enqueue topup saldo event", zap.Error(iErr))
+	}
+}
+
 func (s *topupCommandService) markTopupAsFailed(ctx context.Context, topupID int, method string, span trace.Span) {
 	req := requests.UpdateTopupStatus{
 		TopupID: topupID,
 		Status:  "failed",
 	}
-	go func() {
+	// P0.4: detached context with fixed timeout - never the request context,
+	// which may be cancelled by the client before the goroutine runs.
+	async.RunWithTimeout(5*time.Second, func(ctx context.Context) {
 		if _, err := s.topupCommandRepository.UpdateTopupStatus(ctx, &req); err != nil {
 			s.logger.Error("compensation: failed to mark topup as failed", zap.Error(err), zap.Int("topup_id", topupID), zap.String("method", method))
 		}
-	}()
+	})
 }

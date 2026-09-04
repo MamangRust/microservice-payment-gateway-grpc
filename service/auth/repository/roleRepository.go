@@ -2,11 +2,11 @@ package repository
 
 import (
 	"context"
+	sharedErrors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
 	"time"
 
 	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb/role"
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
-	role_errors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors/role_errors/repository"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/auth/database/schema"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -29,7 +29,7 @@ func (r *roleRepository) FindById(ctx context.Context, id int) (*db.Role, error)
 	})
 
 	if err != nil {
-		return nil, role_errors.ErrRoleNotFound.WithInternal(err)
+		return nil, sharedErrors.ErrRoleNotFound.WithInternal(err)
 	}
 
 	role := resp.GetData()
@@ -58,12 +58,12 @@ func (r *roleRepository) FindByName(ctx context.Context, name string) (*db.Role,
 	})
 
 	if err != nil {
-		return nil, role_errors.ErrRoleNotFound.WithInternal(err)
+		return nil, sharedErrors.ErrRoleNotFound.WithInternal(err)
 	}
 
 	roles := resp.GetData()
 	if len(roles) == 0 {
-		return nil, role_errors.ErrRoleNotFound
+		return nil, sharedErrors.ErrRoleNotFound
 	}
 
 	role := roles[0]

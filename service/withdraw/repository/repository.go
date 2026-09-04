@@ -1,7 +1,8 @@
 package repository
 
 import (
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/withdraw/database/schema"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/outbox"
 )
 
 type Repositories interface {
@@ -9,6 +10,8 @@ type Repositories interface {
 	SaldoRepository
 	WithdrawQueryRepository
 	WithdrawCommandRepository
+	IdempotencyRepository
+	OutboxRepository
 }
 
 type repositories struct {
@@ -16,6 +19,8 @@ type repositories struct {
 	SaldoRepository
 	WithdrawQueryRepository
 	WithdrawCommandRepository
+	IdempotencyRepository
+	OutboxRepository
 }
 
 func NewRepositories(
@@ -24,9 +29,11 @@ func NewRepositories(
 	saldo SaldoRepository,
 ) Repositories {
 	return &repositories{
-		CardRepository:                card,
-		SaldoRepository:               saldo,
-		WithdrawQueryRepository:       NewWithdrawQueryRepository(db),
-		WithdrawCommandRepository:     NewWithdrawCommandRepository(db),
+		CardRepository:            card,
+		SaldoRepository:           saldo,
+		WithdrawQueryRepository:   NewWithdrawQueryRepository(db),
+		WithdrawCommandRepository: NewWithdrawCommandRepository(db),
+		IdempotencyRepository:     NewWithdrawIdempotencyRepository(db),
+		OutboxRepository:          outbox.NewStore(db.InsertOutbox),
 	}
 }

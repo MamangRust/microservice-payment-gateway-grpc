@@ -2,6 +2,7 @@ package merchant_test
 
 import (
 	"context"
+	userdb "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/database/schema"
 	"net"
 	"testing"
 	"time"
@@ -9,18 +10,18 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2"
 	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb/merchant"
 	pbStats "github.com/MamangRust/microservice-payment-gateway-grpc/pb/merchant/stats"
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
-	tests "github.com/MamangRust/microservice-payment-gateway-test"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/merchant/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/merchant/handler"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/merchant/repository"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/merchant/service"
-	user_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/repository"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/cache"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/observability"
 	stats_handler "github.com/MamangRust/microservice-payment-gateway-grpc/service/stats-reader/handler"
 	stats_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/stats-reader/repository"
+	user_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/repository"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/cache"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/observability"
+	tests "github.com/MamangRust/microservice-payment-gateway-test"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
@@ -33,10 +34,10 @@ import (
 
 type MerchantGapiTestSuite struct {
 	suite.Suite
-	ts              *tests.TestSuite
-	dbPool          *pgxpool.Pool
-	redisClient     redis.UniversalClient
-	grpcServer      *grpc.Server
+	ts                *tests.TestSuite
+	dbPool            *pgxpool.Pool
+	redisClient       redis.UniversalClient
+	grpcServer        *grpc.Server
 	chConn            clickhouse.Conn
 	commandClient     pb.MerchantCommandServiceClient
 	queryClient       pb.MerchantQueryServiceClient
@@ -46,8 +47,8 @@ type MerchantGapiTestSuite struct {
 	transactionClient pb.MerchantTransactionServiceClient
 	conn              *grpc.ClientConn
 	userRepo          user_repo.UserCommandRepository
-	userID          int
-	merchantID      int
+	userID            int
+	merchantID        int
 }
 
 func (s *MerchantGapiTestSuite) SetupSuite() {
@@ -90,8 +91,10 @@ func (s *MerchantGapiTestSuite) SetupSuite() {
 	s.Require().NoError(err)
 
 	queries := db.New(pool)
+
+	userdbQueries := userdb.New(pool)
 	repos := repository.NewRepositories(queries, nil)
-	s.userRepo = user_repo.NewUserCommandRepository(queries)
+	s.userRepo = user_repo.NewUserCommandRepository(userdbQueries)
 
 	logger.ResetInstance()
 	lp := sdklog.NewLoggerProvider()
@@ -119,7 +122,7 @@ func (s *MerchantGapiTestSuite) SetupSuite() {
 
 	// Start gRPC Server
 	merchantHandler := handler.NewHandler(merchantService)
-	
+
 	// Stats Handler
 	chRepo := stats_repo.NewRepository(s.chConn)
 	merchantStatsHandler := stats_handler.NewMerchantStatsHandler(chRepo, log)

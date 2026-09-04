@@ -4,10 +4,10 @@ import (
 	"net/http"
 	"strconv"
 
-	saldo_cache "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/redis/api/saldo"
 	pbhelper "github.com/MamangRust/microservice-payment-gateway-grpc/pb/card"
 	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb/saldo"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
+	saldo_cache "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/redis/api/saldo"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
 	apimapper "github.com/MamangRust/microservice-payment-gateway-grpc/shared/mapper/saldo"
@@ -58,6 +58,8 @@ func NewSaldoQueryHandleApi(params *saldoQueryHandleDeps) *saldoQueryHandleApi {
 	routerSaldo.GET("/active", params.apiHandler.Handle("find-active-saldos", saldoHandler.FindByActive))
 	routerSaldo.GET("/trashed", params.apiHandler.Handle("find-trashed-saldos", saldoHandler.FindByTrashed))
 	routerSaldo.GET("/card_number/:card_number", params.apiHandler.Handle("find-saldo-by-card-number", saldoHandler.FindByCardNumber))
+	routerSaldo.GET("/reconciliation", params.apiHandler.Handle("list-reconciliation-queue", saldoHandler.ListReconciliationQueue))
+	routerSaldo.GET("/ledger/:card_number", params.apiHandler.Handle("list-ledger-entries", saldoHandler.ListLedgerEntries))
 
 	return saldoHandler
 }
@@ -197,6 +199,29 @@ func (h *saldoQueryHandleApi) FindByCardNumber(c echo.Context) error {
 	h.cache.SetCachedSaldoByCardNumber(ctx, cardNumber, apiResponse)
 
 	return c.JSON(http.StatusOK, apiResponse)
+}
+
+func (h *saldoQueryHandleApi) ListReconciliationQueue(c echo.Context) error {
+	limit, _ := strconv.Atoi(c.QueryParam("limit"))
+	status := c.QueryParam("status")
+	res, err := h.saldo.ListReconciliationQueue(c.Request().Context(), &pb.ListReconciliationRequest{Status: status, Limit: int32(limit)})
+	if err != nil {
+		return errors.ParseGrpcError(err)
+	}
+	return c.JSON(http.StatusOK, res)
+}
+
+func (h *saldoQueryHandleApi) ListLedgerEntries(c echo.Context) error {
+	limit, _ := strconv.Atoi(c.QueryParam("limit"))
+	cardNumber := c.Param("card_number")
+	if cardNumber == "" {
+		return errors.NewBadRequestError("card_number is required")
+	}
+	res, err := h.saldo.ListLedgerEntries(c.Request().Context(), &pb.ListLedgerEntriesRequest{CardNumber: cardNumber, Limit: int32(limit)})
+	if err != nil {
+		return errors.ParseGrpcError(err)
+	}
+	return c.JSON(http.StatusOK, res)
 }
 
 // @Summary Retrieve all active saldo data

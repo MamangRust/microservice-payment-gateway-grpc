@@ -238,7 +238,7 @@ func (h *TransactionStatsHandler) mapToTransactionMonthAmountData(data []reposit
 	for _, d := range data {
 		results = append(results, &pbTransactionStats.TransactionMonthAmountResponse{
 			Month:       d.Month,
-			TotalAmount: int32(d.TotalAmount),
+			TotalAmount: d.TotalAmount,
 		})
 	}
 	return results
@@ -249,7 +249,7 @@ func (h *TransactionStatsHandler) mapToTransactionYearAmountData(data []reposito
 	for _, d := range data {
 		results = append(results, &pbTransactionStats.TransactionYearlyAmountResponse{
 			Year:        d.Year,
-			TotalAmount: int32(d.TotalAmount),
+			TotalAmount: d.TotalAmount,
 		})
 	}
 	return results
@@ -262,7 +262,7 @@ func (h *TransactionStatsHandler) mapToTransactionMonthMethodData(data []reposit
 			Month:             d.Month,
 			PaymentMethod:     d.PaymentMethod,
 			TotalTransactions: int32(d.TotalTransactions),
-			TotalAmount:       int32(d.TotalAmount),
+			TotalAmount:       d.TotalAmount,
 		})
 	}
 	return results
@@ -275,7 +275,7 @@ func (h *TransactionStatsHandler) mapToTransactionMonthStatusSuccessData(data []
 			Year:         d.Year,
 			Month:        d.Month,
 			TotalSuccess: int32(d.TotalTransactions),
-			TotalAmount:  int32(d.TotalAmount),
+			TotalAmount:  d.TotalAmount,
 		})
 	}
 	return results
@@ -287,7 +287,7 @@ func (h *TransactionStatsHandler) mapToTransactionYearStatusSuccessData(data []r
 		results = append(results, &pbTransactionStats.TransactionYearStatusSuccessResponse{
 			Year:         d.Year,
 			TotalSuccess: int32(d.TotalTransactions),
-			TotalAmount:  int32(d.TotalAmount),
+			TotalAmount:  d.TotalAmount,
 		})
 	}
 	return results
@@ -300,7 +300,7 @@ func (h *TransactionStatsHandler) mapToTransactionMonthStatusFailedData(data []r
 			Year:        d.Year,
 			Month:       d.Month,
 			TotalFailed: int32(d.TotalTransactions),
-			TotalAmount: int32(d.TotalAmount),
+			TotalAmount: d.TotalAmount,
 		})
 	}
 	return results
@@ -312,7 +312,7 @@ func (h *TransactionStatsHandler) mapToTransactionYearStatusFailedData(data []re
 		results = append(results, &pbTransactionStats.TransactionYearStatusFailedResponse{
 			Year:        d.Year,
 			TotalFailed: int32(d.TotalTransactions),
-			TotalAmount: int32(d.TotalAmount),
+			TotalAmount: d.TotalAmount,
 		})
 	}
 	return results
@@ -325,7 +325,7 @@ func (h *TransactionStatsHandler) mapToTransactionYearMethodData(data []reposito
 			Year:              d.Year,
 			PaymentMethod:     d.PaymentMethod,
 			TotalTransactions: int32(d.TotalTransactions),
-			TotalAmount:       int32(d.TotalAmount),
+			TotalAmount:       d.TotalAmount,
 		})
 	}
 	return results

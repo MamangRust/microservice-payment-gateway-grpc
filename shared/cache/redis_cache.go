@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math/rand/v2"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -90,16 +91,51 @@ func SetToCache[T any](ctx context.Context, store *CacheStore, key string, data 
 		return
 	}
 
-	if err := store.Redis.Set(ctx, key, jsonData, expiration).Err(); err != nil {
+	jittered := jitterExpiration(expiration)
+
+	if err := store.Redis.Set(ctx, key, jsonData, jittered).Err(); err != nil {
 		store.Logger.Error("Failed to set cache", zap.Error(err), zap.String("cacheKey", key))
 		store.metrics.RecordCacheError(ctx, "set", key, err)
 		store.metrics.RecordCacheSet(ctx, key, false)
 	} else {
 		store.Logger.Debug("Successfully cached data",
 			zap.String("cacheKey", key),
-			zap.Duration("expiration", expiration))
+			zap.Duration("expiration", jittered))
 		store.metrics.RecordCacheSet(ctx, key, true)
 	}
+}
+
+// jitterExpiration adds a random offset to a cache TTL so entries that share
+// the same nominal TTL do not all expire at the same instant. Without this,
+// a batch of keys set at the same time (e.g. a stats aggregation that fans out
+// over many endpoints) expires simultaneously and the resulting burst of
+// concurrent cache misses stampedes the backend (thundering herd).
+//
+// The offset is ±10% of the TTL, clamped to [5s, 60s]. TTLs <= 0 are returned
+// unchanged (0 means "no expiry" in Redis and must stay exact).
+func jitterExpiration(ttl time.Duration) time.Duration {
+	if ttl <= 0 {
+		return ttl
+	}
+
+	max := ttl / 10
+	if max < 5*time.Second {
+		max = 5 * time.Second
+	}
+	if max > time.Minute {
+		max = time.Minute
+	}
+
+	// rand/v2 top-level functions are safe for concurrent use.
+	offset := time.Duration(rand.Int64N(int64(2*max))) - max
+
+	jittered := ttl + offset
+	if jittered < time.Second {
+		// Guard against very short TTLs where the offset could exceed the TTL
+		// and produce a non-positive expiry (Redis would delete the key).
+		jittered = time.Second
+	}
+	return jittered
 }
 
 func DeleteFromCache(ctx context.Context, store *CacheStore, key string) {

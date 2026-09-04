@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/role/database/schema"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/service/role/repository"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 	tests "github.com/MamangRust/microservice-payment-gateway-test"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/service/role/repository"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/suite"
@@ -17,8 +17,8 @@ import (
 
 type RoleRepositoryTestSuite struct {
 	suite.Suite
-	ts     *tests.TestSuite
-	repo   repository.Repositories
+	ts   *tests.TestSuite
+	repo repository.Repositories
 }
 
 func (s *RoleRepositoryTestSuite) SetupSuite() {

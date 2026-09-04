@@ -3,14 +3,14 @@ package service
 import (
 	"context"
 
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/withdraw/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/errorhandler"
-	withdraw_errors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors/withdraw_errors/service"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/observability"
 	mencache "github.com/MamangRust/microservice-payment-gateway-grpc/service/withdraw/redis"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/withdraw/repository"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/errorhandler"
+	sharedErrors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/observability"
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 )
@@ -56,7 +56,7 @@ func (s *withdrawQueryService) FindAll(ctx context.Context, req *requests.FindAl
 		attribute.String("search", search))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	if data, total, found := s.cache.GetCachedWithdrawsCache(ctx, req); found {
@@ -69,7 +69,7 @@ func (s *withdrawQueryService) FindAll(ctx context.Context, req *requests.FindAl
 		status = "error"
 		return errorhandler.HandlerErrorPagination[[]*db.GetWithdrawsRow](
 			s.logger,
-			withdraw_errors.ErrFailedFindAllWithdraws,
+			sharedErrors.ErrFailed("find all withdraws"),
 			method,
 			span,
 
@@ -110,7 +110,7 @@ func (s *withdrawQueryService) FindAllByCardNumber(ctx context.Context, req *req
 		attribute.String("card_number", req.CardNumber))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	if data, total, found := s.cache.GetCachedWithdrawByCardCache(ctx, req); found {
@@ -123,7 +123,7 @@ func (s *withdrawQueryService) FindAllByCardNumber(ctx context.Context, req *req
 		status = "error"
 		return errorhandler.HandlerErrorPagination[[]*db.GetWithdrawsByCardNumberRow](
 			s.logger,
-			withdraw_errors.ErrFailedFindAllWithdrawsByCard,
+			sharedErrors.ErrFailed("find all by card number"),
 			method,
 			span,
 
@@ -164,7 +164,7 @@ func (s *withdrawQueryService) FindByActive(ctx context.Context, req *requests.F
 		attribute.String("search", search))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	if data, total, found := s.cache.GetCachedWithdrawActiveCache(ctx, req); found {
@@ -178,7 +178,7 @@ func (s *withdrawQueryService) FindByActive(ctx context.Context, req *requests.F
 		status = "error"
 		return errorhandler.HandlerErrorPagination[[]*db.GetActiveWithdrawsRow](
 			s.logger,
-			withdraw_errors.ErrFailedFindActiveWithdraws,
+			sharedErrors.ErrFailed("find active withdraws"),
 			method,
 			span,
 
@@ -218,7 +218,7 @@ func (s *withdrawQueryService) FindByTrashed(ctx context.Context, req *requests.
 		attribute.String("search", search))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	if data, total, found := s.cache.GetCachedWithdrawTrashedCache(ctx, req); found {
@@ -232,7 +232,7 @@ func (s *withdrawQueryService) FindByTrashed(ctx context.Context, req *requests.
 		status = "error"
 		return errorhandler.HandlerErrorPagination[[]*db.GetTrashedWithdrawsRow](
 			s.logger,
-			withdraw_errors.ErrFailedFindTrashedWithdraws,
+			sharedErrors.ErrFailed("find trashed withdraws"),
 			method,
 			span,
 
@@ -267,7 +267,7 @@ func (s *withdrawQueryService) FindById(ctx context.Context, withdrawID int) (*d
 		attribute.Int("withdraw_id", withdrawID))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	withdraw, err := s.withdrawQueryRepository.FindById(ctx, withdrawID)
@@ -281,7 +281,7 @@ func (s *withdrawQueryService) FindById(ctx context.Context, withdrawID int) (*d
 		status = "error"
 		return errorhandler.HandleError[*db.GetWithdrawByIDRow](
 			s.logger,
-			withdraw_errors.ErrWithdrawNotFound,
+			sharedErrors.ErrNotFoundResponse("Withdraw"),
 			method,
 			span,
 

@@ -7,14 +7,23 @@ import (
 	"strings"
 	"time"
 
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/hash"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
+	carddb "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/database/schema"
+	merchantdb "github.com/MamangRust/microservice-payment-gateway-grpc/service/merchant/database/schema"
+	roledb "github.com/MamangRust/microservice-payment-gateway-grpc/service/role/database/schema"
+	saldodb "github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/database/schema"
+	topupdb "github.com/MamangRust/microservice-payment-gateway-grpc/service/topup/database/schema"
+	transactiondb "github.com/MamangRust/microservice-payment-gateway-grpc/service/transaction/database/schema"
+	transferdb "github.com/MamangRust/microservice-payment-gateway-grpc/service/transfer/database/schema"
+	userdb "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/database/schema"
+	withdrawdb "github.com/MamangRust/microservice-payment-gateway-grpc/service/withdraw/database/schema"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // Deps is a struct that contains the dependencies for the seeder
 type Deps struct {
-	DB     *db.Queries
+	Pool   *pgxpool.Pool
 	Hash   hash.HashPassword
 	Ctx    context.Context
 	Logger logger.LoggerInterface
@@ -50,15 +59,15 @@ type Seeder struct {
 // - Transaction: the transaction seeder
 func NewSeeder(deps Deps) *Seeder {
 	return &Seeder{
-		User:        NewUserSeeder(deps.DB, deps.Ctx, deps.Hash, deps.Logger),
-		Role:        NewRoleSeeder(deps.DB, deps.Ctx, deps.Logger),
-		Saldo:       NewSaldoSeeder(deps.DB, deps.Ctx, deps.Logger),
-		Topup:       NewTopupSeeder(deps.DB, deps.Ctx, deps.Logger),
-		Withdraw:    NewWithdrawSeeder(deps.DB, deps.Ctx, deps.Logger),
-		Transfer:    NewTransferSeeder(deps.DB, deps.Ctx, deps.Logger),
-		Merchant:    NewMerchantSeeder(deps.DB, deps.Ctx, deps.Logger),
-		Card:        NewCardSeeder(deps.DB, deps.Ctx, deps.Logger),
-		Transaction: NewTransactionSeeder(deps.DB, deps.Ctx, deps.Logger),
+		User:        NewUserSeeder(userdb.New(deps.Pool), deps.Ctx, deps.Hash, deps.Logger),
+		Role:        NewRoleSeeder(roledb.New(deps.Pool), deps.Ctx, deps.Logger),
+		Saldo:       NewSaldoSeeder(saldodb.New(deps.Pool), carddb.New(deps.Pool), deps.Ctx, deps.Logger),
+		Topup:       NewTopupSeeder(topupdb.New(deps.Pool), carddb.New(deps.Pool), deps.Ctx, deps.Logger),
+		Withdraw:    NewWithdrawSeeder(withdrawdb.New(deps.Pool), carddb.New(deps.Pool), deps.Ctx, deps.Logger),
+		Transfer:    NewTransferSeeder(transferdb.New(deps.Pool), carddb.New(deps.Pool), deps.Ctx, deps.Logger),
+		Merchant:    NewMerchantSeeder(merchantdb.New(deps.Pool), deps.Ctx, deps.Logger),
+		Card:        NewCardSeeder(carddb.New(deps.Pool), deps.Ctx, deps.Logger),
+		Transaction: NewTransactionSeeder(transactiondb.New(deps.Pool), carddb.New(deps.Pool), merchantdb.New(deps.Pool), deps.Ctx, deps.Logger),
 	}
 }
 

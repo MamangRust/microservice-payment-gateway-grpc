@@ -3,8 +3,8 @@ package handler
 import (
 	"context"
 
-	"github.com/MamangRust/microservice-payment-gateway-grpc/service/auth/service"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/service/auth/service"
 	"go.uber.org/zap"
 
 	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb"

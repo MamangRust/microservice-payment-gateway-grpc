@@ -2,10 +2,12 @@ package apps
 
 import (
 	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb/user"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/hash"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/server"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/user/handler"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/user/repository"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/user/service"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/server"
 	"google.golang.org/grpc"
 )
 
@@ -15,11 +17,15 @@ func NewServer(cfg *server.Config) (*server.GRPCServer, error) {
 		return nil, err
 	}
 
-	repos := repository.NewRepositories(srv.DB)
+	queries := db.New(srv.Pool)
+
+	repos := repository.NewRepositories(queries)
+	hasher := hash.NewHashingPassword()
 	svc := service.NewService(&service.Deps{
 		Cache:        srv.CacheStore,
 		Logger:       srv.Logger,
 		Repositories: repos,
+		Hash:         hasher,
 	})
 	h := handler.NewHandler(svc)
 

@@ -2,7 +2,7 @@
 
 ## Overview
 
-The **Merchant Service** is a comprehensive monolith designed to manage merchant accounts, documents, transactions, and analytics within a payment processing ecosystem. It provides both query and command operations through a CQRS (Command Query Responsibility Segregation) pattern and integrates seamlessly with the Auth Service for authentication and authorization.
+The **Merchant Service** is a comprehensive microservice designed to manage merchant accounts, documents, transactions, and analytics within a payment processing ecosystem. It provides both query and command operations through a CQRS (Command Query Responsibility Segregation) pattern and integrates seamlessly with the Auth Service for authentication and authorization.
 
 
 ### 🔄 Service Architecture
@@ -11,7 +11,7 @@ The MerchantService is organized into multiple specialized service interfaces to
 
   - **MerchantCommandService**
     Handles merchant lifecycle operations such as creation, update, soft delete, restore, and permanent deletion.
-    Publishes domain events (e.g., email-service-topic-merchant-created, email-service-topic-merchant-update-status) to Kafka for asynchronous downstream processing.
+    Publishes domain events (e.g., email-service-topic-merchant-create, email-service-topic-merchant-update-status) to Kafka for asynchronous downstream processing.
     Also produces messages to Kafka topics consumed by the email-service-group to notify users when a merchant is approved or rejected.
 
   - **MerchantQueryService**
@@ -19,7 +19,7 @@ The MerchantService is organized into multiple specialized service interfaces to
 
   - **MerchantDocumentCommandService**
     Manages merchant document operations such as uploading, updating, soft deleting, restoring, and permanently deleting documents.
-    Publishes domain events (e.g., email-service-topic-merchant-documents-created, email-service-topic-merchant-documents-update-status) to Kafka, including events consumed by the email-service-group to notify users of document approval status.
+    Publishes domain events (e.g., email-service-topic-merchant-document-create, email-service-topic-merchant-document-update-status) to Kafka, including events consumed by the email-service-group to notify users of document approval status.
 
   - **MerchantDocumentQueryService**
     Handles retrieval of merchant documents, supports filtering by status (active/trashed), and provides document metadata such as file type, upload date, and current status.
@@ -34,7 +34,7 @@ The MerchantService is organized into multiple specialized service interfaces to
       - **MerchantStatisByMerchantService**: Analytics scoped per individual merchant entity.
 
 All services are tightly integrated with:
-  - **Kafka** — Used for producing and consuming domain events such as email-service-topic-merchant-created, email-service-topic-merchant-update-status, email-service-topic-merchant-documents-created, email-service-topic-merchant-documents-update-status, and others.
+  - **Kafka** — Used for producing and consuming domain events such as email-service-topic-merchant-create, email-service-topic-merchant-update-status, email-service-topic-merchant-document-create, email-service-topic-merchant-document-update-status, and others.
     Key Kafka topics are consumed by systems like email-service-group to drive asynchronous workflows, including email notifications for merchant and document approvals.
 
   - **Prometheus metrics** — Integrated across all gRPC endpoints to track request counts, durations, and error rates, enabling system observability.
@@ -166,7 +166,7 @@ The MerchantService uses Kafka to publish domain events related to merchant and 
 
 | Kafka Topic                                            | Purpose                                                               | Consumer Group        |
 | ------------------------------------------------------ | --------------------------------------------------------------------- | --------------------- |
-| `email-service-topic-merchant-created`                 | Notify user when a new merchant is successfully created               | `email-service-group` |
+| `email-service-topic-merchant-create`                  | Notify user when a new merchant is successfully created               | `email-service-group` |
 | `email-service-topic-merchant-update-status`           | Notify user when merchant status is updated (e.g., approved)          | `email-service-group` |
-| `email-service-topic-merchant-documents-created`       | Notify user when a merchant document is uploaded                      | `email-service-group` |
-| `email-service-topic-merchant-documents-update-status` | Notify user when document status is updated (e.g., approved/rejected) | `email-service-group` |
+| `email-service-topic-merchant-document-create`         | Notify user when a merchant document is uploaded                      | `email-service-group` |
+| `email-service-topic-merchant-document-update-status`  | Notify user when document status is updated (e.g., approved/rejected) | `email-service-group` |

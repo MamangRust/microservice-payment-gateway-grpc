@@ -6,15 +6,15 @@ import (
 	"strconv"
 
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/adapter"
-	mencache "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/redis"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/service/card/repository"
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/kafka"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
+	mencache "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/redis"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/service/card/repository"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/events"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 	sharederrorhandler "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errorhandler"
-	card_errors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors/card_errors/service"
+	sharedErrors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/observability"
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
@@ -27,6 +27,8 @@ type cardCommandServiceDeps struct {
 	Kafka                 *kafka.Kafka
 	UserAdapter           adapter.UserAdapter
 	CardCommandRepository repository.CardCommandRepository
+	BillingEngine         BillingEngineService
+	BillingCycleDay       int
 	Logger                logger.LoggerInterface
 	Observability         observability.TraceLoggerObservability
 }
@@ -37,6 +39,8 @@ type cardCommandService struct {
 	kafka                 *kafka.Kafka
 	userAdapter           adapter.UserAdapter
 	cardCommandRepository repository.CardCommandRepository
+	billingEngine         BillingEngineService
+	billingCycleDay       int
 	logger                logger.LoggerInterface
 	observability         observability.TraceLoggerObservability
 }
@@ -48,6 +52,8 @@ func NewCardCommandService(params *cardCommandServiceDeps) CardCommandService {
 		kafka:                 params.Kafka,
 		userAdapter:           params.UserAdapter,
 		cardCommandRepository: params.CardCommandRepository,
+		billingEngine:         params.BillingEngine,
+		billingCycleDay:       params.BillingCycleDay,
 		logger:                params.Logger,
 		observability:         params.Observability,
 	}
@@ -59,7 +65,7 @@ func (s *cardCommandService) CreateCard(ctx context.Context, request *requests.C
 	ctx, span, end, status, logSuccess := s.observability.StartTracingAndLogging(ctx, method)
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	_, err := s.userAdapter.FindById(ctx, request.UserID)
@@ -102,8 +108,12 @@ func (s *cardCommandService) CreateCard(ctx context.Context, request *requests.C
 				Status:       "active", // Default status for new card
 				CreatedAt:    time.Now(),
 			}
-			statsPayloadByte, _ := json.Marshal(statsEvent)
-			_ = s.kafka.SendMessage("stats-topic-card-events", strconv.Itoa(int(res.CardID)), statsPayloadByte)
+			statsPayloadByte, err := json.Marshal(statsEvent)
+			if err != nil {
+				s.logger.Error("failed to marshal card stats event", zap.Error(err), zap.Int("card_id", int(res.CardID)))
+			} else {
+				_ = s.kafka.SendMessage("stats-topic-card-events", strconv.Itoa(int(res.CardID)), statsPayloadByte)
+			}
 		}()
 	}
 
@@ -118,7 +128,7 @@ func (s *cardCommandService) UpdateCard(ctx context.Context, request *requests.U
 	ctx, span, end, status, logSuccess := s.observability.StartTracingAndLogging(ctx, method)
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	_, err := s.userAdapter.FindById(ctx, request.UserID)
@@ -147,15 +157,17 @@ func (s *cardCommandService) TrashedCard(ctx context.Context, card_id int) (*db.
 		attribute.Int("card_id", card_id))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	res, err := s.cardCommandRepository.TrashedCard(ctx, card_id)
 	if err != nil {
 		status = "error"
+		// Pass the repository error through so its AppError (e.g. 404 card not
+		// found for pgx.ErrNoRows) reaches the client instead of a generic 500.
 		return sharederrorhandler.HandleError[*db.Card](
 			s.logger,
-			card_errors.ErrFailedTrashCard,
+			err,
 			method,
 			span,
 
@@ -177,7 +189,7 @@ func (s *cardCommandService) RestoreCard(ctx context.Context, card_id int) (*db.
 		attribute.Int("card_id", card_id))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	s.logger.Debug("Restoring card", zap.Int("card_id", card_id))
@@ -185,9 +197,11 @@ func (s *cardCommandService) RestoreCard(ctx context.Context, card_id int) (*db.
 	res, err := s.cardCommandRepository.RestoreCard(ctx, card_id)
 	if err != nil {
 		status = "error"
+		// Pass the repository error through so its AppError (e.g. 404 card not
+		// found for pgx.ErrNoRows) reaches the client instead of a generic 500.
 		return sharederrorhandler.HandleError[*db.Card](
 			s.logger,
-			card_errors.ErrFailedRestoreCard,
+			err,
 			method,
 			span,
 
@@ -209,15 +223,17 @@ func (s *cardCommandService) DeleteCardPermanent(ctx context.Context, card_id in
 		attribute.Int("card_id", card_id))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	_, err := s.cardCommandRepository.DeleteCardPermanent(ctx, card_id)
 	if err != nil {
 		status = "error"
+		// Pass the repository error through so its AppError (e.g. 404 card not
+		// found for pgx.ErrNoRows) reaches the client instead of a generic 500.
 		return sharederrorhandler.HandleError[bool](
 			s.logger,
-			card_errors.ErrFailedDeleteCard,
+			err,
 			method,
 			span,
 
@@ -238,7 +254,7 @@ func (s *cardCommandService) RestoreAllCard(ctx context.Context) (bool, error) {
 	ctx, span, end, status, logSuccess := s.observability.StartTracingAndLogging(ctx, method)
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	_, err := s.cardCommandRepository.RestoreAllCard(ctx)
@@ -246,7 +262,7 @@ func (s *cardCommandService) RestoreAllCard(ctx context.Context) (bool, error) {
 		status = "error"
 		return sharederrorhandler.HandleError[bool](
 			s.logger,
-			card_errors.ErrFailedRestoreAllCards,
+			sharedErrors.ErrFailed("restore all cards"),
 			method,
 			span,
 		)
@@ -263,7 +279,7 @@ func (s *cardCommandService) DeleteAllCardPermanent(ctx context.Context) (bool, 
 	ctx, span, end, status, logSuccess := s.observability.StartTracingAndLogging(ctx, method)
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	_, err := s.cardCommandRepository.DeleteAllCardPermanent(ctx)
@@ -271,7 +287,7 @@ func (s *cardCommandService) DeleteAllCardPermanent(ctx context.Context) (bool, 
 		status = "error"
 		return sharederrorhandler.HandleError[bool](
 			s.logger,
-			card_errors.ErrFailedDeleteAllCards,
+			sharedErrors.ErrFailed("delete all cards permanently"),
 			method,
 			span,
 		)
@@ -280,4 +296,61 @@ func (s *cardCommandService) DeleteAllCardPermanent(ctx context.Context) (bool, 
 	logSuccess("Successfully deleted all cards permanently")
 
 	return true, nil
+}
+
+func (s *cardCommandService) ToggleCardStatus(ctx context.Context, request *requests.ToggleCardStatusRequest) (*db.UpdateCardStatusRow, error) {
+	const method = "ToggleCardStatus"
+	ctx, span, end, status, logSuccess := s.observability.StartTracingAndLogging(ctx, method, attribute.Int("card_id", request.CardID))
+	defer func() { end(status, "grpc") }()
+
+	res, err := s.cardCommandRepository.ToggleCardStatus(ctx, request)
+	if err != nil {
+		status = "error"
+		return sharederrorhandler.HandleError[*db.UpdateCardStatusRow](s.logger, err, method, span, zap.Int("card_id", request.CardID))
+	}
+	s.cache.DeleteCardCommandCache(ctx, request.CardID)
+	logSuccess("Successfully toggled card status", zap.Int("card_id", request.CardID), zap.String("status", res.Status))
+	return res, nil
+}
+
+func (s *cardCommandService) UpdateCreditLimit(ctx context.Context, request *requests.UpdateCreditLimitRequest) (*db.UpdateCreditLimitRow, error) {
+	const method = "UpdateCreditLimit"
+	ctx, span, end, status, logSuccess := s.observability.StartTracingAndLogging(ctx, method, attribute.Int("card_id", request.CardID))
+	defer func() { end(status, "grpc") }()
+
+	res, err := s.cardCommandRepository.UpdateCreditLimit(ctx, request)
+	if err != nil {
+		status = "error"
+		return sharederrorhandler.HandleError[*db.UpdateCreditLimitRow](s.logger, err, method, span, zap.Int("card_id", request.CardID))
+	}
+	s.cache.DeleteCardCommandCache(ctx, request.CardID)
+	logSuccess("Successfully updated credit limit", zap.Int("card_id", request.CardID), zap.Int("credit_limit", request.CreditLimit))
+	return res, nil
+}
+
+func (s *cardCommandService) RedeemPoints(ctx context.Context, request *requests.RedeemPointsRequest) (*db.RedeemRewardPointsRow, error) {
+	const method = "RedeemPoints"
+	ctx, span, end, status, logSuccess := s.observability.StartTracingAndLogging(ctx, method, attribute.Int("card_id", request.CardID))
+	defer func() { end(status, "grpc") }()
+
+	res, err := s.cardCommandRepository.RedeemPoints(ctx, request)
+	if err != nil {
+		status = "error"
+		return sharederrorhandler.HandleError[*db.RedeemRewardPointsRow](s.logger, err, method, span, zap.Int("card_id", request.CardID))
+	}
+	s.cache.DeleteCardCommandCache(ctx, request.CardID)
+	logSuccess("Successfully redeemed reward points", zap.Int("card_id", request.CardID), zap.Int("points", request.Points))
+	return res, nil
+}
+
+func (s *cardCommandService) ProcessBillingCycles(ctx context.Context) error {
+	if s.billingEngine == nil {
+		return sharedErrors.ErrFailed("process billing cycles")
+	}
+	billingCycleDay := s.billingCycleDay
+	if billingCycleDay == 0 {
+		billingCycleDay = 1
+	}
+	_, err := s.billingEngine.TriggerBillingCycle(ctx, billingCycleDay)
+	return err
 }

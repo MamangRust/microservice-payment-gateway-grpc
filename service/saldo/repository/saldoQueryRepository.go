@@ -5,10 +5,9 @@ import (
 	"database/sql"
 	"errors"
 
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 	sharedErrors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
-	saldo_errors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors/saldo_errors/repository"
 )
 
 type saldoQueryRepository struct {
@@ -19,6 +18,28 @@ func NewSaldoQueryRepository(db *db.Queries) SaldoQueryRepository {
 	return &saldoQueryRepository{
 		db: db,
 	}
+}
+
+func (r *saldoQueryRepository) ListReconciliationQueue(ctx context.Context, status string, limit int32) ([]*db.ReconciliationQueueRow, error) {
+	if limit <= 0 || limit > 1000 {
+		limit = 100
+	}
+	res, err := r.db.ListReconciliationQueue(ctx, status, limit)
+	if err != nil {
+		return nil, sharedErrors.ErrFailed("list reconciliation queue").WithInternal(err)
+	}
+	return res, nil
+}
+
+func (r *saldoQueryRepository) ListLedgerEntries(ctx context.Context, cardNumber string, limit int32) ([]*db.LedgerEntry, error) {
+	if limit <= 0 || limit > 1000 {
+		limit = 100
+	}
+	res, err := r.db.ListLedgerEntries(ctx, cardNumber, limit)
+	if err != nil {
+		return nil, sharedErrors.ErrFailed("list ledger entries").WithInternal(err)
+	}
+	return res, nil
 }
 
 func (r *saldoQueryRepository) FindAllSaldos(ctx context.Context, req *requests.FindAllSaldos) ([]*db.GetSaldosRow, error) {
@@ -33,7 +54,7 @@ func (r *saldoQueryRepository) FindAllSaldos(ctx context.Context, req *requests.
 	saldos, err := r.db.GetSaldos(ctx, reqDb)
 
 	if err != nil {
-		return nil, saldo_errors.ErrFindAllSaldosFailed.WithInternal(err)
+		return nil, sharedErrors.ErrFailed("find all saldo records").WithInternal(err)
 	}
 
 	return saldos, nil
@@ -51,7 +72,7 @@ func (r *saldoQueryRepository) FindByActive(ctx context.Context, req *requests.F
 	res, err := r.db.GetActiveSaldos(ctx, reqDb)
 
 	if err != nil {
-		return nil, saldo_errors.ErrFindActiveSaldosFailed.WithInternal(err)
+		return nil, sharedErrors.ErrFailed("find active saldo records").WithInternal(err)
 	}
 
 	return res, nil
@@ -69,7 +90,7 @@ func (r *saldoQueryRepository) FindByTrashed(ctx context.Context, req *requests.
 	saldos, err := r.db.GetTrashedSaldos(ctx, reqDb)
 
 	if err != nil {
-		return nil, saldo_errors.ErrFindTrashedSaldosFailed.WithInternal(err)
+		return nil, sharedErrors.ErrFailed("find trashed saldo records").WithInternal(err)
 	}
 
 	return saldos, nil
@@ -80,7 +101,7 @@ func (r *saldoQueryRepository) FindByCardNumber(ctx context.Context, card_number
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, saldo_errors.ErrFindSaldoByCardNumberFailed.WithInternal(err)
+			return nil, sharedErrors.ErrNotFoundResponse("saldo record").WithInternal(err)
 		}
 		return nil, sharedErrors.ErrInternal.WithInternal(err)
 	}
@@ -93,7 +114,7 @@ func (r *saldoQueryRepository) FindById(ctx context.Context, saldo_id int) (*db.
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, saldo_errors.ErrFindSaldoByIdFailed.WithInternal(err)
+			return nil, sharedErrors.ErrNotFoundResponse("saldo record").WithInternal(err)
 		}
 		return nil, sharedErrors.ErrInternal.WithInternal(err)
 	}

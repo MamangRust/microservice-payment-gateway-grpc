@@ -1,7 +1,7 @@
 package auth_cache
 
 const (
-	keylogin                = "auth:login:%s"
-	keyIdentityRefreshToken = "auth:refresh_token:%s"
-	keyIdentityUserInfo     = "auth:user_info:%s"
+	keylogin                = "apigw:auth:login:%s"
+	keyIdentityRefreshToken = "apigw:auth:refresh_token:%s"
+	keyIdentityUserInfo     = "apigw:auth:user_info:%s"
 )

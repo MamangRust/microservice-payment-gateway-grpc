@@ -5,6 +5,6 @@ import "time"
 const (
 	ttlDefault = 5 * time.Minute
 
-	cacheMerchantKey = "merchant_api_key:%s"
-	cacheRoleKey     = "user_roles:%s"
+	cacheMerchantKey = "apigw:merchant_api_key:%s"
+	cacheRoleKey     = "apigw:user_roles:%s"
 )

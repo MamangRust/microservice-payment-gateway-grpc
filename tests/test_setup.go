@@ -7,34 +7,38 @@ import (
 	"time"
 
 	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/modules/clickhouse"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/modules/redis"
-	"github.com/testcontainers/testcontainers-go/modules/clickhouse"
 	"github.com/testcontainers/testcontainers-go/wait"
 
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pb/role"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pb/user"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/adapter"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/auth"
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/hash"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/observability"
+	carddb "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/database/schema"
 	card_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/repository"
+	merchantdb "github.com/MamangRust/microservice-payment-gateway-grpc/service/merchant/database/schema"
 	merchant_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/merchant/repository"
+	roledb "github.com/MamangRust/microservice-payment-gateway-grpc/service/role/database/schema"
 	role_handler "github.com/MamangRust/microservice-payment-gateway-grpc/service/role/handler"
 	role_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/role/repository"
 	role_service "github.com/MamangRust/microservice-payment-gateway-grpc/service/role/service"
+	saldodb "github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/database/schema"
 	saldo_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/repository"
+	userdb "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/database/schema"
 	user_handler "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/handler"
 	user_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/repository"
 	user_service "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/service"
-	_ "github.com/jackc/pgx/v5/stdlib"
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/pressly/goose/v3"
-	sdklog "go.opentelemetry.io/otel/sdk/log"
-	goredis "github.com/redis/go-redis/v9"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/cache"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/observability"
+	"github.com/jackc/pgx/v5/pgxpool"
+	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/pressly/goose/v3"
+	goredis "github.com/redis/go-redis/v9"
+	sdklog "go.opentelemetry.io/otel/sdk/log"
 	"os"
 	"path/filepath"
 )
@@ -158,19 +162,23 @@ func SetupTestSuite() (*TestSuite, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to open pgxpool: %w", err)
 	}
-	queries := db.New(pool)
+	userQueries := userdb.New(pool)
+	cardQueries := carddb.New(pool)
+	merchantQueries := merchantdb.New(pool)
+	saldoQueries := saldodb.New(pool)
+	roleQueries := roledb.New(pool)
 
-	userRepo := user_repo.NewUserQueryRepository(queries)
+	userRepo := user_repo.NewUserQueryRepository(userQueries)
 	ts.UserAdapter = adapter.NewLocalUserAdapter(userRepo)
 
-	cardQueryRepo := card_repo.NewCardQueryRepository(queries)
-	cardCommandRepo := card_repo.NewCardCommandRepository(queries)
+	cardQueryRepo := card_repo.NewCardQueryRepository(cardQueries)
+	cardCommandRepo := card_repo.NewCardCommandRepository(cardQueries)
 	ts.CardAdapter = adapter.NewLocalCardAdapter(cardQueryRepo, cardCommandRepo)
 
-	merchantRepo := merchant_repo.NewMerchantQueryRepository(queries)
+	merchantRepo := merchant_repo.NewMerchantQueryRepository(merchantQueries)
 	ts.MerchantAdapter = adapter.NewLocalMerchantAdapter(merchantRepo)
 
-	saldoRepos := saldo_repo.NewRepositories(queries, cardQueryRepo)
+	saldoRepos := saldo_repo.NewRepositories(saldoQueries, cardQueryRepo)
 	ts.SaldoAdapter = adapter.NewLocalSaldoAdapter(saldoRepos)
 
 	// Initialize Logging, Cache and Observability for local services
@@ -191,7 +199,7 @@ func SetupTestSuite() (*TestSuite, error) {
 	ts.Hashing = hash.NewHashingPassword()
 	ts.TokenManager, _ = auth.NewManager("test-secret-key")
 
-	userRepos := user_repo.NewRepositories(queries)
+	userRepos := user_repo.NewRepositories(userQueries)
 	userService := user_service.NewService(&user_service.Deps{
 		Repositories: userRepos,
 		Hash:         ts.Hashing,
@@ -203,7 +211,7 @@ func SetupTestSuite() (*TestSuite, error) {
 	ts.UserQueryClient = uClient
 	ts.UserCommandClient = uClient
 
-	roleRepos := role_repo.NewRepositories(queries)
+	roleRepos := role_repo.NewRepositories(roleQueries)
 	roleService := role_service.NewService(&role_service.Deps{
 		Repositories: roleRepos,
 		Logger:       ts.Logger,
@@ -223,7 +231,7 @@ func SetupTestSuite() (*TestSuite, error) {
 func (ts *TestSuite) RunMigrations(serviceNames ...string) error {
 	var relPaths []string
 	for _, name := range serviceNames {
-		relPaths = append(relPaths, filepath.Join("service", name, "migrations"))
+		relPaths = append(relPaths, filepath.Join("service", name, "database", "migration"))
 	}
 	return ts.RunAllMigrations(ts.RootDir, relPaths)
 }
@@ -250,7 +258,7 @@ func (ts *TestSuite) RunAllMigrations(root string, relPaths []string) error {
 			if !entry.IsDir() && filepath.Ext(entry.Name()) == ".sql" {
 				srcFile := filepath.Join(srcDir, entry.Name())
 				destFile := filepath.Join(tempDir, entry.Name())
-				
+
 				content, err := os.ReadFile(srcFile)
 				if err != nil {
 					return fmt.Errorf("failed to read migration file %s: %w", srcFile, err)

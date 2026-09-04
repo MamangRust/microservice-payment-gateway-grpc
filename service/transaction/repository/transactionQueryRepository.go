@@ -5,10 +5,9 @@ import (
 	"database/sql"
 	"errors"
 
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/transaction/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 	sharedErrors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
-	transaction_errors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors/transaction_errors/repository"
 )
 
 type transactionQueryRepository struct {
@@ -33,7 +32,7 @@ func (r *transactionQueryRepository) FindAllTransactions(ctx context.Context, re
 	transactions, err := r.db.GetTransactions(ctx, reqDb)
 
 	if err != nil {
-		return nil, transaction_errors.ErrFindAllTransactionsFailed.WithInternal(err)
+		return nil, sharedErrors.ErrFailed("find all transactions").WithInternal(err)
 	}
 
 	return transactions, nil
@@ -52,7 +51,7 @@ func (r *transactionQueryRepository) FindAllTransactionByCardNumber(ctx context.
 	transactions, err := r.db.GetTransactionsByCardNumber(ctx, reqDb)
 
 	if err != nil {
-		return nil, transaction_errors.ErrFindTransactionsByCardNumberFailed.WithInternal(err)
+		return nil, sharedErrors.ErrFailed("find transactions by card number").WithInternal(err)
 	}
 
 	return transactions, nil
@@ -70,7 +69,7 @@ func (r *transactionQueryRepository) FindByActive(ctx context.Context, req *requ
 	res, err := r.db.GetActiveTransactions(ctx, reqDb)
 
 	if err != nil {
-		return nil, transaction_errors.ErrFindActiveTransactionsFailed.WithInternal(err)
+		return nil, sharedErrors.ErrFailed("find active transactions").WithInternal(err)
 	}
 
 	return res, nil
@@ -88,7 +87,7 @@ func (r *transactionQueryRepository) FindByTrashed(ctx context.Context, req *req
 	res, err := r.db.GetTrashedTransactions(ctx, reqDb)
 
 	if err != nil {
-		return nil, transaction_errors.ErrFindTrashedTransactionsFailed.WithInternal(err)
+		return nil, sharedErrors.ErrFailed("find trashed transactions").WithInternal(err)
 	}
 
 	return res, nil
@@ -99,7 +98,7 @@ func (r *transactionQueryRepository) FindById(ctx context.Context, transaction_i
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, transaction_errors.ErrFindTransactionByIdFailed.WithInternal(err)
+			return nil, sharedErrors.ErrNotFoundResponse("transaction").WithInternal(err)
 		}
 		return nil, sharedErrors.ErrInternal.WithInternal(err)
 	}
@@ -112,7 +111,7 @@ func (r *transactionQueryRepository) FindTransactionByMerchantId(ctx context.Con
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, transaction_errors.ErrFindTransactionByMerchantIdFailed.WithInternal(err)
+			return nil, sharedErrors.ErrNotFoundResponse("transaction").WithInternal(err)
 		}
 		return nil, sharedErrors.ErrInternal.WithInternal(err)
 	}

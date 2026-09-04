@@ -96,8 +96,8 @@ func (h *CardStatsHandler) DashboardCardNumber(ctx context.Context, req *card.Fi
 	topupData, _ := h.repo.GetYearlyAmounts(ctx, "topup_events", "card_number", req.CardNumber, year, year)
 	withdrawData, _ := h.repo.GetYearlyAmounts(ctx, "withdraw_events", "card_number", req.CardNumber, year, year)
 	transactionData, _ := h.repo.GetYearlyAmounts(ctx, "transaction_events", "card_number", req.CardNumber, year, year)
-	transferSendData, _ := h.repo.GetYearlyAmounts(ctx, "transfer_events", "sender_card_number", req.CardNumber, year, year)
-	transferRecvData, _ := h.repo.GetYearlyAmounts(ctx, "transfer_events", "receiver_card_number", req.CardNumber, year, year)
+	transferSendData, _ := h.repo.GetYearlyAmounts(ctx, "transfer_events", "source_card", req.CardNumber, year, year)
+	transferRecvData, _ := h.repo.GetYearlyAmounts(ctx, "transfer_events", "destination_card", req.CardNumber, year, year)
 
 	totalBalance := int64(0)
 	if len(balanceData) > 0 {
@@ -369,7 +369,7 @@ func (h *CardStatsHandler) FindYearlyTransferReceiverAmount(ctx context.Context,
 }
 
 func (h *CardStatsHandler) FindMonthlyTransferSenderAmountByCardNumber(ctx context.Context, req *card.FindYearAmountCardNumber) (*card.ApiResponseMonthlyAmount, error) {
-	data, err := h.repo.GetMonthlyAmounts(ctx, "transfer_events", "sender_card_number", req.CardNumber, int(req.Year))
+	data, err := h.repo.GetMonthlyAmounts(ctx, "transfer_events", "source_card", req.CardNumber, int(req.Year))
 	if err != nil {
 		return nil, err
 	}
@@ -381,7 +381,7 @@ func (h *CardStatsHandler) FindMonthlyTransferSenderAmountByCardNumber(ctx conte
 }
 
 func (h *CardStatsHandler) FindYearlyTransferSenderAmountByCardNumber(ctx context.Context, req *card.FindYearAmountCardNumber) (*card.ApiResponseYearlyAmount, error) {
-	data, err := h.repo.GetYearlyAmounts(ctx, "transfer_events", "sender_card_number", req.CardNumber, int(req.Year), int(req.Year))
+	data, err := h.repo.GetYearlyAmounts(ctx, "transfer_events", "source_card", req.CardNumber, int(req.Year), int(req.Year))
 	if err != nil {
 		return nil, err
 	}
@@ -393,7 +393,7 @@ func (h *CardStatsHandler) FindYearlyTransferSenderAmountByCardNumber(ctx contex
 }
 
 func (h *CardStatsHandler) FindMonthlyTransferReceiverAmountByCardNumber(ctx context.Context, req *card.FindYearAmountCardNumber) (*card.ApiResponseMonthlyAmount, error) {
-	data, err := h.repo.GetMonthlyAmounts(ctx, "transfer_events", "receiver_card_number", req.CardNumber, int(req.Year))
+	data, err := h.repo.GetMonthlyAmounts(ctx, "transfer_events", "destination_card", req.CardNumber, int(req.Year))
 	if err != nil {
 		return nil, err
 	}
@@ -405,7 +405,7 @@ func (h *CardStatsHandler) FindMonthlyTransferReceiverAmountByCardNumber(ctx con
 }
 
 func (h *CardStatsHandler) FindYearlyTransferReceiverAmountByCardNumber(ctx context.Context, req *card.FindYearAmountCardNumber) (*card.ApiResponseYearlyAmount, error) {
-	data, err := h.repo.GetYearlyAmounts(ctx, "transfer_events", "receiver_card_number", req.CardNumber, int(req.Year), int(req.Year))
+	data, err := h.repo.GetYearlyAmounts(ctx, "transfer_events", "destination_card", req.CardNumber, int(req.Year), int(req.Year))
 	if err != nil {
 		return nil, err
 	}

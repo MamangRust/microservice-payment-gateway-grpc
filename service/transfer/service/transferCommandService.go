@@ -8,23 +8,28 @@ import (
 	"strconv"
 	"time"
 
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/pb/ai_security"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/adapter"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/email"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/kafka"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/errorhandler"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/adapter"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/events"
+	carddb "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/database/schema"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/transfer/database/schema"
 	mencache "github.com/MamangRust/microservice-payment-gateway-grpc/service/transfer/redis"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/transfer/repository"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/pb/ai_security"
-	"go.uber.org/zap"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/async"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/events"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/validation"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/errorhandler"
+	sharedErrors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/idempotency"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/observability"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/security"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/state"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
-
-	transfer_errors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors/transfer_errors/service"
+	"go.uber.org/zap"
 )
 
 // transferCommandDeps defines dependencies for transferCommandService.
@@ -37,9 +42,11 @@ type transferCommandDeps struct {
 
 	TransferQueryRepository   repository.TransferQueryRepository
 	TransferCommandRepository repository.TransferCommandRepository
+	IdempotencyStore          idempotency.Store
+	OutboxStore               repository.OutboxRepository
 
-	Logger        logger.LoggerInterface
-	Observability observability.TraceLoggerObservability
+	Logger           logger.LoggerInterface
+	Observability    observability.TraceLoggerObservability
 	AISecurityClient ai_security.AISecurityServiceClient
 }
 
@@ -53,9 +60,11 @@ type transferCommandService struct {
 
 	transferQueryRepository   repository.TransferQueryRepository
 	transferCommandRepository repository.TransferCommandRepository
+	idempotencyStore          idempotency.Store
+	outboxStore               repository.OutboxRepository
 
-	logger        logger.LoggerInterface
-	observability observability.TraceLoggerObservability
+	logger           logger.LoggerInterface
+	observability    observability.TraceLoggerObservability
 	aiSecurityClient ai_security.AISecurityServiceClient
 }
 
@@ -69,6 +78,8 @@ func NewTransferCommandService(
 		saldoAdapter:              params.SaldoAdapter,
 		transferQueryRepository:   params.TransferQueryRepository,
 		transferCommandRepository: params.TransferCommandRepository,
+		idempotencyStore:          params.IdempotencyStore,
+		outboxStore:               params.OutboxStore,
 		logger:                    params.Logger,
 		observability:             params.Observability,
 		aiSecurityClient:          params.AISecurityClient,
@@ -79,36 +90,86 @@ func (s *transferCommandService) CreateTransaction(ctx context.Context, request 
 	const method = "CreateTransaction"
 
 	ctx, span, end, status, logSuccess := s.observability.StartTracingAndLogging(ctx, method)
-	defer func() { end(status) }()
+	defer func() { end(status, "grpc") }()
+
+	// Idempotency guard: claim the client retry key before any balance mutation.
+	// Retries with the same key and payload replay the stored response; the same
+	// key with a different payload is rejected so money is never moved twice.
+	var idemHash string
+	if request.IdempotencyKey != "" && s.idempotencyStore != nil {
+		idemHash = idempotency.HashRequest(request)
+		if _, err := s.idempotencyStore.Claim(ctx, "transfer", request.IdempotencyKey, idemHash); err == nil {
+			defer func() {
+				if status == "error" {
+					if relErr := s.idempotencyStore.Release(ctx, "transfer", request.IdempotencyKey, idemHash); relErr != nil {
+						s.logger.Error("idempotency: failed to release key", zap.Error(relErr), zap.String("idempotency_key", request.IdempotencyKey))
+					}
+				}
+			}()
+		} else {
+			existing, gErr := s.idempotencyStore.Get(ctx, "transfer", request.IdempotencyKey)
+			if gErr != nil {
+				status = "error"
+				return errorhandler.HandleError[*db.UpdateTransferStatusRow](s.logger, gErr, method, span, zap.String("idempotency_key", request.IdempotencyKey))
+			}
+			if existing.RequestHash != idemHash {
+				status = "error"
+				return errorhandler.HandleError[*db.UpdateTransferStatusRow](s.logger, idempotency.ConflictError(), method, span, zap.String("idempotency_key", request.IdempotencyKey))
+			}
+			if existing.Status == idempotency.StatusSuccess {
+				var row db.UpdateTransferStatusRow
+				if uErr := json.Unmarshal(existing.ResponseJSON, &row); uErr != nil {
+					status = "error"
+					return errorhandler.HandleError[*db.UpdateTransferStatusRow](s.logger, uErr, method, span, zap.String("idempotency_key", request.IdempotencyKey))
+				}
+				logSuccess("Replayed idempotent transfer response", zap.String("idempotency_key", request.IdempotencyKey))
+				return &row, nil
+			}
+			status = "error"
+			return errorhandler.HandleError[*db.UpdateTransferStatusRow](s.logger, idempotency.ProcessingError(), method, span, zap.String("idempotency_key", request.IdempotencyKey))
+		}
+	}
+
+	// P1.7: reject invalid amounts and self-transfers before any remote call.
+	if err := validation.ValidateAmount(request.TransferAmount); err != nil {
+		status = "error"
+		return errorhandler.HandleError[*db.UpdateTransferStatusRow](s.logger, err, method, span, zap.String("from_card", security.MaskCardNumber(request.TransferFrom)))
+	}
+	if err := validation.ValidateTransferParties(request.TransferFrom, request.TransferTo); err != nil {
+		status = "error"
+		return errorhandler.HandleError[*db.UpdateTransferStatusRow](s.logger, err, method, span, zap.String("from_card", security.MaskCardNumber(request.TransferFrom)), zap.String("to_card", security.MaskCardNumber(request.TransferTo)))
+	}
 
 	senderCard, err := s.cardAdapter.FindUserCardByCardNumber(ctx, request.TransferFrom)
 	if err != nil {
 		status = "error"
-		return errorhandler.HandleError[*db.UpdateTransferStatusRow](s.logger, err, method, span, zap.String("from_card", request.TransferFrom))
+		return errorhandler.HandleError[*db.UpdateTransferStatusRow](s.logger, err, method, span, zap.String("from_card", security.MaskCardNumber(request.TransferFrom)))
 	}
 
 	_, err = s.cardAdapter.FindCardByCardNumber(ctx, request.TransferTo)
 	if err != nil {
 		status = "error"
-		return errorhandler.HandleError[*db.UpdateTransferStatusRow](s.logger, err, method, span, zap.String("to_card", request.TransferTo))
+		return errorhandler.HandleError[*db.UpdateTransferStatusRow](s.logger, err, method, span, zap.String("to_card", security.MaskCardNumber(request.TransferTo)))
 	}
 
 	senderSaldo, err := s.saldoAdapter.FindByCardNumber(ctx, request.TransferFrom)
 	if err != nil {
 		status = "error"
-		return errorhandler.HandleError[*db.UpdateTransferStatusRow](s.logger, err, method, span, zap.String("from_card", request.TransferFrom))
+		return errorhandler.HandleError[*db.UpdateTransferStatusRow](s.logger, err, method, span, zap.String("from_card", security.MaskCardNumber(request.TransferFrom)))
 	}
 
 	receiverSaldo, err := s.saldoAdapter.FindByCardNumber(ctx, request.TransferTo)
 	if err != nil {
 		status = "error"
-		return errorhandler.HandleError[*db.UpdateTransferStatusRow](s.logger, err, method, span, zap.String("to_card", request.TransferTo))
+		return errorhandler.HandleError[*db.UpdateTransferStatusRow](s.logger, err, method, span, zap.String("to_card", security.MaskCardNumber(request.TransferTo)))
 	}
 
 	if int(senderSaldo.TotalBalance) < request.TransferAmount {
 		status = "error"
-		err := errors.New("insufficient balance for transfer")
-		return errorhandler.HandleError[*db.UpdateTransferStatusRow](s.logger, err, method, span, zap.String("from_card", request.TransferFrom), zap.Float64("balance", float64(senderSaldo.TotalBalance)), zap.Float64("amount", float64(request.TransferAmount)))
+		// P1.5 error contract: insufficient balance is a domain conflict (409),
+		// not an internal error.
+		err := sharedErrors.ErrConflict.WithMessage("insufficient balance for transfer")
+		return errorhandler.HandleError[*db.UpdateTransferStatusRow](s.logger, err, method, span, zap.String("from_card", security.MaskCardNumber(request.TransferFrom)), zap.Float64("balance", float64(senderSaldo.TotalBalance)), zap.Float64("amount", float64(request.TransferAmount)))
 	}
 
 	// AI Security Check
@@ -128,120 +189,77 @@ func (s *transferCommandService) CreateTransaction(ctx context.Context, request 
 		}
 	}
 
-	senderNewBalance := int(senderSaldo.TotalBalance) - request.TransferAmount
-
-	_, err = s.saldoAdapter.UpdateSaldoBalance(ctx, &requests.UpdateSaldoBalance{
-		CardNumber:   senderSaldo.CardNumber,
-		TotalBalance: senderNewBalance,
-	})
-	if err != nil {
-		status = "error"
-		return errorhandler.HandleError[*db.UpdateTransferStatusRow](s.logger, err, method, span, zap.String("from_card", request.TransferFrom))
-	}
-
-	receiverNewBalance := int(receiverSaldo.TotalBalance) + request.TransferAmount
-	_, err = s.saldoAdapter.UpdateSaldoBalance(ctx, &requests.UpdateSaldoBalance{
-		CardNumber:   receiverSaldo.CardNumber,
-		TotalBalance: receiverNewBalance,
-	})
-	if err != nil {
-		status = "error"
-		if _, rollbackErr := s.saldoAdapter.UpdateSaldoBalance(ctx, &requests.UpdateSaldoBalance{
-			CardNumber:   senderSaldo.CardNumber,
-			TotalBalance: int(senderSaldo.TotalBalance),
-		}); rollbackErr != nil {
-			return errorhandler.HandleError[*db.UpdateTransferStatusRow](s.logger, rollbackErr, method, span, zap.String("rollback_for", "sender"))
-		}
-		return errorhandler.HandleError[*db.UpdateTransferStatusRow](s.logger, err, method, span, zap.String("failed_to_credit", "receiver"))
-	}
-
+	// Persist the operation before moving money. A crash after this point leaves
+	// a durable processing row for the recovery worker.
 	transfer, err := s.transferCommandRepository.CreateTransfer(ctx, request)
 	if err != nil {
 		status = "error"
-		if _, rollbackErr := s.saldoAdapter.UpdateSaldoBalance(ctx, &requests.UpdateSaldoBalance{
-			CardNumber:   senderSaldo.CardNumber,
-			TotalBalance: int(senderSaldo.TotalBalance),
-		}); rollbackErr != nil {
-			return errorhandler.HandleError[*db.UpdateTransferStatusRow](s.logger, rollbackErr, method, span)
-		}
-		if _, rollbackErr := s.saldoAdapter.UpdateSaldoBalance(ctx, &requests.UpdateSaldoBalance{
-			CardNumber:   receiverSaldo.CardNumber,
-			TotalBalance: int(receiverSaldo.TotalBalance),
-		}); rollbackErr != nil {
-			return errorhandler.HandleError[*db.UpdateTransferStatusRow](s.logger, rollbackErr, method, span)
-		}
-		s.markTransferAsFailed(ctx, int(transfer.TransferID), method, span)
 		return errorhandler.HandleError[*db.UpdateTransferStatusRow](s.logger, err, method, span)
 	}
-
-	updatedTransfer, err := s.transferCommandRepository.UpdateTransferStatus(ctx, &requests.UpdateTransferStatus{
-		TransferID: int(transfer.TransferID),
-		Status:     "success",
-	})
-	if err != nil {
+	transferID := int(transfer.TransferID)
+	if ok, gErr := s.transferCommandRepository.GuardStatus(ctx, transferID, state.Pending, state.Processing, ""); gErr != nil || !ok {
 		status = "error"
-		return errorhandler.HandleError[*db.UpdateTransferStatusRow](s.logger, err, method, span, zap.Int("transfer_id", int(transfer.TransferID)))
+		if gErr == nil {
+			gErr = errors.New("transfer already being processed")
+		}
+		return errorhandler.HandleError[*db.UpdateTransferStatusRow](s.logger, gErr, method, span, zap.Int("transfer_id", transferID))
 	}
 
-	go func() {
-		// Email Notification
-		htmlBody := email.GenerateEmailHTML(map[string]string{
-			"Title":   "Transfer Successful",
-			"Message": fmt.Sprintf("Your Transfer of %d has been processed successfully.", request.TransferAmount),
-			"Button":  "View History",
-			"Link":    "https://sanedge.example.com/withdraw/history",
-		})
+	senderDebit, err := s.saldoAdapter.DebitSaldo(ctx, &requests.DebitSaldoRequest{
+		CardNumber:  senderSaldo.CardNumber,
+		Amount:      request.TransferAmount,
+		OperationID: fmt.Sprintf("transfer:%d:sender-debit", transferID),
+		SourceType:  "transfer",
+		SourceID:    strconv.Itoa(transferID),
+	})
+	if err != nil {
+		_, _ = s.transferCommandRepository.GuardStatus(ctx, transferID, state.Processing, state.Failed, "debit failed: "+err.Error())
+		status = "error"
+		return errorhandler.HandleError[*db.UpdateTransferStatusRow](s.logger, err, method, span, zap.String("from_card", security.MaskCardNumber(request.TransferFrom)))
+	}
+	senderNewBalance := int(senderDebit.TotalBalance)
 
-		emailPayload := map[string]any{
-			"email":   senderCard.Email,
-			"subject": "Transfer Successful - SanEdge",
-			"body":    htmlBody,
-		}
+	receiverCredit, err := s.saldoAdapter.CreditSaldo(ctx, &requests.CreditSaldoRequest{
+		CardNumber:  receiverSaldo.CardNumber,
+		Amount:      request.TransferAmount,
+		OperationID: fmt.Sprintf("transfer:%d:receiver-credit", transferID),
+		SourceType:  "transfer",
+		SourceID:    strconv.Itoa(transferID),
+	})
+	if err != nil {
+		// The remote credit outcome is ambiguous: do not guess whether the
+		// receiver moved. Quarantine for reconciliation instead of risking a
+		// second debit or credit.
+		_, _ = s.transferCommandRepository.GuardStatus(ctx, transferID, state.Processing, state.Unknown, "receiver credit outcome ambiguous: "+err.Error())
+		status = "error"
+		return errorhandler.HandleError[*db.UpdateTransferStatusRow](s.logger, err, method, span, zap.String("failed_to_credit", "receiver"))
+	}
+	receiverNewBalance := int(receiverCredit.TotalBalance)
 
-		payloadBytes, _ := json.Marshal(emailPayload)
-		if s.kafka != nil {
-			_ = s.kafka.SendMessage("email-service-topic-transfer-create", strconv.Itoa(int(updatedTransfer.TransferID)), payloadBytes)
-		}
+	updatedTransfer, err := s.transferCommandRepository.TransitionStatus(ctx, transferID, state.Processing, state.Success, "")
+	if err != nil {
+		status = "error"
+		s.compensateTransfer(ctx, transferID, request.TransferAmount, senderSaldo.CardNumber, receiverSaldo.CardNumber, method)
+		return errorhandler.HandleError[*db.UpdateTransferStatusRow](s.logger, err, method, span, zap.Int("transfer_id", transferID))
+	}
 
-		// Stats Event
-		statsEvent := events.TransferEvent{
-			TransferID:      uint64(updatedTransfer.TransferID),
-			TransferNo:      fmt.Sprintf("%x-%x-%x-%x-%x", updatedTransfer.TransferNo.Bytes[0:4], updatedTransfer.TransferNo.Bytes[4:6], updatedTransfer.TransferNo.Bytes[6:8], updatedTransfer.TransferNo.Bytes[8:10], updatedTransfer.TransferNo.Bytes[10:16]),
-			SourceCard:      request.TransferFrom,
-			DestinationCard: request.TransferTo,
-			Amount:          int64(request.TransferAmount),
-			Status:          "success",
-			CreatedAt:       time.Now(),
-		}
-		statsBytes, _ := json.Marshal(statsEvent)
-		if s.kafka != nil {
-			_ = s.kafka.SendMessage("stats-topic-transfer-events", strconv.Itoa(int(updatedTransfer.TransferID)), statsBytes)
-		}
+	// Phase 3: Outbox instead of fire-and-forget goroutine
+	s.enqueueTransferEvents(ctx, transfer, updatedTransfer, senderCard, request, senderNewBalance, receiverNewBalance)
 
-		// Saldo Event (Sender)
-		senderSaldoEvent := events.SaldoEvent{
-			CardNumber:   request.TransferFrom,
-			TotalBalance: int64(senderNewBalance),
-			CreatedAt:    time.Now(),
-		}
-		senderSaldoBytes, _ := json.Marshal(senderSaldoEvent)
-		if s.kafka != nil {
-			_ = s.kafka.SendMessage("stats-topic-saldo-events", request.TransferFrom, senderSaldoBytes)
-		}
+	logSuccess("Transfer created successfully", zap.Int("transfer_id", int(updatedTransfer.TransferID)), zap.String("from", security.MaskCardNumber(request.TransferFrom)), zap.String("to", security.MaskCardNumber(request.TransferTo)))
 
-		// Saldo Event (Receiver)
-		receiverSaldoEvent := events.SaldoEvent{
-			CardNumber:   request.TransferTo,
-			TotalBalance: int64(receiverNewBalance),
-			CreatedAt:    time.Now(),
+	if request.IdempotencyKey != "" && s.idempotencyStore != nil {
+		if respBytes, mErr := json.Marshal(updatedTransfer); mErr == nil {
+			resourceID := updatedTransfer.TransferID
+			if cErr := s.idempotencyStore.Complete(ctx, "transfer", request.IdempotencyKey, idemHash, idempotency.Outcome{
+				Status:       idempotency.StatusSuccess,
+				ResponseJSON: respBytes,
+				ResourceID:   &resourceID,
+			}); cErr != nil {
+				s.logger.Error("idempotency: failed to complete key", zap.Error(cErr), zap.String("idempotency_key", request.IdempotencyKey))
+			}
 		}
-		receiverSaldoBytes, _ := json.Marshal(receiverSaldoEvent)
-		if s.kafka != nil {
-			_ = s.kafka.SendMessage("stats-topic-saldo-events", request.TransferTo, receiverSaldoBytes)
-		}
-	}()
-
-	logSuccess("Transfer created successfully", zap.Int("transfer_id", int(updatedTransfer.TransferID)), zap.String("from", request.TransferFrom), zap.String("to", request.TransferTo))
+	}
 
 	return updatedTransfer, nil
 }
@@ -259,7 +277,7 @@ func (s *transferCommandService) UpdateTransaction(ctx context.Context, request 
 	const method = "UpdateTransaction"
 
 	ctx, span, end, status, logSuccess := s.observability.StartTracingAndLogging(ctx, method)
-	defer func() { end(status) }()
+	defer func() { end(status, "grpc") }()
 
 	// 1. Dapatkan data transfer yang ada
 	transfer, err := s.transferQueryRepository.FindById(ctx, *request.TransferID)
@@ -275,77 +293,69 @@ func (s *transferCommandService) UpdateTransaction(ctx context.Context, request 
 	if err != nil {
 		status = "error"
 		s.markTransferAsFailed(ctx, *request.TransferID, method, span)
-		return errorhandler.HandleError[*db.UpdateTransferRow](s.logger, err, method, span, zap.String("from_card", transfer.TransferFrom))
-	}
-
-	newSenderBalance := int(senderSaldo.TotalBalance) - amountDifference
-	if newSenderBalance < 0 {
-		status = "error"
-		err := errors.New("insufficient balance for transfer update")
-		s.markTransferAsFailed(ctx, *request.TransferID, method, span)
-		return errorhandler.HandleError[*db.UpdateTransferRow](s.logger, err, method, span, zap.Float64("balance", float64(senderSaldo.TotalBalance)), zap.Float64("amount_diff", float64(amountDifference)))
-	}
-
-	_, err = s.saldoAdapter.UpdateSaldoBalance(ctx, &requests.UpdateSaldoBalance{
-		CardNumber:   senderSaldo.CardNumber,
-		TotalBalance: newSenderBalance,
-	})
-	if err != nil {
-		status = "error"
-		s.markTransferAsFailed(ctx, *request.TransferID, method, span)
-		return errorhandler.HandleError[*db.UpdateTransferRow](s.logger, err, method, span, zap.String("from_card", transfer.TransferFrom))
+		return errorhandler.HandleError[*db.UpdateTransferRow](s.logger, err, method, span, zap.String("from_card", security.MaskCardNumber(transfer.TransferFrom)))
 	}
 
 	receiverSaldo, err := s.saldoAdapter.FindByCardNumber(ctx, transfer.TransferTo)
 	if err != nil {
 		status = "error"
-		if _, rollbackErr := s.saldoAdapter.UpdateSaldoBalance(ctx, &requests.UpdateSaldoBalance{
-			CardNumber:   senderSaldo.CardNumber,
-			TotalBalance: int(senderSaldo.TotalBalance),
-		}); rollbackErr != nil {
-			return errorhandler.HandleError[*db.UpdateTransferRow](s.logger, rollbackErr, method, span, zap.String("rollback_for", "sender"))
-		}
 		s.markTransferAsFailed(ctx, *request.TransferID, method, span)
-		return errorhandler.HandleError[*db.UpdateTransferRow](s.logger, err, method, span, zap.String("to_card", transfer.TransferTo))
+		return errorhandler.HandleError[*db.UpdateTransferRow](s.logger, err, method, span, zap.String("to_card", security.MaskCardNumber(transfer.TransferTo)))
 	}
 
-	newReceiverBalance := int(receiverSaldo.TotalBalance) + amountDifference
-	_, err = s.saldoAdapter.UpdateSaldoBalance(ctx, &requests.UpdateSaldoBalance{
-		CardNumber:   receiverSaldo.CardNumber,
-		TotalBalance: newReceiverBalance,
-	})
-	if err != nil {
-		status = "error"
-		if _, rollbackErr := s.saldoAdapter.UpdateSaldoBalance(ctx, &requests.UpdateSaldoBalance{
-			CardNumber:   senderSaldo.CardNumber,
-			TotalBalance: int(senderSaldo.TotalBalance),
-		}); rollbackErr != nil {
-			return errorhandler.HandleError[*db.UpdateTransferRow](s.logger, rollbackErr, method, span)
+	if amountDifference > 0 {
+		if _, err = s.saldoAdapter.DebitSaldo(ctx, &requests.DebitSaldoRequest{
+			CardNumber: senderSaldo.CardNumber, Amount: amountDifference,
+			OperationID: fmt.Sprintf("transfer:update:%d:%d:sender-debit", transfer.TransferID, request.TransferAmount),
+			SourceType:  "transfer_update", SourceID: strconv.Itoa(int(transfer.TransferID)),
+		}); err != nil {
+			status = "error"
+			s.markTransferAsFailed(ctx, *request.TransferID, method, span)
+			return errorhandler.HandleError[*db.UpdateTransferRow](s.logger, err, method, span, zap.String("from_card", security.MaskCardNumber(transfer.TransferFrom)))
 		}
-		if _, rollbackErr := s.saldoAdapter.UpdateSaldoBalance(ctx, &requests.UpdateSaldoBalance{
-			CardNumber:   receiverSaldo.CardNumber,
-			TotalBalance: int(receiverSaldo.TotalBalance),
-		}); rollbackErr != nil {
-			return errorhandler.HandleError[*db.UpdateTransferRow](s.logger, rollbackErr, method, span)
+		if _, err = s.saldoAdapter.CreditSaldo(ctx, &requests.CreditSaldoRequest{
+			CardNumber: receiverSaldo.CardNumber, Amount: amountDifference,
+			OperationID: fmt.Sprintf("transfer:update:%d:%d:receiver-credit", transfer.TransferID, request.TransferAmount),
+			SourceType:  "transfer_update", SourceID: strconv.Itoa(int(transfer.TransferID)),
+		}); err != nil {
+			status = "error"
+			_, _ = s.saldoAdapter.CreditSaldo(ctx, &requests.CreditSaldoRequest{CardNumber: senderSaldo.CardNumber, Amount: amountDifference, OperationID: fmt.Sprintf("transfer:update:%d:%d:rollback-sender-credit", transfer.TransferID, request.TransferAmount), SourceType: "transfer_update_compensation", SourceID: strconv.Itoa(int(transfer.TransferID))})
+			s.markTransferAsFailed(ctx, *request.TransferID, method, span)
+			return errorhandler.HandleError[*db.UpdateTransferRow](s.logger, err, method, span, zap.String("failed_to_credit", "receiver"))
 		}
-		s.markTransferAsFailed(ctx, *request.TransferID, method, span)
-		return errorhandler.HandleError[*db.UpdateTransferRow](s.logger, err, method, span, zap.String("failed_to_credit", "receiver"))
+	} else if amountDifference < 0 {
+		adjustment := -amountDifference
+		if _, err = s.saldoAdapter.CreditSaldo(ctx, &requests.CreditSaldoRequest{
+			CardNumber: senderSaldo.CardNumber, Amount: adjustment,
+			OperationID: fmt.Sprintf("transfer:update:%d:%d:sender-credit", transfer.TransferID, request.TransferAmount),
+			SourceType:  "transfer_update", SourceID: strconv.Itoa(int(transfer.TransferID)),
+		}); err != nil {
+			status = "error"
+			s.markTransferAsFailed(ctx, *request.TransferID, method, span)
+			return errorhandler.HandleError[*db.UpdateTransferRow](s.logger, err, method, span, zap.String("from_card", security.MaskCardNumber(transfer.TransferFrom)))
+		}
+		if _, err = s.saldoAdapter.DebitSaldo(ctx, &requests.DebitSaldoRequest{
+			CardNumber: receiverSaldo.CardNumber, Amount: adjustment,
+			OperationID: fmt.Sprintf("transfer:update:%d:%d:receiver-debit", transfer.TransferID, request.TransferAmount),
+			SourceType:  "transfer_update", SourceID: strconv.Itoa(int(transfer.TransferID)),
+		}); err != nil {
+			status = "error"
+			_, _ = s.saldoAdapter.DebitSaldo(ctx, &requests.DebitSaldoRequest{CardNumber: senderSaldo.CardNumber, Amount: adjustment, OperationID: fmt.Sprintf("transfer:update:%d:%d:rollback-sender-debit", transfer.TransferID, request.TransferAmount), SourceType: "transfer_update_compensation", SourceID: strconv.Itoa(int(transfer.TransferID))})
+			s.markTransferAsFailed(ctx, *request.TransferID, method, span)
+			return errorhandler.HandleError[*db.UpdateTransferRow](s.logger, err, method, span, zap.String("failed_to_debit", "receiver"))
+		}
 	}
 
 	updatedTransfer, err := s.transferCommandRepository.UpdateTransfer(ctx, request)
 	if err != nil {
 		status = "error"
-		if _, rollbackErr := s.saldoAdapter.UpdateSaldoBalance(ctx, &requests.UpdateSaldoBalance{
-			CardNumber:   senderSaldo.CardNumber,
-			TotalBalance: int(senderSaldo.TotalBalance),
-		}); rollbackErr != nil {
-			return errorhandler.HandleError[*db.UpdateTransferRow](s.logger, rollbackErr, method, span)
-		}
-		if _, rollbackErr := s.saldoAdapter.UpdateSaldoBalance(ctx, &requests.UpdateSaldoBalance{
-			CardNumber:   receiverSaldo.CardNumber,
-			TotalBalance: int(receiverSaldo.TotalBalance),
-		}); rollbackErr != nil {
-			return errorhandler.HandleError[*db.UpdateTransferRow](s.logger, rollbackErr, method, span)
+		if amountDifference > 0 {
+			_, _ = s.saldoAdapter.DebitSaldo(ctx, &requests.DebitSaldoRequest{CardNumber: receiverSaldo.CardNumber, Amount: amountDifference, OperationID: fmt.Sprintf("transfer:update:%d:%d:rollback-receiver-debit", transfer.TransferID, request.TransferAmount), SourceType: "transfer_update_compensation", SourceID: strconv.Itoa(int(transfer.TransferID))})
+			_, _ = s.saldoAdapter.CreditSaldo(ctx, &requests.CreditSaldoRequest{CardNumber: senderSaldo.CardNumber, Amount: amountDifference, OperationID: fmt.Sprintf("transfer:update:%d:%d:rollback-sender-credit", transfer.TransferID, request.TransferAmount), SourceType: "transfer_update_compensation", SourceID: strconv.Itoa(int(transfer.TransferID))})
+		} else if amountDifference < 0 {
+			adjustment := -amountDifference
+			_, _ = s.saldoAdapter.CreditSaldo(ctx, &requests.CreditSaldoRequest{CardNumber: receiverSaldo.CardNumber, Amount: adjustment, OperationID: fmt.Sprintf("transfer:update:%d:%d:rollback-receiver-credit", transfer.TransferID, request.TransferAmount), SourceType: "transfer_update_compensation", SourceID: strconv.Itoa(int(transfer.TransferID))})
+			_, _ = s.saldoAdapter.DebitSaldo(ctx, &requests.DebitSaldoRequest{CardNumber: senderSaldo.CardNumber, Amount: adjustment, OperationID: fmt.Sprintf("transfer:update:%d:%d:rollback-sender-debit", transfer.TransferID, request.TransferAmount), SourceType: "transfer_update_compensation", SourceID: strconv.Itoa(int(transfer.TransferID))})
 		}
 		s.markTransferAsFailed(ctx, *request.TransferID, method, span)
 		return errorhandler.HandleError[*db.UpdateTransferRow](s.logger, err, method, span)
@@ -356,6 +366,14 @@ func (s *transferCommandService) UpdateTransaction(ctx context.Context, request 
 		Status:     "success",
 	}); err != nil {
 		status = "error"
+		if amountDifference > 0 {
+			_, _ = s.saldoAdapter.DebitSaldo(ctx, &requests.DebitSaldoRequest{CardNumber: receiverSaldo.CardNumber, Amount: amountDifference, OperationID: fmt.Sprintf("transfer:update:%d:%d:rollback-receiver-debit", transfer.TransferID, request.TransferAmount), SourceType: "transfer_update_compensation", SourceID: strconv.Itoa(int(transfer.TransferID))})
+			_, _ = s.saldoAdapter.CreditSaldo(ctx, &requests.CreditSaldoRequest{CardNumber: senderSaldo.CardNumber, Amount: amountDifference, OperationID: fmt.Sprintf("transfer:update:%d:%d:rollback-sender-credit", transfer.TransferID, request.TransferAmount), SourceType: "transfer_update_compensation", SourceID: strconv.Itoa(int(transfer.TransferID))})
+		} else if amountDifference < 0 {
+			adjustment := -amountDifference
+			_, _ = s.saldoAdapter.CreditSaldo(ctx, &requests.CreditSaldoRequest{CardNumber: receiverSaldo.CardNumber, Amount: adjustment, OperationID: fmt.Sprintf("transfer:update:%d:%d:rollback-receiver-credit", transfer.TransferID, request.TransferAmount), SourceType: "transfer_update_compensation", SourceID: strconv.Itoa(int(transfer.TransferID))})
+			_, _ = s.saldoAdapter.DebitSaldo(ctx, &requests.DebitSaldoRequest{CardNumber: senderSaldo.CardNumber, Amount: adjustment, OperationID: fmt.Sprintf("transfer:update:%d:%d:rollback-sender-debit", transfer.TransferID, request.TransferAmount), SourceType: "transfer_update_compensation", SourceID: strconv.Itoa(int(transfer.TransferID))})
+		}
 		return errorhandler.HandleError[*db.UpdateTransferRow](s.logger, err, method, span, zap.Int("transfer_id", *request.TransferID))
 	}
 
@@ -371,7 +389,7 @@ func (s *transferCommandService) TrashedTransfer(ctx context.Context, transfer_i
 		attribute.Int("transfer_id", transfer_id))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	s.logger.Debug("Starting trashed transfer process", zap.Int("transfer_id", transfer_id))
@@ -381,7 +399,7 @@ func (s *transferCommandService) TrashedTransfer(ctx context.Context, transfer_i
 		status = "error"
 		return errorhandler.HandleError[*db.Transfer](
 			s.logger,
-			transfer_errors.ErrFailedTrashedTransfer,
+			err,
 			method,
 			span,
 
@@ -401,7 +419,7 @@ func (s *transferCommandService) RestoreTransfer(ctx context.Context, transfer_i
 		attribute.Int("transfer_id", transfer_id))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	s.logger.Debug("Starting restore transfer process", zap.Int("transfer_id", transfer_id))
@@ -411,7 +429,7 @@ func (s *transferCommandService) RestoreTransfer(ctx context.Context, transfer_i
 		status = "error"
 		return errorhandler.HandleError[*db.Transfer](
 			s.logger,
-			transfer_errors.ErrFailedRestoreTransfer,
+			err,
 			method,
 			span,
 
@@ -431,7 +449,7 @@ func (s *transferCommandService) DeleteTransferPermanent(ctx context.Context, tr
 		attribute.Int("transfer_id", transfer_id))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	s.logger.Debug("Starting delete transfer permanent process", zap.Int("transfer_id", transfer_id))
@@ -441,7 +459,7 @@ func (s *transferCommandService) DeleteTransferPermanent(ctx context.Context, tr
 		status = "error"
 		return errorhandler.HandleError[bool](
 			s.logger,
-			transfer_errors.ErrFailedDeleteTransferPermanent,
+			err,
 			method,
 			span,
 
@@ -460,7 +478,7 @@ func (s *transferCommandService) RestoreAllTransfer(ctx context.Context) (bool, 
 	ctx, span, end, status, logSuccess := s.observability.StartTracingAndLogging(ctx, method)
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	s.logger.Debug("Restoring all transfers")
@@ -470,7 +488,7 @@ func (s *transferCommandService) RestoreAllTransfer(ctx context.Context) (bool, 
 		status = "error"
 		return errorhandler.HandleError[bool](
 			s.logger,
-			transfer_errors.ErrFailedRestoreAllTransfers,
+			sharedErrors.ErrFailed("restore all transfers"),
 			method,
 			span,
 		)
@@ -486,7 +504,7 @@ func (s *transferCommandService) DeleteAllTransferPermanent(ctx context.Context)
 	ctx, span, end, status, logSuccess := s.observability.StartTracingAndLogging(ctx, method)
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	s.logger.Debug("Permanently deleting all transfers")
@@ -496,7 +514,7 @@ func (s *transferCommandService) DeleteAllTransferPermanent(ctx context.Context)
 		status = "error"
 		return errorhandler.HandleError[bool](
 			s.logger,
-			transfer_errors.ErrFailedDeleteAllTransfersPermanent,
+			sharedErrors.ErrFailed("delete all transfers permanently"),
 			method,
 			span,
 		)
@@ -506,14 +524,81 @@ func (s *transferCommandService) DeleteAllTransferPermanent(ctx context.Context)
 	return true, nil
 }
 
+// compensateTransfer reverses both legs after a partial transfer. The guarded
+// transition ensures only one caller can perform the reversal.
+func (s *transferCommandService) compensateTransfer(ctx context.Context, transferID, amount int, senderCard, receiverCard, method string) {
+	ok, err := s.transferCommandRepository.GuardStatus(ctx, transferID, state.Processing, state.Compensating, "partial settlement; compensation started")
+	if err != nil || !ok {
+		return
+	}
+	if _, err := s.saldoAdapter.DebitSaldo(ctx, &requests.DebitSaldoRequest{
+		CardNumber: receiverCard, Amount: amount,
+		OperationID: fmt.Sprintf("transfer:%d:receiver-compensation", transferID),
+		SourceType:  "transfer_compensation", SourceID: strconv.Itoa(transferID),
+	}); err != nil {
+		_, _ = s.transferCommandRepository.GuardStatus(ctx, transferID, state.Compensating, state.Unknown, "receiver compensation failed: "+err.Error())
+		return
+	}
+	if _, err := s.saldoAdapter.CreditSaldo(ctx, &requests.CreditSaldoRequest{
+		CardNumber: senderCard, Amount: amount,
+		OperationID: fmt.Sprintf("transfer:%d:sender-compensation", transferID),
+		SourceType:  "transfer_compensation", SourceID: strconv.Itoa(transferID),
+	}); err != nil {
+		_, _ = s.transferCommandRepository.GuardStatus(ctx, transferID, state.Compensating, state.Unknown, "sender compensation failed: "+err.Error())
+		return
+	}
+	_, _ = s.transferCommandRepository.GuardStatus(ctx, transferID, state.Compensating, state.Compensated, "")
+}
+
+func (s *transferCommandService) enqueueTransferEvents(ctx context.Context, transfer *db.CreateTransferRow, updatedTransfer *db.UpdateTransferStatusRow, senderCard *carddb.GetUserEmailByCardNumberRow, request *requests.CreateTransferRequest, senderNewBalance, receiverNewBalance int) {
+	if s.outboxStore == nil {
+		return
+	}
+	tID := strconv.Itoa(int(transfer.TransferID))
+
+	htmlBody, err := email.GenerateEmailHTML(map[string]string{
+		"Title": "Transfer Successful", "Message": fmt.Sprintf("Your Transfer of %d has been processed successfully.", request.TransferAmount),
+		"Button": "View History", "Link": "https://sanedge.example.com/withdraw/history",
+	})
+	if err == nil {
+		emailPayload, _ := json.Marshal(map[string]any{"email": senderCard.Email, "subject": "Transfer Successful - SanEdge", "body": htmlBody})
+		if iErr := s.outboxStore.Insert(ctx, db.OutboxRecord{AggregateType: "transfer", AggregateID: tID, EventType: "transfer.created", Payload: emailPayload}); iErr != nil {
+			s.logger.Error("outbox: failed to enqueue transfer email event", zap.Error(iErr))
+		}
+	}
+
+	statsEvent := events.TransferEvent{
+		TransferID: uint64(updatedTransfer.TransferID),
+		TransferNo: fmt.Sprintf("%x-%x-%x-%x-%x", updatedTransfer.TransferNo.Bytes[0:4], updatedTransfer.TransferNo.Bytes[4:6], updatedTransfer.TransferNo.Bytes[6:8], updatedTransfer.TransferNo.Bytes[8:10], updatedTransfer.TransferNo.Bytes[10:16]),
+		SourceCard: request.TransferFrom, DestinationCard: request.TransferTo,
+		Amount: int64(request.TransferAmount), Status: "success", CreatedAt: time.Now(),
+	}
+	statsBytes, _ := json.Marshal(statsEvent)
+	if iErr := s.outboxStore.Insert(ctx, db.OutboxRecord{AggregateType: "transfer", AggregateID: tID, EventType: "transfer.stats", Payload: statsBytes}); iErr != nil {
+		s.logger.Error("outbox: failed to enqueue transfer stats event", zap.Error(iErr))
+	}
+
+	senderSaldoBytes, _ := json.Marshal(events.SaldoEvent{CardNumber: request.TransferFrom, TotalBalance: int64(senderNewBalance), CreatedAt: time.Now()})
+	if iErr := s.outboxStore.Insert(ctx, db.OutboxRecord{AggregateType: "transfer", AggregateID: request.TransferFrom, EventType: "transfer.saldo_sender", Payload: senderSaldoBytes}); iErr != nil {
+		s.logger.Error("outbox: failed to enqueue sender saldo event", zap.Error(iErr))
+	}
+
+	receiverSaldoBytes, _ := json.Marshal(events.SaldoEvent{CardNumber: request.TransferTo, TotalBalance: int64(receiverNewBalance), CreatedAt: time.Now()})
+	if iErr := s.outboxStore.Insert(ctx, db.OutboxRecord{AggregateType: "transfer", AggregateID: request.TransferTo, EventType: "transfer.saldo_receiver", Payload: receiverSaldoBytes}); iErr != nil {
+		s.logger.Error("outbox: failed to enqueue receiver saldo event", zap.Error(iErr))
+	}
+}
+
 func (s *transferCommandService) markTransferAsFailed(ctx context.Context, transferID int, method string, span trace.Span) {
 	req := &requests.UpdateTransferStatus{
 		TransferID: transferID,
 		Status:     "failed",
 	}
-	go func() {
+	// P0.4: detached context with fixed timeout - never the request context,
+	// which may be cancelled by the client before the goroutine runs.
+	async.RunWithTimeout(5*time.Second, func(ctx context.Context) {
 		if _, err := s.transferCommandRepository.UpdateTransferStatus(ctx, req); err != nil {
 			s.logger.Error("compensation: failed to mark transfer as failed", zap.Error(err), zap.Int("transfer_id", transferID), zap.String("method", method))
 		}
-	}()
+	})
 }

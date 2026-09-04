@@ -10,19 +10,19 @@ import (
 	"testing"
 	"time"
 
+	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb/role"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
 	rolehandler "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/handler/role"
 	mencache "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/redis"
-	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb/role"
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
-	app_errors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
-	tests "github.com/MamangRust/microservice-payment-gateway-test"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/role/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/role/handler"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/role/repository"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/role/service"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/cache"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
+	app_errors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/observability"
+	tests "github.com/MamangRust/microservice-payment-gateway-test"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo/v4"
@@ -105,8 +105,8 @@ func (s *RoleApiTestSuite) SetupSuite() {
 		}
 	})
 
-	roles := []string{"Admin_Role_10", "Admin_Admin_14"}
-	cache.SetToCache(s.ts.Ctx, cacheStore, "user_roles:1", &roles, 5*time.Minute)
+	roles := []string{"ROLE_ADMIN"}
+	cache.SetToCache(s.ts.Ctx, cacheStore, "apigw:user_roles:1", &roles, 5*time.Minute)
 
 	apiErrorHandler := app_errors.NewApiHandler(obs, log)
 	rolehandler.RegisterRoleHandler(&rolehandler.DepsRole{

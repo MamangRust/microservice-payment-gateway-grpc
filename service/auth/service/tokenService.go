@@ -46,7 +46,7 @@ func (s *tokenService) createAccessToken(ctx context.Context, id int) (string, e
 	ctx, _, end, status, logSuccess := s.observability.StartTracingAndLogging(ctx, method, attribute.Int("user.id", id))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	res, err := s.token.GenerateToken(id, "access")
@@ -76,7 +76,7 @@ func (s *tokenService) createRefreshToken(ctx context.Context, id int) (string, 
 	ctx, _, end, status, logSuccess := s.observability.StartTracingAndLogging(ctx, method, attribute.Int("user.id", id))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	res, err := s.token.GenerateToken(id, "refresh")

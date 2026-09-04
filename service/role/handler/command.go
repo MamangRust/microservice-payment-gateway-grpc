@@ -9,7 +9,6 @@ import (
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
 	role_errors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors/role_errors/grpc"
 	"google.golang.org/protobuf/types/known/emptypb"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 type roleCommandHandleGrpc struct {
@@ -103,13 +102,13 @@ func (s *roleCommandHandleGrpc) TrashedRole(ctx context.Context, req *pb.FindByI
 		return nil, errors.ToGrpcError(err)
 	}
 
-	protoRole := &pb.RoleResponseDeleteAt{
-		Id:        int32(role.RoleID),
-		Name:      role.RoleName,
-		CreatedAt: role.CreatedAt.Time.Format("2006-01-02"),
-		UpdatedAt: role.UpdatedAt.Time.Format("2006-01-02"),
-		DeletedAt: wrapperspb.String(role.DeletedAt.Time.Format("2006-01-02")),
-	}
+	protoRole := mapRoleResponseDeleteAt(
+		role.RoleID,
+		role.RoleName,
+		role.CreatedAt,
+		role.UpdatedAt,
+		role.DeletedAt,
+	)
 
 	return &pb.ApiResponseRoleDeleteAt{
 		Status:  "success",
@@ -131,13 +130,13 @@ func (s *roleCommandHandleGrpc) RestoreRole(ctx context.Context, req *pb.FindByI
 		return nil, errors.ToGrpcError(err)
 	}
 
-	protoRole := &pb.RoleResponseDeleteAt{
-		Id:        int32(role.RoleID),
-		Name:      role.RoleName,
-		CreatedAt: role.CreatedAt.Time.Format("2006-01-02"),
-		UpdatedAt: role.UpdatedAt.Time.Format("2006-01-02"),
-		DeletedAt: wrapperspb.String(role.DeletedAt.Time.Format("2006-01-02")),
-	}
+	protoRole := mapRoleResponseDeleteAt(
+		role.RoleID,
+		role.RoleName,
+		role.CreatedAt,
+		role.UpdatedAt,
+		role.DeletedAt,
+	)
 
 	return &pb.ApiResponseRoleDeleteAt{
 		Status:  "success",

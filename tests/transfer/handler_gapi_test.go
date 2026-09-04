@@ -2,6 +2,9 @@ package transfer_test
 
 import (
 	"context"
+	carddb "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/database/schema"
+	saldodb "github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/database/schema"
+	userdb "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/database/schema"
 	"net"
 	"testing"
 	"time"
@@ -10,12 +13,12 @@ import (
 	pbAISecurity "github.com/MamangRust/microservice-payment-gateway-grpc/pb/ai_security"
 	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb/transfer"
 	pbStats "github.com/MamangRust/microservice-payment-gateway-grpc/pb/transfer/stats"
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
 	card_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/repository"
 	saldo_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/repository"
 	stats_handler "github.com/MamangRust/microservice-payment-gateway-grpc/service/stats-reader/handler"
 	stats_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/stats-reader/repository"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/transfer/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/transfer/handler"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/transfer/repository"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/transfer/service"
@@ -78,21 +81,27 @@ func (s *TransferGapiTestSuite) SetupSuite() {
 		CREATE TABLE IF NOT EXISTS transfer_events (
 			transfer_id UInt64,
 			transfer_no String,
-			transfer_from String,
-			transfer_to String,
+			source_card String,
+			destination_card String,
 			amount Int64,
 			status String,
 			created_at DateTime DEFAULT now()
-		) ENGINE = MergeTree() ORDER BY (transfer_from, created_at);
+		) ENGINE = MergeTree() ORDER BY (source_card, created_at);
 	`)
 	s.Require().NoError(err)
 
 	queries := db.New(pool)
 
+	saldodbQueries := saldodb.New(pool)
+
+	carddbQueries := carddb.New(pool)
+
+	userdbQueries := userdb.New(pool)
+
 	// Repositories for seeding
-	s.userRepo = user_repo.NewUserCommandRepository(queries)
-	s.cardRepo = *card_repo.NewRepositories(queries, nil)
-	s.saldoRepo = saldo_repo.NewRepositories(queries, nil)
+	s.userRepo = user_repo.NewUserCommandRepository(userdbQueries)
+	s.cardRepo = *card_repo.NewRepositories(carddbQueries, nil)
+	s.saldoRepo = saldo_repo.NewRepositories(saldodbQueries, nil)
 
 	// Transfer repos
 	s.repos = repository.NewRepositories(queries, s.saldoRepo, s.cardRepo.CardQuery)
@@ -235,10 +244,10 @@ func (s *TransferGapiTestSuite) Test1_CreateTransfer() {
 
 	// Verify balances
 	senderSaldo, _ := s.saldoRepo.FindByCardNumber(ctx, s.senderCardNumber)
-	s.Equal(int32(900000), senderSaldo.TotalBalance)
+	s.Equal(int64(900000), senderSaldo.TotalBalance)
 
 	receiverSaldo, _ := s.saldoRepo.FindByCardNumber(ctx, s.receiverCardNumber)
-	s.Equal(int32(100000), receiverSaldo.TotalBalance)
+	s.Equal(int64(100000), receiverSaldo.TotalBalance)
 }
 
 func (s *TransferGapiTestSuite) Test2_FindTransferById() {
@@ -280,10 +289,10 @@ func (s *TransferGapiTestSuite) Test4_UpdateTransfer() {
 
 	// Verify adjusted balances (Sender 900k - 50k = 850k, Receiver 100k + 50k = 150k)
 	senderSaldo, _ := s.saldoRepo.FindByCardNumber(ctx, s.senderCardNumber)
-	s.Equal(int32(850000), senderSaldo.TotalBalance)
+	s.Equal(int64(850000), senderSaldo.TotalBalance)
 
 	receiverSaldo, _ := s.saldoRepo.FindByCardNumber(ctx, s.receiverCardNumber)
-	s.Equal(int32(150000), receiverSaldo.TotalBalance)
+	s.Equal(int64(150000), receiverSaldo.TotalBalance)
 }
 
 func (s *TransferGapiTestSuite) Test5_TrashedTransfer() {
@@ -323,7 +332,7 @@ func (s *TransferGapiTestSuite) Test8_TransferStats_Amount() {
 	err := s.chConn.Exec(ctx, "TRUNCATE TABLE transfer_events")
 	s.Require().NoError(err)
 
-	seedSQL := `INSERT INTO transfer_events (transfer_id, transfer_no, transfer_from, transfer_to, amount, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`
+	seedSQL := `INSERT INTO transfer_events (transfer_id, transfer_no, source_card, destination_card, amount, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`
 	// Sender data
 	err = s.chConn.Exec(ctx, seedSQL, 1, "TR001", s.senderCardNumber, s.receiverCardNumber, 1000, "success", now)
 	s.Require().NoError(err)

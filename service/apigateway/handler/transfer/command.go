@@ -5,11 +5,12 @@ import (
 	"net/http"
 	"strconv"
 
-	transfer_cache "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/redis/api/transfer"
 	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb/transfer"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
+	transfer_cache "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/redis/api/transfer"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/idempotency"
 	apimapper "github.com/MamangRust/microservice-payment-gateway-grpc/shared/mapper/transfer"
 	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v4"
@@ -92,12 +93,18 @@ func (h *transferCommandHandleApi) CreateTransfer(c echo.Context) error {
 		return errors.NewValidationError(validations)
 	}
 
+	key := c.Request().Header.Get("Idempotency-Key")
+	if err := idempotency.ValidateKey(key); err != nil {
+		return err
+	}
+
 	ctx := c.Request().Context()
 
 	res, err := h.client.CreateTransfer(ctx, &pb.CreateTransferRequest{
 		TransferFrom:   body.TransferFrom,
 		TransferTo:     body.TransferTo,
-		TransferAmount: int32(body.TransferAmount),
+		TransferAmount: int64(body.TransferAmount),
+		IdempotencyKey: key,
 	})
 
 	if err != nil {
@@ -155,7 +162,7 @@ func (h *transferCommandHandleApi) UpdateTransfer(c echo.Context) error {
 		TransferId:     int32(idInt),
 		TransferFrom:   body.TransferFrom,
 		TransferTo:     body.TransferTo,
-		TransferAmount: int32(body.TransferAmount),
+		TransferAmount: int64(body.TransferAmount),
 	})
 
 	if err != nil {

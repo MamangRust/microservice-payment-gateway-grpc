@@ -3,11 +3,11 @@ package service
 import (
 	"context"
 
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/schema"
+	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/errorhandler"
-	user_errors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors/user_errors/service"
+	sharedErrors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/observability"
 	mencache "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/redis"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/user/repository"
@@ -63,7 +63,7 @@ func (s *userQueryService) FindAll(ctx context.Context, req *requests.FindAllUse
 		attribute.String("search", search))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	if data, total, found := s.cache.GetCachedUsersCache(ctx, req); found {
@@ -77,7 +77,7 @@ func (s *userQueryService) FindAll(ctx context.Context, req *requests.FindAllUse
 		status = "error"
 		return errorhandler.HandlerErrorPagination[[]*db.GetUsersWithPaginationRow](
 			s.logger,
-			user_errors.ErrFailedFindAll,
+			sharedErrors.ErrFailed("find all users"),
 			method,
 			span,
 
@@ -112,7 +112,7 @@ func (s *userQueryService) FindByID(ctx context.Context, id int) (*db.GetUserByI
 		attribute.Int("user_id", id))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	if data, found := s.cache.GetCachedUserCache(ctx, id); found {
@@ -125,7 +125,7 @@ func (s *userQueryService) FindByID(ctx context.Context, id int) (*db.GetUserByI
 		status = "error"
 		return errorhandler.HandleError[*db.GetUserByIDRow](
 			s.logger,
-			user_errors.ErrUserNotFoundRes,
+			sharedErrors.ErrNotFoundResponse("User"),
 			method,
 			span,
 
@@ -160,7 +160,7 @@ func (s *userQueryService) FindByActive(ctx context.Context, req *requests.FindA
 		attribute.String("search", search))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	if data, total, found := s.cache.GetCachedUserActiveCache(ctx, req); found {
@@ -173,7 +173,7 @@ func (s *userQueryService) FindByActive(ctx context.Context, req *requests.FindA
 		status = "error"
 		return errorhandler.HandlerErrorPagination[[]*db.GetActiveUsersWithPaginationRow](
 			s.logger,
-			user_errors.ErrFailedFindActive,
+			sharedErrors.ErrFailed("find active users"),
 			method,
 			span,
 
@@ -221,7 +221,7 @@ func (s *userQueryService) FindByTrashed(ctx context.Context, req *requests.Find
 		attribute.String("search", search))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	if data, total, found := s.cache.GetCachedUserTrashedCache(ctx, req); found {
@@ -233,7 +233,7 @@ func (s *userQueryService) FindByTrashed(ctx context.Context, req *requests.Find
 		status = "error"
 		return errorhandler.HandlerErrorPagination[[]*db.GetTrashedUsersWithPaginationRow](
 			s.logger,
-			user_errors.ErrFailedFindTrashed,
+			sharedErrors.ErrFailed("find trashed users"),
 			method,
 			span,
 
@@ -268,7 +268,7 @@ func (s *userQueryService) FindByEmail(ctx context.Context, email string) (*db.G
 		attribute.String("email", email))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	user, err := s.userQueryRepository.FindByEmail(ctx, email)
@@ -276,7 +276,7 @@ func (s *userQueryService) FindByEmail(ctx context.Context, email string) (*db.G
 		status = "error"
 		return errorhandler.HandleError[*db.GetUserByEmailRow](
 			s.logger,
-			user_errors.ErrUserNotFoundRes,
+			sharedErrors.ErrNotFoundResponse("User"),
 			method,
 			span,
 
@@ -296,7 +296,7 @@ func (s *userQueryService) FindByVerificationCode(ctx context.Context, code stri
 		attribute.String("verification_code", code))
 
 	defer func() {
-		end(status)
+		end(status, "grpc")
 	}()
 
 	user, err := s.userQueryRepository.FindByVerificationCode(ctx, code)
@@ -304,7 +304,7 @@ func (s *userQueryService) FindByVerificationCode(ctx context.Context, code stri
 		status = "error"
 		return errorhandler.HandleError[*db.GetUserByVerificationCodeRow](
 			s.logger,
-			user_errors.ErrUserNotFoundRes,
+			sharedErrors.ErrNotFoundResponse("User"),
 			method,
 			span,
 

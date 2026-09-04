@@ -56,9 +56,11 @@ type FindAllTopupsByCardNumber struct {
 // CreateTopupRequest represents the payload for creating a new top-up transaction.
 // Used when adding funds to a card/account.
 type CreateTopupRequest struct {
-	CardNumber  string `json:"card_number" validate:"required,min=1"`      // Card number receiving funds
-	TopupAmount int    `json:"topup_amount" validate:"required,min=50000"` // Amount to add (minimum 50,000 in smallest unit)
-	TopupMethod string `json:"topup_method" validate:"required"`           // Payment method used (e.g., "bank_transfer")
+	CardNumber          string `json:"card_number" validate:"required,min=1"`      // Card number receiving funds
+	TopupAmount         int    `json:"topup_amount" validate:"required,min=50000"` // Amount to add (minimum 50,000 in smallest unit)
+	TopupMethod         string `json:"topup_method" validate:"required"`           // Payment method used (e.g., "bank_transfer")
+	IdempotencyKey      string `json:"-"`                                          // Client retry key; transported through gRPC metadata field
+	AuthenticatedUserID int    `json:"-"`                                          // User identity asserted by the authenticated gateway
 }
 
 // UpdateTopupRequest represents the payload for updating a top-up transaction.
@@ -123,6 +125,10 @@ func (r *UpdateTopupRequest) Validate() error {
 	validate := validator.New()
 	if err := validate.Struct(r); err != nil {
 		return err
+	}
+
+	if r.TopupID == nil {
+		return errors.New("top-up ID is required")
 	}
 
 	if *r.TopupID <= 0 {
