@@ -245,7 +245,7 @@ func (h *roleCommandHandleApi) Trashed(c echo.Context) error {
 		return errors.ParseGrpcError(err)
 	}
 
-	so := h.mapper.ToApiResponseRoleDeleteAt(res)
+	so := h.mapper.ToApiResponseRole(res)
 
 	return c.JSON(http.StatusOK, so)
 }
@@ -279,7 +279,7 @@ func (h *roleCommandHandleApi) Restore(c echo.Context) error {
 		return errors.ParseGrpcError(err)
 	}
 
-	so := h.mapper.ToApiResponseRoleDeleteAt(res)
+	so := h.mapper.ToApiResponseRole(res)
 
 	return c.JSON(http.StatusOK, so)
 }

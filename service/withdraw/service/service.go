@@ -1,7 +1,6 @@
 package service
 
 import (
-	"github.com/MamangRust/microservice-payment-gateway-grpc/pb/ai_security"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/adapter"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/kafka"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
@@ -28,7 +27,7 @@ type Deps struct {
 	SaldoAdapter         adapter.SaldoAdapter
 	Logger               logger.LoggerInterface
 	Cache                *cache.CacheStore
-	AISecurityClient     ai_security.AISecurityServiceClient
+	AISecurityAdapter     adapter.AISecurityAdapter
 	DailyWithdrawalLimit int64
 }
 
@@ -68,7 +67,7 @@ func newWithdrawCommandService(deps *Deps, observability observability.TraceLogg
 			OutboxStore:          deps.Repositories,
 			Logger:               deps.Logger,
 			Observability:        observability,
-			AISecurityClient:     deps.AISecurityClient,
+			AISecurityAdapter:     deps.AISecurityAdapter,
 			DailyWithdrawalLimit: deps.DailyWithdrawalLimit,
 		},
 	)

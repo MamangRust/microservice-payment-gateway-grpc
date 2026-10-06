@@ -15,7 +15,7 @@ import (
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb/saldo"
-	pbStats "github.com/MamangRust/microservice-payment-gateway-grpc/pb/saldo/stats"
+	pbStats "github.com/MamangRust/microservice-payment-gateway-grpc/pb/stats/saldo"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
 	api "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/handler/saldo"
 	card_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/repository"
@@ -100,11 +100,11 @@ func (s *SaldoHandlerTestSuite) SetupSuite() {
 	carddbQueries := carddb.New(pool)
 
 	userdbQueries := userdb.New(pool)
-	saldoRepos := saldo_repo.NewRepositories(queries, nil)
-	userRepos := user_repo.NewRepositories(userdbQueries)
+	saldoRepos := saldo_repo.NewRepositories(queries, nil, nil)
+	userRepos := user_repo.NewRepositories(&user_repo.Deps{Db: userdbQueries})
 	cardRepos := card_repo.NewRepositories(carddbQueries, nil)
 
-	s.userRepo = userRepos.UserCommand()
+	s.userRepo = userRepos.UserCommand
 	s.cardRepo = cardRepos.CardCommand
 	s.saldoRepo = saldoRepos
 

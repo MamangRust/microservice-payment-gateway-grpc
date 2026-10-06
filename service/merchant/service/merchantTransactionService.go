@@ -3,12 +3,14 @@ package service
 import (
 	"context"
 
+	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/adapter"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/models"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
 	mencache "github.com/MamangRust/microservice-payment-gateway-grpc/service/merchant/redis"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/merchant/repository"
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/merchant/database/schema"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/errorhandler"
+	sharedErrors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/observability"
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
@@ -16,18 +18,20 @@ import (
 
 // merchantTransactionDeps holds dependencies for merchant transaction operations.
 type merchantTransactionDeps struct {
-	Repository    repository.MerchantTransactionRepository
-	Cache         mencache.MerchantTransactionCache
-	Logger        logger.LoggerInterface
-	Observability observability.TraceLoggerObservability
+	TransactionAdapter      adapter.TransactionAdapter
+	MerchantQueryRepository repository.MerchantQueryRepository
+	Cache                   mencache.MerchantTransactionCache
+	Logger                  logger.LoggerInterface
+	Observability           observability.TraceLoggerObservability
 }
 
 // merchantTransactionService handles merchant transaction operations.
 type merchantTransactionService struct {
-	repo          repository.MerchantTransactionRepository
-	cache         mencache.MerchantTransactionCache
-	logger        logger.LoggerInterface
-	observability observability.TraceLoggerObservability
+	transactionAdapter      adapter.TransactionAdapter
+	merchantQueryRepository repository.MerchantQueryRepository
+	cache                   mencache.MerchantTransactionCache
+	logger                  logger.LoggerInterface
+	observability           observability.TraceLoggerObservability
 }
 
 // NewMerchantTransactionService constructs a MerchantTransactionService.
@@ -35,14 +39,15 @@ func NewMerchantTransactionService(
 	params *merchantTransactionDeps,
 ) MerchantTransactionService {
 	return &merchantTransactionService{
-		repo:          params.Repository,
-		cache:         params.Cache,
-		logger:        params.Logger,
-		observability: params.Observability,
+		transactionAdapter:      params.TransactionAdapter,
+		merchantQueryRepository: params.MerchantQueryRepository,
+		cache:                   params.Cache,
+		logger:                  params.Logger,
+		observability:           params.Observability,
 	}
 }
 
-func (s *merchantTransactionService) FindAllTransactions(ctx context.Context, req *requests.FindAllMerchantTransactions) ([]*db.FindAllTransactionsRow, *int, error) {
+func (s *merchantTransactionService) FindAllTransactions(ctx context.Context, req *requests.FindAllMerchantTransactions) ([]*models.Transaction, *int, error) {
 	const method = "FindAllTransactions"
 	page, pageSize := s.normalizePagination(req.Page, req.PageSize)
 	search := req.Search
@@ -51,31 +56,25 @@ func (s *merchantTransactionService) FindAllTransactions(ctx context.Context, re
 	defer func() { end(status, "grpc") }()
 
 	if data, total, found := s.cache.GetCacheAllMerchantTransactions(ctx, req); found {
-		logSuccess("Successfully retrieved all merchant transactions from cache", zap.Int("totalRecords", *total), zap.Int("page", page), zap.Int("pageSize", pageSize))
+		logSuccess("Successfully retrieved all merchant transactions from cache", zap.Int("totalRecords", intValue(total)), zap.Int("page", page), zap.Int("pageSize", pageSize))
 		return data, total, nil
 	}
 
-	transactions, err := s.repo.FindAllTransactions(ctx, req)
+	transactions, totalCount, err := s.transactionAdapter.FindAllTransactions(ctx, page, pageSize, search)
 	if err != nil {
 		status = "error"
-		return errorhandler.HandlerErrorPagination[[]*db.FindAllTransactionsRow](s.logger, err, method, span, zap.String("search", search))
+		return errorhandler.HandlerErrorPagination[[]*models.Transaction](s.logger, err, method, span, zap.String("search", search))
 	}
+	s.enrichMerchantNames(ctx, transactions)
 
-	var totalCount int
-	if len(transactions) > 0 {
-		totalCount = int(transactions[0].TotalCount)
-	} else {
-		totalCount = 0
-	}
+	s.cache.SetCacheAllMerchantTransactions(ctx, req, transactions, totalCount)
 
-	s.cache.SetCacheAllMerchantTransactions(ctx, req, transactions, &totalCount)
+	logSuccess("Successfully retrieved all merchant transactions", zap.Int("totalRecords", intValue(totalCount)), zap.Int("page", page), zap.Int("pageSize", pageSize))
 
-	logSuccess("Successfully retrieved all merchant transactions", zap.Int("totalRecords", totalCount), zap.Int("page", page), zap.Int("pageSize", pageSize))
-
-	return transactions, &totalCount, nil
+	return transactions, totalCount, nil
 }
 
-func (s *merchantTransactionService) FindAllTransactionsByMerchant(ctx context.Context, req *requests.FindAllMerchantTransactionsById) ([]*db.FindAllTransactionsByMerchantRow, *int, error) {
+func (s *merchantTransactionService) FindAllTransactionsByMerchant(ctx context.Context, req *requests.FindAllMerchantTransactionsById) ([]*models.Transaction, *int, error) {
 	const method = "FindAllTransactionsByMerchant"
 	page, pageSize := s.normalizePagination(req.Page, req.PageSize)
 	search := req.Search
@@ -84,31 +83,25 @@ func (s *merchantTransactionService) FindAllTransactionsByMerchant(ctx context.C
 	defer func() { end(status, "grpc") }()
 
 	if data, total, found := s.cache.GetCacheMerchantTransactions(ctx, req); found {
-		logSuccess("Successfully retrieved merchant transactions from cache", zap.Int("totalRecords", *total), zap.Int("page", page), zap.Int("pageSize", pageSize))
+		logSuccess("Successfully retrieved merchant transactions from cache", zap.Int("totalRecords", intValue(total)), zap.Int("page", page), zap.Int("pageSize", pageSize))
 		return data, total, nil
 	}
 
-	transactions, err := s.repo.FindAllTransactionsByMerchant(ctx, req)
+	transactions, totalCount, err := s.transactionAdapter.FindAllTransactionsByMerchantId(ctx, req.MerchantID, page, pageSize, search)
 	if err != nil {
 		status = "error"
-		return errorhandler.HandlerErrorPagination[[]*db.FindAllTransactionsByMerchantRow](s.logger, err, method, span, zap.String("search", search))
+		return errorhandler.HandlerErrorPagination[[]*models.Transaction](s.logger, err, method, span, zap.String("search", search))
 	}
+	s.enrichMerchantNames(ctx, transactions)
 
-	var totalCount int
-	if len(transactions) > 0 {
-		totalCount = int(transactions[0].TotalCount)
-	} else {
-		totalCount = 0
-	}
+	s.cache.SetCacheMerchantTransactions(ctx, req, transactions, totalCount)
 
-	s.cache.SetCacheMerchantTransactions(ctx, req, transactions, &totalCount)
+	logSuccess("Successfully retrieved merchant transactions", zap.Int("totalRecords", intValue(totalCount)), zap.Int("page", page), zap.Int("pageSize", pageSize))
 
-	logSuccess("Successfully retrieved merchant transactions", zap.Int("totalRecords", totalCount), zap.Int("page", page), zap.Int("pageSize", pageSize))
-
-	return transactions, &totalCount, nil
+	return transactions, totalCount, nil
 }
 
-func (s *merchantTransactionService) FindAllTransactionsByApikey(ctx context.Context, req *requests.FindAllMerchantTransactionsByApiKey) ([]*db.FindAllTransactionsByApikeyRow, *int, error) {
+func (s *merchantTransactionService) FindAllTransactionsByApikey(ctx context.Context, req *requests.FindAllMerchantTransactionsByApiKey) ([]*models.Transaction, *int, error) {
 	const method = "FindAllTransactionsByApikey"
 	page, pageSize := s.normalizePagination(req.Page, req.PageSize)
 	search := req.Search
@@ -117,28 +110,61 @@ func (s *merchantTransactionService) FindAllTransactionsByApikey(ctx context.Con
 	defer func() { end(status, "grpc") }()
 
 	if data, total, found := s.cache.GetCacheMerchantTransactionApikey(ctx, req); found {
-		logSuccess("Successfully retrieved merchant transactions by apikey from cache", zap.Int("totalRecords", *total), zap.Int("page", page), zap.Int("pageSize", pageSize))
+		logSuccess("Successfully retrieved merchant transactions by apikey from cache", zap.Int("totalRecords", intValue(total)), zap.Int("page", page), zap.Int("pageSize", pageSize))
 		return data, total, nil
 	}
 
-	transactions, err := s.repo.FindAllTransactionsByApikey(ctx, req)
+	merchant, err := s.merchantQueryRepository.FindByApiKey(ctx, req.ApiKey)
 	if err != nil {
 		status = "error"
-		return errorhandler.HandlerErrorPagination[[]*db.FindAllTransactionsByApikeyRow](s.logger, err, method, span, zap.String("search", search))
+		return errorhandler.HandlerErrorPagination[[]*models.Transaction](s.logger, err, method, span, zap.String("api_key", req.ApiKey))
+	}
+	if merchant == nil {
+		status = "error"
+		return errorhandler.HandlerErrorPagination[[]*models.Transaction](s.logger, sharedErrors.ErrNotFoundResponse("merchant"), method, span, zap.String("api_key", req.ApiKey))
 	}
 
-	var totalCount int
-	if len(transactions) > 0 {
-		totalCount = int(transactions[0].TotalCount)
-	} else {
-		totalCount = 0
+	transactions, totalCount, err := s.transactionAdapter.FindAllTransactionsByMerchantId(ctx, int(merchant.MerchantID), page, pageSize, search)
+	if err != nil {
+		status = "error"
+		return errorhandler.HandlerErrorPagination[[]*models.Transaction](s.logger, err, method, span, zap.String("search", search))
+	}
+	for _, tx := range transactions {
+		if tx != nil {
+			tx.MerchantName = merchant.Name
+		}
 	}
 
-	s.cache.SetCacheMerchantTransactionApikey(ctx, req, transactions, &totalCount)
+	s.cache.SetCacheMerchantTransactionApikey(ctx, req, transactions, totalCount)
 
-	logSuccess("Successfully retrieved merchant transactions by apikey", zap.Int("totalRecords", totalCount), zap.Int("page", page), zap.Int("pageSize", pageSize))
+	logSuccess("Successfully retrieved merchant transactions by apikey", zap.Int("totalRecords", intValue(totalCount)), zap.Int("page", page), zap.Int("pageSize", pageSize))
 
-	return transactions, &totalCount, nil
+	return transactions, totalCount, nil
+}
+
+// enrichMerchantNames fills MerchantName from the merchant table this service
+// owns. Lookups are deduplicated per distinct merchant ID in the page.
+func (s *merchantTransactionService) enrichMerchantNames(ctx context.Context, transactions []*models.Transaction) {
+	if s.merchantQueryRepository == nil {
+		return
+	}
+	names := make(map[int]string)
+	for _, tx := range transactions {
+		if tx == nil || tx.MerchantName != "" {
+			continue
+		}
+		name, ok := names[tx.MerchantID]
+		if !ok {
+			merchant, err := s.merchantQueryRepository.FindByMerchantId(ctx, tx.MerchantID)
+			if err != nil || merchant == nil {
+				name = ""
+			} else {
+				name = merchant.Name
+			}
+			names[tx.MerchantID] = name
+		}
+		tx.MerchantName = name
+	}
 }
 
 func (s *merchantTransactionService) normalizePagination(page, pageSize int) (int, int) {
@@ -149,4 +175,11 @@ func (s *merchantTransactionService) normalizePagination(page, pageSize int) (in
 		pageSize = 10
 	}
 	return page, pageSize
+}
+
+func intValue(v *int) int {
+	if v == nil {
+		return 0
+	}
+	return *v
 }

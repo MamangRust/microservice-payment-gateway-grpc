@@ -56,7 +56,7 @@ func (s *TransferRepositoryTestSuite) SetupSuite() {
 	// Repositories for seeding
 	s.userRepo = user_repo.NewUserCommandRepository(userdbQueries)
 	s.cardRepo = *card_repo.NewRepositories(carddbQueries, nil)
-	s.saldoRepo = saldo_repo.NewRepositories(saldodbQueries, nil)
+	s.saldoRepo = saldo_repo.NewRepositories(saldodbQueries, nil, nil)
 
 	s.commandRepo = repository.NewTransferCommandRepository(queries)
 	s.queryRepo = repository.NewTransferQueryRepository(queries)

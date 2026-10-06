@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	userdb "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/database/schema"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/models"
 	sharedcachehelpers "github.com/MamangRust/microservice-payment-gateway-grpc/shared/cache"
 )
 
@@ -45,7 +45,7 @@ func (c *identityCache) DeleteRefreshToken(ctx context.Context, token string) {
 	sharedcachehelpers.DeleteFromCache(ctx, c.store, key)
 }
 
-func (c *identityCache) SetCachedUserInfo(ctx context.Context, user *userdb.GetUserByIDRow, expiration time.Duration) {
+func (c *identityCache) SetCachedUserInfo(ctx context.Context, user *models.User, expiration time.Duration) {
 	if user == nil {
 		return
 	}
@@ -55,10 +55,10 @@ func (c *identityCache) SetCachedUserInfo(ctx context.Context, user *userdb.GetU
 	sharedcachehelpers.SetToCache(ctx, c.store, key, user, expiration)
 }
 
-func (c *identityCache) GetCachedUserInfo(ctx context.Context, userId string) (*userdb.GetUserByIDRow, bool) {
+func (c *identityCache) GetCachedUserInfo(ctx context.Context, userId string) (*models.User, bool) {
 	key := fmt.Sprintf(keyIdentityUserInfo, userId)
 
-	return sharedcachehelpers.GetFromCache[userdb.GetUserByIDRow](ctx, c.store, key)
+	return sharedcachehelpers.GetFromCache[models.User](ctx, c.store, key)
 }
 
 func (c *identityCache) DeleteCachedUserInfo(ctx context.Context, userId string) {

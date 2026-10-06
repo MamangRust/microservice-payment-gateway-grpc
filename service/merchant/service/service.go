@@ -30,11 +30,12 @@ type service struct {
 
 // Deps holds shared dependencies for merchant services.
 type Deps struct {
-	Kafka        *kafka.Kafka
-	Repositories repository.Repositories
-	UserAdapter  adapter.UserAdapter
-	Logger       logger.LoggerInterface
-	Cache        *cache.CacheStore
+	Kafka              *kafka.Kafka
+	Repositories       repository.Repositories
+	UserAdapter        adapter.UserAdapter
+	TransactionAdapter adapter.TransactionAdapter
+	Logger             logger.LoggerInterface
+	Cache              *cache.CacheStore
 }
 
 // NewService wires and initializes all merchant services.
@@ -99,10 +100,11 @@ func newMerchantTransactionService(
 	cache mencache.Mencache,
 ) MerchantTransactionService {
 	return NewMerchantTransactionService(&merchantTransactionDeps{
-		Repository:    deps.Repositories,
-		Cache:         cache,
-		Logger:        deps.Logger,
-		Observability: observability,
+		TransactionAdapter:      deps.TransactionAdapter,
+		MerchantQueryRepository: deps.Repositories,
+		Cache:                   cache,
+		Logger:                  deps.Logger,
+		Observability:           observability,
 	})
 }
 

@@ -59,7 +59,7 @@ func (s *TransactionRepositoryTestSuite) SetupSuite() {
 	s.cardRepo = *card_repo.NewRepositories(carddbQueries, nil)
 	s.merchantRepo = merchant_repo.NewRepositories(merchantdbQueries, nil)
 
-	transactionRepos := repository.NewRepositories(queries, nil, nil, nil)
+	transactionRepos := repository.NewRepositories(queries, nil, nil, nil, nil, nil)
 	s.commandRepo = transactionRepos
 	s.queryRepo = transactionRepos
 

@@ -28,21 +28,6 @@ func (s *roleCommandResponseMapper) ToApiResponseRole(pbResponse *pb.ApiResponse
 	}
 }
 
-// ToApiResponseRole maps a single gRPC role response into an HTTP API response format.
-//
-// Args:
-//   - pbResponse: A pointer to a pb.ApiResponseRole containing the gRPC response data.
-//
-// Returns:
-//   - A pointer to a response.ApiResponseRole containing the mapped status, message, and data.
-func (s *roleCommandResponseMapper) ToApiResponseRoleDeleteAt(pbResponse *pb.ApiResponseRoleDeleteAt) *response.ApiResponseRoleDeleteAt {
-	return &response.ApiResponseRoleDeleteAt{
-		Status:  pbResponse.Status,
-		Message: pbResponse.Message,
-		Data:    s.mapResponseRoleDeleteAt(pbResponse.Data),
-	}
-}
-
 // ToApiResponseRoleDelete maps a gRPC delete role response to an HTTP API response format.
 // Args:
 //   - pbResponse: A pointer to a pb.ApiResponseRoleDelete containing the gRPC response data.

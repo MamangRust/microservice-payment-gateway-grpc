@@ -5,7 +5,6 @@ import (
 	"time"
 
 	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/database/schema"
-	userdb "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 )
 
@@ -31,10 +30,6 @@ type CardQueryRepository interface {
 	FindCardByUserId(ctx context.Context, userID int) (*db.GetCardByUserIDRow, error)
 	FindCardByCardNumber(ctx context.Context, cardNumber string) (*db.GetCardByCardNumberRow, error)
 	FindUserCardByCardNumber(ctx context.Context, cardNumber string) (*db.GetUserEmailByCardNumberRow, error)
-}
-
-type UserRepository interface {
-	FindById(ctx context.Context, userID int) (*userdb.GetUserByIDRow, error)
 }
 
 type CardAuthTransactionRepository interface {

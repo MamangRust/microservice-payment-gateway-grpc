@@ -74,7 +74,7 @@ func (s *TransactionServiceTestSuite) SetupSuite() {
 	userdbQueries := userdb.New(pool)
 	s.userRepo = user_repo.NewUserCommandRepository(userdbQueries)
 	s.cardRepo = *card_repo.NewRepositories(carddbQueries, nil)
-	s.saldoRepo = saldo_repo.NewRepositories(saldodbQueries, nil)
+	s.saldoRepo = saldo_repo.NewRepositories(saldodbQueries, nil, nil)
 	s.merchantRepo = merchant_repo.NewRepositories(merchantdbQueries, nil)
 
 	opts, err := redis.ParseURL(s.ts.RedisURL)
@@ -88,12 +88,7 @@ func (s *TransactionServiceTestSuite) SetupSuite() {
 	cacheMetrics, _ := observability.NewCacheMetrics("test")
 	cacheStore := cache.NewCacheStore(s.redisClient, log, cacheMetrics)
 
-	cardRepoWrapper := &transactionCardRepo{
-		query:   s.cardRepo.CardQuery,
-		command: s.cardRepo.CardCommand,
-	}
-
-	transactionRepos := repository.NewRepositories(queries, s.saldoRepo, cardRepoWrapper, s.merchantRepo)
+	transactionRepos := repository.NewRepositories(queries, nil, nil, nil, nil, nil)
 	s.transactionService = service.NewService(&service.Deps{
 		Kafka:            nil,
 		Repositories:     transactionRepos,
@@ -102,7 +97,7 @@ func (s *TransactionServiceTestSuite) SetupSuite() {
 		SaldoAdapter:     s.ts.SaldoAdapter,
 		Logger:           log,
 		Cache:            cacheStore,
-		AISecurityClient: nil,
+		AISecurityAdapter: nil,
 	})
 
 	// Seed User, Card, Merchant, Saldo

@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/adapter"
 	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/auth/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/auth/repository"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/auth/service"
@@ -40,21 +41,28 @@ func (s *AuthServiceTestSuite) SetupSuite() {
 	s.redisClient = redis.NewClient(opts)
 
 	queries := db.New(pool)
-	repos := repository.NewRepositories(&repository.RepositoriesDeps{
-		DB:                queries,
-		UserQueryClient:   s.ts.UserClient,
-		UserCommandClient: s.ts.UserClient,
-		RoleQueryClient:   s.ts.RoleClient,
-		RoleCommandClient: s.ts.RoleClient,
-	})
+	userAdapter := adapter.NewAuthUserAdapter(s.ts.UserQueryClient, s.ts.UserCommandClient)
+	roleAdapter := adapter.NewRoleAdapter(s.ts.RoleQueryClient, s.ts.RoleCommandClient)
+	userRoleAdapter := adapter.NewUserRoleAdapter(s.ts.RoleClient)
+	repos := repository.NewRepositories(
+		queries,
+		s.ts.UserQueryClient,
+		s.ts.UserCommandClient,
+		s.ts.RoleQueryClient,
+		s.ts.RoleCommandClient,
+		s.ts.RoleClient,
+	)
 
 	s.service = service.NewService(&service.Deps{
-		Repositories: repos,
-		Logger:       s.ts.Logger,
-		Cache:        s.ts.CacheStore,
-		Token:        s.ts.TokenManager,
-		Hash:         s.ts.Hashing,
-		Kafka:        nil,
+		Repositories:    repos,
+		Logger:          s.ts.Logger,
+		Cache:           s.ts.CacheStore,
+		Token:           s.ts.TokenManager,
+		Hash:            s.ts.Hashing,
+		Kafka:           nil,
+		UserAdapter:     userAdapter,
+		RoleAdapter:     roleAdapter,
+		UserRoleAdapter: userRoleAdapter,
 	})
 
 	s.email = "auth.service.test@example.com"

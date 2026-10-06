@@ -12,7 +12,8 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2"
 	pbAISecurity "github.com/MamangRust/microservice-payment-gateway-grpc/pb/ai_security"
 	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb/transfer"
-	pbStats "github.com/MamangRust/microservice-payment-gateway-grpc/pb/transfer/stats"
+	pbStats "github.com/MamangRust/microservice-payment-gateway-grpc/pb/stats/transfer"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/adapter"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
 	card_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/repository"
 	saldo_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/repository"
@@ -101,10 +102,10 @@ func (s *TransferGapiTestSuite) SetupSuite() {
 	// Repositories for seeding
 	s.userRepo = user_repo.NewUserCommandRepository(userdbQueries)
 	s.cardRepo = *card_repo.NewRepositories(carddbQueries, nil)
-	s.saldoRepo = saldo_repo.NewRepositories(saldodbQueries, nil)
+	s.saldoRepo = saldo_repo.NewRepositories(saldodbQueries, nil, nil)
 
 	// Transfer repos
-	s.repos = repository.NewRepositories(queries, s.saldoRepo, s.cardRepo.CardQuery)
+	s.repos = repository.NewRepositories(queries, nil, nil, nil, nil)
 
 	opts, err := redis.ParseURL(s.ts.RedisURL)
 	s.Require().NoError(err)
@@ -133,7 +134,7 @@ func (s *TransferGapiTestSuite) SetupSuite() {
 		SaldoAdapter:     s.ts.SaldoAdapter,
 		Logger:           log,
 		Cache:            cacheStore,
-		AISecurityClient: aiSecurityClient,
+		AISecurityAdapter: adapter.NewAISecurityAdapter(aiSecurityClient),
 	})
 
 	transferHandlerGapi := handler.NewHandler(transferService)

@@ -11,6 +11,7 @@ import (
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/auth/repository"
 
 	emails "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/email"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/adapter"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/kafka"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
 	randomstring "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/random_string"
@@ -26,7 +27,7 @@ type PasswordResetServiceDeps struct {
 	Cache         mencache.PasswordResetCache
 	Kafka         *kafka.Kafka
 	Logger        logger.LoggerInterface
-	User          repository.UserRepository
+	User          adapter.AuthUserAdapter
 	ResetToken    repository.ResetTokenRepository
 	Observability observability.TraceLoggerObservability
 }
@@ -36,7 +37,7 @@ type passwordResetService struct {
 	mencache      mencache.PasswordResetCache
 	kafka         *kafka.Kafka
 	logger        logger.LoggerInterface
-	user          repository.UserRepository
+	user          adapter.AuthUserAdapter
 	resetToken    repository.ResetTokenRepository
 	observability observability.TraceLoggerObservability
 }
@@ -154,7 +155,7 @@ func (s *passwordResetService) ResetPassword(ctx context.Context, req *requests.
 		return sharederrorhandler.HandleError[bool](s.logger, err, method, span, zap.String("reset_token", req.ResetToken))
 	}
 
-	_, err := s.user.UpdateUserPassword(ctx, userID, req.Password)
+	err := s.user.UpdateUserPassword(ctx, userID, req.Password)
 	if err != nil {
 		status = "error"
 		return sharederrorhandler.HandleError[bool](s.logger, err, method, span, zap.Int("user.id", userID))
@@ -183,7 +184,7 @@ func (s *passwordResetService) VerifyCode(ctx context.Context, code string) (boo
 		return sharederrorhandler.HandleError[bool](s.logger, err, method, span, zap.String("code", code))
 	}
 
-	_, err = s.user.UpdateUserIsVerified(ctx, int(res.UserID), true)
+	err = s.user.UpdateUserIsVerified(ctx, int(res.UserID), true)
 	if err != nil {
 		status = "error"
 		return sharederrorhandler.HandleError[bool](s.logger, err, method, span, zap.Int("user.id", int(res.UserID)))

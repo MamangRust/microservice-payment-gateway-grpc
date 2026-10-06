@@ -28,7 +28,6 @@ func NewServer(cfg *server.Config) (*server.GRPCServer, error) {
 
 	queries := db.New(srv.Pool)
 
-	// Establish GRPC connection to User service
 	userConn, err := grpc.NewClient(viper.GetString("GRPC_USER_ADDR"), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to User service: %w", err)
@@ -44,7 +43,14 @@ func NewServer(cfg *server.Config) (*server.GRPCServer, error) {
 		return nil, fmt.Errorf("failed to create Kafka producer: %w", err)
 	}
 
-	repos := repository.NewRepositories(queries, userQueryClient)
+	repos := repository.NewRepositories(queries, user.NewUserQueryServiceClient(userConn),
+		repository.GuardOptions{
+			User: []adapter.GuardOption{
+				adapter.WithDependencyGuard(resilience.NewDependencyGuard("user", 5, 30, 100, 3*time.Second, srv.Logger)),
+			},
+		},
+	)
+
 	billingCycleDay := viper.GetInt("BILLING_CYCLE_DAY")
 	if billingCycleDay == 0 {
 		billingCycleDay = 1

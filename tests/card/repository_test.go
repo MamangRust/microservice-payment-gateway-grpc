@@ -39,10 +39,10 @@ func (s *CardRepositoryTestSuite) SetupSuite() {
 
 	userdbQueries := userdb.New(pool)
 	s.repo = repository.NewRepositories(queries, nil)
-	s.userRepo = user_repo.NewRepositories(userdbQueries)
+	s.userRepo = user_repo.NewRepositories(&user_repo.Deps{Db: userdbQueries})
 
 	// Create a user for card ownership
-	user, err := s.userRepo.UserCommand().CreateUser(context.Background(), &requests.CreateUserRequest{
+	user, err := s.userRepo.UserCommand.CreateUser(context.Background(), &requests.CreateUserRequest{
 		FirstName: "Card",
 		LastName:  "Owner",
 		Email:     fmt.Sprintf("card.owner-%d@example.com", time.Now().UnixNano()),

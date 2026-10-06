@@ -46,8 +46,8 @@ func (s *SaldoAtomicRepositoryTestSuite) SetupSuite() {
 	carddbQueries := carddb.New(pool)
 
 	schemadbQueries := userdb.New(pool)
-	s.repo = saldo_repo.NewRepositories(queries, nil)
-	s.userRepo = user_repo.NewRepositories(schemadbQueries).UserCommand()
+	s.repo = saldo_repo.NewRepositories(queries, nil, nil)
+	s.userRepo = user_repo.NewRepositories(&user_repo.Deps{Db: schemadbQueries}).UserCommand
 	s.cardRepo = card_repo.NewRepositories(carddbQueries, nil).CardCommand
 }
 

@@ -58,7 +58,7 @@ func (s *roleQueryResponseMapper) ToApiResponsePaginationRole(pbResponse *pb.Api
 		Status:     pbResponse.Status,
 		Message:    pbResponse.Message,
 		Data:       s.mapResponsesRole(pbResponse.Data),
-		Pagination: apimapper.MapPaginationMeta(pbResponse.PaginationMeta),
+		Pagination: apimapper.MapPaginationMeta(pbResponse.Pagination),
 	}
 }
 
@@ -76,7 +76,7 @@ func (s *roleQueryResponseMapper) ToApiResponsePaginationRoleDeleteAt(pbResponse
 		Status:     pbResponse.Status,
 		Message:    pbResponse.Message,
 		Data:       s.mapResponsesRoleDeleteAt(pbResponse.Data),
-		Pagination: apimapper.MapPaginationMeta(pbResponse.PaginationMeta),
+		Pagination: apimapper.MapPaginationMeta(pbResponse.Pagination),
 	}
 }
 

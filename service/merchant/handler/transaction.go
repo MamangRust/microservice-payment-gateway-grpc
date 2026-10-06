@@ -25,6 +25,14 @@ func NewMerchantTransactionHandleGrpc(merchantTransaction service.MerchantTransa
 	}
 }
 
+// formatDeletedAt renders an optional soft-delete timestamp for the wire.
+func formatDeletedAt(t *time.Time) *wrapperspb.StringValue {
+	if t == nil {
+		return nil
+	}
+	return wrapperspb.String(t.Format(time.RFC3339))
+}
+
 func (s *merchantTransactionHandleGrpc) FindAllTransactionMerchant(ctx context.Context, req *pb.FindAllMerchantRequest) (*pb.ApiResponsePaginationMerchantTransaction, error) {
 	page := int(req.GetPage())
 	pageSize := int(req.GetPageSize())
@@ -58,9 +66,9 @@ func (s *merchantTransactionHandleGrpc) FindAllTransactionMerchant(ctx context.C
 			MerchantId:      int32(txn.MerchantID),
 			MerchantName:    txn.MerchantName,
 			TransactionTime: txn.TransactionTime.Format(time.RFC3339),
-			CreatedAt:       txn.CreatedAt.Time.Format(time.RFC3339),
-			UpdatedAt:       txn.UpdatedAt.Time.Format(time.RFC3339),
-			DeletedAt:       wrapperspb.String(txn.DeletedAt.Time.Format(time.RFC3339)),
+			CreatedAt:       txn.CreatedAt.Format(time.RFC3339),
+			UpdatedAt:       txn.UpdatedAt.Format(time.RFC3339),
+			DeletedAt:       formatDeletedAt(txn.DeletedAt),
 		}
 	}
 
@@ -115,9 +123,9 @@ func (s *merchantTransactionHandleGrpc) FindAllTransactionByMerchant(ctx context
 			MerchantId:      int32(txn.MerchantID),
 			MerchantName:    txn.MerchantName,
 			TransactionTime: txn.TransactionTime.Format(time.RFC3339),
-			CreatedAt:       txn.CreatedAt.Time.Format(time.RFC3339),
-			UpdatedAt:       txn.UpdatedAt.Time.Format(time.RFC3339),
-			DeletedAt:       wrapperspb.String(txn.DeletedAt.Time.Format(time.RFC3339)),
+			CreatedAt:       txn.CreatedAt.Format(time.RFC3339),
+			UpdatedAt:       txn.UpdatedAt.Format(time.RFC3339),
+			DeletedAt:       formatDeletedAt(txn.DeletedAt),
 		}
 	}
 
@@ -172,9 +180,9 @@ func (s *merchantTransactionHandleGrpc) FindAllTransactionByApikey(ctx context.C
 			MerchantId:      int32(txn.MerchantID),
 			MerchantName:    txn.MerchantName,
 			TransactionTime: txn.TransactionTime.Format(time.RFC3339),
-			CreatedAt:       txn.CreatedAt.Time.Format(time.RFC3339),
-			UpdatedAt:       txn.UpdatedAt.Time.Format(time.RFC3339),
-			DeletedAt:       wrapperspb.String(txn.DeletedAt.Time.Format(time.RFC3339)),
+			CreatedAt:       txn.CreatedAt.Format(time.RFC3339),
+			UpdatedAt:       txn.UpdatedAt.Format(time.RFC3339),
+			DeletedAt:       formatDeletedAt(txn.DeletedAt),
 		}
 	}
 

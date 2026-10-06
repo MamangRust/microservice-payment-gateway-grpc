@@ -53,17 +53,12 @@ func (s *TopupRepositoryTestSuite) SetupSuite() {
 	userdbQueries := userdb.New(pool)
 
 	// Initialize repos from their modules
-	userRepos := user_repo.NewRepositories(userdbQueries)
+	userRepos := user_repo.NewRepositories(&user_repo.Deps{Db: userdbQueries})
 	cardRepos := card_repo.NewRepositories(carddbQueries, nil)
-	saldoRepos := saldo_repo.NewRepositories(saldodbQueries, nil)
+	saldoRepos := saldo_repo.NewRepositories(saldodbQueries, nil, nil)
 
-	// Match topup repository interfaces
-	cardAdapter := &topupCardRepoAdapter{
-		CardQueryRepository:   cardRepos.CardQuery,
-		CardCommandRepository: cardRepos.CardCommand,
-	}
-	s.repo = topup_repo.NewRepositories(queries, cardAdapter, saldoRepos)
-	s.userRepo = userRepos.UserCommand()
+	s.repo = topup_repo.NewRepositories(queries, nil, nil, nil, nil)
+	s.userRepo = userRepos.UserCommand
 	s.cardRepo = cardRepos.CardCommand
 	s.saldoRepo = saldoRepos
 

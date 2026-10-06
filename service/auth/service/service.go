@@ -1,6 +1,7 @@
 package service
 
 import (
+	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/adapter"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/auth"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/hash"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/kafka"
@@ -27,6 +28,9 @@ type Deps struct {
 	Hash         hash.HashPassword
 	Logger       logger.LoggerInterface
 	Kafka        *kafka.Kafka
+	UserAdapter     adapter.AuthUserAdapter
+	RoleAdapter     adapter.RoleAdapter
+	UserRoleAdapter adapter.UserRoleAdapter
 }
 
 // NewService initializes and returns the core authentication service bundle.
@@ -56,7 +60,7 @@ func newLogin(deps *Deps, tokenService *tokenService, observability observabilit
 		Cache:          cache,
 		Logger:         deps.Logger,
 		Hash:           deps.Hash,
-		UserRepository: deps.Repositories.User,
+		UserAdapter:    deps.UserAdapter,
 		RefreshToken:   deps.Repositories.RefreshToken,
 		Token:          deps.Token,
 		TokenService:   tokenService,
@@ -67,14 +71,14 @@ func newLogin(deps *Deps, tokenService *tokenService, observability observabilit
 // newRegister initializes and returns the RegistrationService.
 func newRegister(deps *Deps, observability observability.TraceLoggerObservability, cache mencache.RegisterCache) RegistrationService {
 	return NewRegisterService(&RegisterServiceDeps{
-		Cache:         cache,
-		User:          deps.Repositories.User,
-		Role:          deps.Repositories.Role,
-		UserRole:      deps.Repositories.UserRole,
-		Hash:          deps.Hash,
-		Kafka:         deps.Kafka,
-		Logger:        deps.Logger,
-		Observability: observability,
+		Cache:          cache,
+		User:           deps.UserAdapter,
+		RoleAdapter:    deps.RoleAdapter,
+		UserRoleAdapter: deps.UserRoleAdapter,
+		Hash:           deps.Hash,
+		Kafka:          deps.Kafka,
+		Logger:         deps.Logger,
+		Observability:  observability,
 	})
 }
 
@@ -84,7 +88,7 @@ func newPasswordReset(deps *Deps, observability observability.TraceLoggerObserva
 		Cache:         cache,
 		Kafka:         deps.Kafka,
 		Logger:        deps.Logger,
-		User:          deps.Repositories.User,
+		User:          deps.UserAdapter,
 		ResetToken:    deps.Repositories.ResetToken,
 		Observability: observability,
 	})
@@ -96,7 +100,7 @@ func newIdentity(deps *Deps, tokenService *tokenService, observability observabi
 		Cache:         cache,
 		Token:         deps.Token,
 		RefreshToken:  deps.Repositories.RefreshToken,
-		User:          deps.Repositories.User,
+		User:          deps.UserAdapter,
 		Logger:        deps.Logger,
 		TokenService:  tokenService,
 		Observability: observability,

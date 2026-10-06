@@ -4,7 +4,7 @@
 // - protoc             v3.21.12
 // source: role/role_command.proto
 
-package role
+package pb_role
 
 import (
 	context "context"
@@ -22,8 +22,6 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	RoleCommandService_CreateRole_FullMethodName             = "/pb.role.RoleCommandService/CreateRole"
 	RoleCommandService_UpdateRole_FullMethodName             = "/pb.role.RoleCommandService/UpdateRole"
-	RoleCommandService_CreateUserRole_FullMethodName         = "/pb.role.RoleCommandService/CreateUserRole"
-	RoleCommandService_DeleteUserRole_FullMethodName         = "/pb.role.RoleCommandService/DeleteUserRole"
 	RoleCommandService_TrashedRole_FullMethodName            = "/pb.role.RoleCommandService/TrashedRole"
 	RoleCommandService_RestoreRole_FullMethodName            = "/pb.role.RoleCommandService/RestoreRole"
 	RoleCommandService_DeleteRolePermanent_FullMethodName    = "/pb.role.RoleCommandService/DeleteRolePermanent"
@@ -37,10 +35,8 @@ const (
 type RoleCommandServiceClient interface {
 	CreateRole(ctx context.Context, in *CreateRoleRequest, opts ...grpc.CallOption) (*ApiResponseRole, error)
 	UpdateRole(ctx context.Context, in *UpdateRoleRequest, opts ...grpc.CallOption) (*ApiResponseRole, error)
-	CreateUserRole(ctx context.Context, in *CreateUserRoleRequest, opts ...grpc.CallOption) (*ApiResponseRole, error)
-	DeleteUserRole(ctx context.Context, in *DeleteUserRoleRequest, opts ...grpc.CallOption) (*ApiResponseRole, error)
-	TrashedRole(ctx context.Context, in *FindByIdRoleRequest, opts ...grpc.CallOption) (*ApiResponseRoleDeleteAt, error)
-	RestoreRole(ctx context.Context, in *FindByIdRoleRequest, opts ...grpc.CallOption) (*ApiResponseRoleDeleteAt, error)
+	TrashedRole(ctx context.Context, in *FindByIdRoleRequest, opts ...grpc.CallOption) (*ApiResponseRole, error)
+	RestoreRole(ctx context.Context, in *FindByIdRoleRequest, opts ...grpc.CallOption) (*ApiResponseRole, error)
 	DeleteRolePermanent(ctx context.Context, in *FindByIdRoleRequest, opts ...grpc.CallOption) (*ApiResponseRoleDelete, error)
 	RestoreAllRole(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*ApiResponseRoleAll, error)
 	DeleteAllRolePermanent(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*ApiResponseRoleAll, error)
@@ -74,29 +70,9 @@ func (c *roleCommandServiceClient) UpdateRole(ctx context.Context, in *UpdateRol
 	return out, nil
 }
 
-func (c *roleCommandServiceClient) CreateUserRole(ctx context.Context, in *CreateUserRoleRequest, opts ...grpc.CallOption) (*ApiResponseRole, error) {
+func (c *roleCommandServiceClient) TrashedRole(ctx context.Context, in *FindByIdRoleRequest, opts ...grpc.CallOption) (*ApiResponseRole, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ApiResponseRole)
-	err := c.cc.Invoke(ctx, RoleCommandService_CreateUserRole_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *roleCommandServiceClient) DeleteUserRole(ctx context.Context, in *DeleteUserRoleRequest, opts ...grpc.CallOption) (*ApiResponseRole, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ApiResponseRole)
-	err := c.cc.Invoke(ctx, RoleCommandService_DeleteUserRole_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *roleCommandServiceClient) TrashedRole(ctx context.Context, in *FindByIdRoleRequest, opts ...grpc.CallOption) (*ApiResponseRoleDeleteAt, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ApiResponseRoleDeleteAt)
 	err := c.cc.Invoke(ctx, RoleCommandService_TrashedRole_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -104,9 +80,9 @@ func (c *roleCommandServiceClient) TrashedRole(ctx context.Context, in *FindById
 	return out, nil
 }
 
-func (c *roleCommandServiceClient) RestoreRole(ctx context.Context, in *FindByIdRoleRequest, opts ...grpc.CallOption) (*ApiResponseRoleDeleteAt, error) {
+func (c *roleCommandServiceClient) RestoreRole(ctx context.Context, in *FindByIdRoleRequest, opts ...grpc.CallOption) (*ApiResponseRole, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ApiResponseRoleDeleteAt)
+	out := new(ApiResponseRole)
 	err := c.cc.Invoke(ctx, RoleCommandService_RestoreRole_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -150,10 +126,8 @@ func (c *roleCommandServiceClient) DeleteAllRolePermanent(ctx context.Context, i
 type RoleCommandServiceServer interface {
 	CreateRole(context.Context, *CreateRoleRequest) (*ApiResponseRole, error)
 	UpdateRole(context.Context, *UpdateRoleRequest) (*ApiResponseRole, error)
-	CreateUserRole(context.Context, *CreateUserRoleRequest) (*ApiResponseRole, error)
-	DeleteUserRole(context.Context, *DeleteUserRoleRequest) (*ApiResponseRole, error)
-	TrashedRole(context.Context, *FindByIdRoleRequest) (*ApiResponseRoleDeleteAt, error)
-	RestoreRole(context.Context, *FindByIdRoleRequest) (*ApiResponseRoleDeleteAt, error)
+	TrashedRole(context.Context, *FindByIdRoleRequest) (*ApiResponseRole, error)
+	RestoreRole(context.Context, *FindByIdRoleRequest) (*ApiResponseRole, error)
 	DeleteRolePermanent(context.Context, *FindByIdRoleRequest) (*ApiResponseRoleDelete, error)
 	RestoreAllRole(context.Context, *emptypb.Empty) (*ApiResponseRoleAll, error)
 	DeleteAllRolePermanent(context.Context, *emptypb.Empty) (*ApiResponseRoleAll, error)
@@ -173,16 +147,10 @@ func (UnimplementedRoleCommandServiceServer) CreateRole(context.Context, *Create
 func (UnimplementedRoleCommandServiceServer) UpdateRole(context.Context, *UpdateRoleRequest) (*ApiResponseRole, error) {
 	return nil, status.Error(codes.Unimplemented, "method UpdateRole not implemented")
 }
-func (UnimplementedRoleCommandServiceServer) CreateUserRole(context.Context, *CreateUserRoleRequest) (*ApiResponseRole, error) {
-	return nil, status.Error(codes.Unimplemented, "method CreateUserRole not implemented")
-}
-func (UnimplementedRoleCommandServiceServer) DeleteUserRole(context.Context, *DeleteUserRoleRequest) (*ApiResponseRole, error) {
-	return nil, status.Error(codes.Unimplemented, "method DeleteUserRole not implemented")
-}
-func (UnimplementedRoleCommandServiceServer) TrashedRole(context.Context, *FindByIdRoleRequest) (*ApiResponseRoleDeleteAt, error) {
+func (UnimplementedRoleCommandServiceServer) TrashedRole(context.Context, *FindByIdRoleRequest) (*ApiResponseRole, error) {
 	return nil, status.Error(codes.Unimplemented, "method TrashedRole not implemented")
 }
-func (UnimplementedRoleCommandServiceServer) RestoreRole(context.Context, *FindByIdRoleRequest) (*ApiResponseRoleDeleteAt, error) {
+func (UnimplementedRoleCommandServiceServer) RestoreRole(context.Context, *FindByIdRoleRequest) (*ApiResponseRole, error) {
 	return nil, status.Error(codes.Unimplemented, "method RestoreRole not implemented")
 }
 func (UnimplementedRoleCommandServiceServer) DeleteRolePermanent(context.Context, *FindByIdRoleRequest) (*ApiResponseRoleDelete, error) {
@@ -247,42 +215,6 @@ func _RoleCommandService_UpdateRole_Handler(srv interface{}, ctx context.Context
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(RoleCommandServiceServer).UpdateRole(ctx, req.(*UpdateRoleRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _RoleCommandService_CreateUserRole_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(CreateUserRoleRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(RoleCommandServiceServer).CreateUserRole(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: RoleCommandService_CreateUserRole_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(RoleCommandServiceServer).CreateUserRole(ctx, req.(*CreateUserRoleRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _RoleCommandService_DeleteUserRole_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(DeleteUserRoleRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(RoleCommandServiceServer).DeleteUserRole(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: RoleCommandService_DeleteUserRole_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(RoleCommandServiceServer).DeleteUserRole(ctx, req.(*DeleteUserRoleRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -391,14 +323,6 @@ var RoleCommandService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateRole",
 			Handler:    _RoleCommandService_UpdateRole_Handler,
-		},
-		{
-			MethodName: "CreateUserRole",
-			Handler:    _RoleCommandService_CreateUserRole_Handler,
-		},
-		{
-			MethodName: "DeleteUserRole",
-			Handler:    _RoleCommandService_DeleteUserRole_Handler,
 		},
 		{
 			MethodName: "TrashedRole",

@@ -1,8 +1,10 @@
 package repository
 
 import (
-	pb_role "github.com/MamangRust/microservice-payment-gateway-grpc/pb/role"
-	pb_user "github.com/MamangRust/microservice-payment-gateway-grpc/pb/user"
+	pbrole "github.com/MamangRust/microservice-payment-gateway-grpc/pb/role"
+	pbuser "github.com/MamangRust/microservice-payment-gateway-grpc/pb/user"
+	pbuserrole "github.com/MamangRust/microservice-payment-gateway-grpc/pb/user_role"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/adapter"
 	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/auth/database/schema"
 )
 
@@ -14,20 +16,31 @@ type Repositories struct {
 	ResetToken   ResetTokenRepository
 }
 
-type RepositoriesDeps struct {
-	DB                *db.Queries
-	UserQueryClient   pb_user.UserQueryServiceClient
-	UserCommandClient pb_user.UserCommandServiceClient
-	RoleQueryClient   pb_role.RoleQueryServiceClient
-	RoleCommandClient pb_role.RoleCommandServiceClient
+type GuardOptions struct {
+	User     []adapter.GuardOption
+	UserRole []adapter.GuardOption
+	Role     []adapter.GuardOption
 }
 
-func NewRepositories(deps *RepositoriesDeps) *Repositories {
+func NewRepositories(
+	db *db.Queries,
+	userQueryClient pbuser.UserQueryServiceClient,
+	userCommandClient pbuser.UserCommandServiceClient,
+	roleQueryClient pbrole.RoleQueryServiceClient,
+	roleCommandClient pbrole.RoleCommandServiceClient,
+	userRoleClient pbuserrole.UserRoleServiceClient,
+	guards ...GuardOptions,
+) *Repositories {
+	var g GuardOptions
+	if len(guards) > 0 {
+		g = guards[0]
+	}
+
 	return &Repositories{
-		User:         NewUserRepository(deps.UserQueryClient, deps.UserCommandClient),
-		UserRole:     NewUserRoleRepository(deps.RoleCommandClient),
-		RefreshToken: NewRefreshTokenRepository(deps.DB),
-		Role:         NewRoleRepository(deps.RoleQueryClient),
-		ResetToken:   NewResetTokenRepository(deps.DB),
+		User:         NewUserRepository(adapter.NewAuthUserAdapter(userQueryClient, userCommandClient, g.User...)),
+		UserRole:     adapter.NewUserRoleAdapter(userRoleClient, g.UserRole...),
+		RefreshToken: NewRefreshTokenRepository(db),
+		Role:         adapter.NewRoleAdapter(roleQueryClient, roleCommandClient, g.Role...),
+		ResetToken:   NewResetTokenRepository(db),
 	}
 }

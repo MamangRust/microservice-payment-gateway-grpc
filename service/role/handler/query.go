@@ -72,7 +72,7 @@ func (s *roleQueryHandleGrpc) FindAllRole(ctx context.Context, req *pb.FindAllRo
 		Status:         "success",
 		Message:        "Successfully fetched role records",
 		Data:           protoRoles,
-		PaginationMeta: paginationMeta,
+		Pagination: paginationMeta,
 	}, nil
 }
 
@@ -127,7 +127,7 @@ func (s *roleQueryHandleGrpc) FindByActive(ctx context.Context, req *pb.FindAllR
 		Status:         "success",
 		Message:        "Successfully fetched active roles",
 		Data:           protoRoles,
-		PaginationMeta: paginationMeta,
+		Pagination: paginationMeta,
 	}, nil
 }
 
@@ -182,7 +182,7 @@ func (s *roleQueryHandleGrpc) FindByTrashed(ctx context.Context, req *pb.FindAll
 		Status:         "success",
 		Message:        "Successfully fetched trashed roles",
 		Data:           protoRoles,
-		PaginationMeta: paginationMeta,
+		Pagination: paginationMeta,
 	}, nil
 }
 
@@ -228,35 +228,6 @@ func (s *roleQueryHandleGrpc) FindByIdRole(ctx context.Context, req *pb.FindById
 	}, nil
 }
 
-func (s *roleQueryHandleGrpc) FindByUserId(ctx context.Context, req *pb.FindByIdUserRoleRequest) (*pb.ApiResponsesRole, error) {
-	userID := int(req.GetUserId())
-
-	if userID == 0 {
-		return nil, role_errors.ErrGrpcRoleInvalidId
-	}
-
-	roles, err := s.roleQuery.FindByUserId(ctx, userID)
-
-	if err != nil {
-		return nil, errors.ToGrpcError(err)
-	}
-
-	protoRoles := make([]*pb.RoleResponse, len(roles))
-	for i, role := range roles {
-		protoRoles[i] = &pb.RoleResponse{
-			Id:        int32(role.RoleID),
-			Name:      role.RoleName,
-			CreatedAt: role.CreatedAt.Time.Format("2006-01-02"),
-			UpdatedAt: role.UpdatedAt.Time.Format("2006-01-02"),
-		}
-	}
-
-	return &pb.ApiResponsesRole{
-		Status:  "success",
-		Message: "Successfully fetched role by user id",
-		Data:    protoRoles,
-	}, nil
-}
 
 func (s *roleQueryHandleGrpc) FindByNameRole(ctx context.Context, req *pb.FindByNameRoleRequest) (*pb.ApiResponseRole, error) {
 	name := req.GetName()

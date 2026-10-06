@@ -1,35 +1,26 @@
 syntax = "proto3";
 
-option go_package = 'github.com/MamangRust/microservice-payment-gateway-grpc/pb/role';
-
 package pb.role;
 
-import "common/api.proto";
-import "role/role.proto";
+import "role/role_common.proto";
 
-message ApiResponsePaginationRole {
-  string status = 1;
-  string message = 2;
-  repeated RoleResponse data = 3;
-  pb.common.PaginationMeta paginationMeta = 4;
+option go_package = "github.com/MamangRust/microservice-payment-gateway-grpc/pb/role;pb_role";
+
+message FindAllRoleRequest {
+    int32 page = 1;
+    int32 page_size = 2;
+    string search = 3;
 }
 
-message ApiResponsePaginationRoleDeleteAt {
-  string status = 1;
-  string message = 2;
-  repeated RoleResponseDeleteAt data = 3;
-  pb.common.PaginationMeta paginationMeta = 4;
+message FindByNameRoleRequest {
+    string name = 1;
 }
 
 service RoleQueryService {
-  rpc FindAllRole(FindAllRoleRequest) returns (ApiResponsePaginationRole) {}
-  rpc FindByIdRole(FindByIdRoleRequest) returns (ApiResponseRole) {}
+    rpc FindAllRole(FindAllRoleRequest) returns(ApiResponsePaginationRole);
+    rpc FindByIdRole(FindByIdRoleRequest) returns(ApiResponseRole);
+    rpc FindByNameRole(FindByNameRoleRequest) returns(ApiResponseRole);
 
-  rpc FindByActive(FindAllRoleRequest)
-      returns (ApiResponsePaginationRoleDeleteAt) {}
-  rpc FindByTrashed(FindAllRoleRequest)
-      returns (ApiResponsePaginationRoleDeleteAt) {}
-
-  rpc FindByUserId(FindByIdUserRoleRequest) returns (ApiResponsesRole) {}
-  rpc FindByNameRole(FindByNameRoleRequest) returns (ApiResponseRole) {}
+    rpc FindByActive(FindAllRoleRequest) returns(ApiResponsePaginationRoleDeleteAt);
+    rpc FindByTrashed(FindAllRoleRequest) returns(ApiResponsePaginationRoleDeleteAt);
 }

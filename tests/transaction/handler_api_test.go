@@ -20,7 +20,7 @@ import (
 	pbAISecurity "github.com/MamangRust/microservice-payment-gateway-grpc/pb/ai_security"
 	pb_merchant "github.com/MamangRust/microservice-payment-gateway-grpc/pb/merchant"
 	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb/transaction"
-	pbStats "github.com/MamangRust/microservice-payment-gateway-grpc/pb/transaction/stats"
+	pbStats "github.com/MamangRust/microservice-payment-gateway-grpc/pb/stats/transaction"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
 	api_transaction "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/handler/transaction"
 	mencache "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/redis"
@@ -122,7 +122,7 @@ func (s *TransactionHandlerTestSuite) SetupSuite() {
 	// Repositories for seeding
 	s.userRepo = user_repo.NewUserCommandRepository(userdbQueries)
 	s.cardRepo = *card_repo.NewRepositories(carddbQueries, nil)
-	s.saldoRepo = saldo_repo.NewRepositories(saldodbQueries, nil)
+	s.saldoRepo = saldo_repo.NewRepositories(saldodbQueries, nil, nil)
 	s.merchantRepo = merchant_repo.NewRepositories(merchantdbQueries, nil)
 
 	opts, err := redis.ParseURL(s.ts.RedisURL)
@@ -136,13 +136,7 @@ func (s *TransactionHandlerTestSuite) SetupSuite() {
 	cacheMetrics, _ := observability.NewCacheMetrics("test")
 	cacheStore := cache.NewCacheStore(s.redisClient, log, cacheMetrics)
 
-	// Transaction module expects specific interfaces. We use the real ones but may need wrappers.
-	cardRepoWrapper := &transactionCardRepo{
-		query:   s.cardRepo.CardQuery,
-		command: s.cardRepo.CardCommand,
-	}
-
-	transactionRepos := repository.NewRepositories(queries, s.saldoRepo, cardRepoWrapper, s.merchantRepo)
+	transactionRepos := repository.NewRepositories(queries, nil, nil, nil, nil, nil)
 	transactionService := service.NewService(&service.Deps{
 		Kafka:            nil,
 		Repositories:     transactionRepos,
@@ -151,7 +145,6 @@ func (s *TransactionHandlerTestSuite) SetupSuite() {
 		SaldoAdapter:     s.ts.SaldoAdapter,
 		Logger:           log,
 		Cache:            cacheStore,
-		AISecurityClient: nil,
 	})
 
 	// Seed Customer

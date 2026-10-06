@@ -7,15 +7,15 @@ import (
 	"strconv"
 	"time"
 
-	userdb "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/database/schema"
-	sharederrorhandler "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errorhandler"
-
+	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/adapter"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/auth"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/models"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
 	mencache "github.com/MamangRust/microservice-payment-gateway-grpc/service/auth/redis"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/auth/repository"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/response"
+	sharederrorhandler "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errorhandler"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/observability"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -27,7 +27,7 @@ type IdentityServiceDeps struct {
 	Cache         mencache.IdentityCache
 	Token         auth.TokenManager
 	RefreshToken  repository.RefreshTokenRepository
-	User          repository.UserRepository
+	User          adapter.AuthUserAdapter
 	Logger        logger.LoggerInterface
 	TokenService  *tokenService
 	Observability observability.TraceLoggerObservability
@@ -39,7 +39,7 @@ type identityService struct {
 	logger        logger.LoggerInterface
 	token         auth.TokenManager
 	refreshToken  repository.RefreshTokenRepository
-	user          repository.UserRepository
+	user          adapter.AuthUserAdapter
 	tokenService  *tokenService
 	observability observability.TraceLoggerObservability
 }
@@ -167,7 +167,7 @@ func (s *identityService) RefreshToken(ctx context.Context, token string) (*resp
 	}, nil
 }
 
-func (s *identityService) GetMe(ctx context.Context, userId int) (*userdb.GetUserByIDRow, error) {
+func (s *identityService) GetMe(ctx context.Context, userId int) (*models.User, error) {
 	const method = "GetMe"
 
 	ctx, span, end, status, logSuccess :=
@@ -188,7 +188,7 @@ func (s *identityService) GetMe(ctx context.Context, userId int) (*userdb.GetUse
 	user, err := s.user.FindById(ctx, userId)
 	if err != nil {
 		status = "error"
-		return sharederrorhandler.HandleError[*userdb.GetUserByIDRow](
+		return sharederrorhandler.HandleError[*models.User](
 			s.logger,
 			err,
 			method,

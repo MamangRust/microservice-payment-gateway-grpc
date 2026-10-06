@@ -16,7 +16,7 @@ import (
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb/transfer"
-	pbStats "github.com/MamangRust/microservice-payment-gateway-grpc/pb/transfer/stats"
+	pbStats "github.com/MamangRust/microservice-payment-gateway-grpc/pb/stats/transfer"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
 	transferhandler "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/handler/transfer"
 	card_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/repository"
@@ -107,10 +107,10 @@ func (s *TransferHandlerTestSuite) SetupSuite() {
 	// Repositories for seeding
 	s.userRepo = user_repo.NewUserCommandRepository(schemadbQueries)
 	s.cardRepo = *card_repo.NewRepositories(carddbQueries, nil)
-	s.saldoRepo = saldo_repo.NewRepositories(saldodbQueries, nil)
+	s.saldoRepo = saldo_repo.NewRepositories(saldodbQueries, nil, nil)
 
 	// Transfer repos
-	s.repos = repository.NewRepositories(queries, s.saldoRepo, s.cardRepo.CardQuery)
+	s.repos = repository.NewRepositories(queries, nil, nil, nil, nil)
 
 	opts, err := redis.ParseURL(s.ts.RedisURL)
 	s.Require().NoError(err)
@@ -130,7 +130,6 @@ func (s *TransferHandlerTestSuite) SetupSuite() {
 		SaldoAdapter:     s.ts.SaldoAdapter,
 		Logger:           log,
 		Cache:            cacheStore,
-		AISecurityClient: nil,
 	})
 
 	// Seed Sender

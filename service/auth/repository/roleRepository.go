@@ -2,83 +2,31 @@ package repository
 
 import (
 	"context"
-	sharedErrors "github.com/MamangRust/microservice-payment-gateway-grpc/shared/errors"
-	"time"
 
-	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb/role"
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/auth/database/schema"
-	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/adapter"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/models"
 )
 
-// roleRepository is a struct that implements the RoleRepository interface
+// RoleRepository resolves roles for the auth service through the role adapter.
+type RoleRepository interface {
+	FindById(ctx context.Context, roleID int) (*models.Role, error)
+	FindByName(ctx context.Context, name string) (*models.Role, error)
+}
+
 type roleRepository struct {
-	roleQueryClient pb.RoleQueryServiceClient
+	adapter adapter.RoleAdapter
 }
 
-// NewRoleRepository creates a new RoleRepository instance
-func NewRoleRepository(queryClient pb.RoleQueryServiceClient) *roleRepository {
-	return &roleRepository{
-		roleQueryClient: queryClient,
-	}
+// NewRoleRepository wraps a RoleAdapter so the repository layer can resolve
+// roles without depending on gRPC directly.
+func NewRoleRepository(roleAdapter adapter.RoleAdapter) RoleRepository {
+	return &roleRepository{adapter: roleAdapter}
 }
 
-// FindById retrieves a role by its unique ID.
-func (r *roleRepository) FindById(ctx context.Context, id int) (*db.Role, error) {
-	resp, err := r.roleQueryClient.FindByIdRole(ctx, &pb.FindByIdRoleRequest{
-		RoleId: int32(id),
-	})
-
-	if err != nil {
-		return nil, sharedErrors.ErrRoleNotFound.WithInternal(err)
-	}
-
-	role := resp.GetData()
-	parseTime := func(ts string) pgtype.Timestamp {
-		t, err := time.Parse(time.RFC3339, ts)
-		if err != nil {
-			return pgtype.Timestamp{Valid: false}
-		}
-		return pgtype.Timestamp{Time: t, Valid: true}
-	}
-
-	return &db.Role{
-		RoleID:    int32(role.Id),
-		RoleName:  role.Name,
-		CreatedAt: parseTime(role.CreatedAt),
-		UpdatedAt: parseTime(role.UpdatedAt),
-	}, nil
+func (r *roleRepository) FindById(ctx context.Context, roleID int) (*models.Role, error) {
+	return r.adapter.FindById(ctx, roleID)
 }
 
-// FindByName retrieves a role by its name from the database via GRPC.
-func (r *roleRepository) FindByName(ctx context.Context, name string) (*db.Role, error) {
-	resp, err := r.roleQueryClient.FindAllRole(ctx, &pb.FindAllRoleRequest{
-		Search:   name,
-		Page:     1,
-		PageSize: 1,
-	})
-
-	if err != nil {
-		return nil, sharedErrors.ErrRoleNotFound.WithInternal(err)
-	}
-
-	roles := resp.GetData()
-	if len(roles) == 0 {
-		return nil, sharedErrors.ErrRoleNotFound
-	}
-
-	role := roles[0]
-	parseTime := func(ts string) pgtype.Timestamp {
-		t, err := time.Parse(time.RFC3339, ts)
-		if err != nil {
-			return pgtype.Timestamp{Valid: false}
-		}
-		return pgtype.Timestamp{Time: t, Valid: true}
-	}
-
-	return &db.Role{
-		RoleID:    int32(role.Id),
-		RoleName:  role.Name,
-		CreatedAt: parseTime(role.CreatedAt),
-		UpdatedAt: parseTime(role.UpdatedAt),
-	}, nil
+func (r *roleRepository) FindByName(ctx context.Context, name string) (*models.Role, error) {
+	return r.adapter.FindByName(ctx, name)
 }

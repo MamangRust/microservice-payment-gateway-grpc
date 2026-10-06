@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/adapter"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/auth"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/hash"
 	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/auth/database/schema"
@@ -51,24 +52,31 @@ func (s *AuthHandlerGapiTestSuite) SetupSuite() {
 	s.redisClient = redis.NewClient(opts)
 
 	queries := db.New(pool)
-	repos := repository.NewRepositories(&repository.RepositoriesDeps{
-		DB:                queries,
-		UserQueryClient:   s.ts.UserQueryClient,
-		UserCommandClient: s.ts.UserCommandClient,
-		RoleQueryClient:   s.ts.RoleQueryClient,
-		RoleCommandClient: s.ts.RoleCommandClient,
-	})
+	userAdapter := adapter.NewAuthUserAdapter(s.ts.UserQueryClient, s.ts.UserCommandClient)
+	roleAdapter := adapter.NewRoleAdapter(s.ts.RoleQueryClient, s.ts.RoleCommandClient)
+	userRoleAdapter := adapter.NewUserRoleAdapter(s.ts.RoleClient)
+	repos := repository.NewRepositories(
+		queries,
+		s.ts.UserQueryClient,
+		s.ts.UserCommandClient,
+		s.ts.RoleQueryClient,
+		s.ts.RoleCommandClient,
+		s.ts.RoleClient,
+	)
 
 	tokenManager, _ := auth.NewManager("mysecret")
 	hasher := hash.NewHashingPassword()
 
 	svc := service.NewService(&service.Deps{
-		Repositories: repos,
-		Logger:       s.ts.Logger,
-		Cache:        s.ts.CacheStore,
-		Token:        tokenManager,
-		Hash:         hasher,
-		Kafka:        nil,
+		Repositories:    repos,
+		Logger:          s.ts.Logger,
+		Cache:           s.ts.CacheStore,
+		Token:           tokenManager,
+		Hash:            hasher,
+		Kafka:           nil,
+		UserAdapter:     userAdapter,
+		RoleAdapter:     roleAdapter,
+		UserRoleAdapter: userRoleAdapter,
 	})
 
 	h := handler.NewAuthHandleGrpc(svc, s.ts.Logger)

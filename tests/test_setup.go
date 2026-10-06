@@ -4,18 +4,22 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/url"
+	"strings"
 	"time"
 
+	chdriver "github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/clickhouse"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/modules/redis"
 	"github.com/testcontainers/testcontainers-go/wait"
 
-	"github.com/MamangRust/microservice-payment-gateway-grpc/pb/role"
+	role "github.com/MamangRust/microservice-payment-gateway-grpc/pb/role"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pb/user"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/adapter"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/auth"
+	clickhousepkg "github.com/MamangRust/microservice-payment-gateway-grpc/pkg/clickhouse"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/hash"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
 	carddb "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/database/schema"
@@ -169,17 +173,17 @@ func SetupTestSuite() (*TestSuite, error) {
 	roleQueries := roledb.New(pool)
 
 	userRepo := user_repo.NewUserQueryRepository(userQueries)
-	ts.UserAdapter = adapter.NewLocalUserAdapter(userRepo)
+	ts.UserAdapter = NewLocalUserAdapter(userRepo)
 
 	cardQueryRepo := card_repo.NewCardQueryRepository(cardQueries)
 	cardCommandRepo := card_repo.NewCardCommandRepository(cardQueries)
-	ts.CardAdapter = adapter.NewLocalCardAdapter(cardQueryRepo, cardCommandRepo)
+	ts.CardAdapter = NewLocalCardAdapter(cardQueryRepo, cardCommandRepo)
 
 	merchantRepo := merchant_repo.NewMerchantQueryRepository(merchantQueries)
-	ts.MerchantAdapter = adapter.NewLocalMerchantAdapter(merchantRepo)
+	ts.MerchantAdapter = NewLocalMerchantAdapter(merchantRepo)
 
-	saldoRepos := saldo_repo.NewRepositories(saldoQueries, cardQueryRepo)
-	ts.SaldoAdapter = adapter.NewLocalSaldoAdapter(saldoRepos)
+	saldoRepos := saldo_repo.NewRepositories(saldoQueries, nil, nil)
+	ts.SaldoAdapter = NewLocalSaldoAdapter(saldoRepos)
 
 	// Initialize Logging, Cache and Observability for local services
 	logger.ResetInstance()
@@ -199,7 +203,7 @@ func SetupTestSuite() (*TestSuite, error) {
 	ts.Hashing = hash.NewHashingPassword()
 	ts.TokenManager, _ = auth.NewManager("test-secret-key")
 
-	userRepos := user_repo.NewRepositories(userQueries)
+	userRepos := user_repo.NewRepositories(&user_repo.Deps{Db: userQueries})
 	userService := user_service.NewService(&user_service.Deps{
 		Repositories: userRepos,
 		Hash:         ts.Hashing,
@@ -299,4 +303,62 @@ func (ts *TestSuite) Teardown() {
 			log.Printf("failed to terminate clickhouse container: %v", err)
 		}
 	}
+}
+
+// OpenStatsConn opens a ClickHouse connection to the testcontainer and applies
+// the stats schema so the stats reader/writer test suites have their tables
+// available. The connection string comes from the testcontainer (CHURL); we do
+// not route through viper, whose CLICKHOUSE_HOST default would not resolve
+// inside this environment.
+func (ts *TestSuite) OpenStatsConn() (chdriver.Conn, error) {
+	u, err := url.Parse(ts.CHURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse clickhouse url: %w", err)
+	}
+
+	auth := chdriver.Auth{Database: strings.TrimPrefix(u.Path, "/")}
+	if u.User != nil {
+		auth.Username = u.User.Username()
+		auth.Password, _ = u.User.Password()
+	}
+
+	conn, err := chdriver.Open(&chdriver.Options{
+		Addr: []string{u.Host},
+		Auth: auth,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to open clickhouse connection: %w", err)
+	}
+
+	if err := conn.Ping(context.Background()); err != nil {
+		return nil, fmt.Errorf("failed to ping clickhouse: %w", err)
+	}
+
+	if err := clickhousepkg.ApplySchema(context.Background(), conn, ts.Logger); err != nil {
+		return nil, err
+	}
+
+	return conn, nil
+}
+
+// StatsTables lists every ClickHouse table used by the stats fixtures.
+var StatsTables = []string{
+	"transaction_events",
+	"topup_events",
+	"transfer_events",
+	"withdraw_events",
+	"saldo_events",
+	"card_events",
+	"merchant_events",
+}
+
+// TruncateStatsTables removes all rows from the stats tables so each suite run
+// starts from a clean, deterministic state.
+func TruncateStatsTables(ctx context.Context, conn chdriver.Conn) error {
+	for _, table := range StatsTables {
+		if err := conn.Exec(ctx, fmt.Sprintf("TRUNCATE TABLE IF EXISTS %s", table)); err != nil {
+			return fmt.Errorf("failed to truncate %s: %w", table, err)
+		}
+	}
+	return nil
 }

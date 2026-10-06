@@ -14,7 +14,7 @@ import (
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb/card"
-	pbStats "github.com/MamangRust/microservice-payment-gateway-grpc/pb/card/stats"
+	pbStats "github.com/MamangRust/microservice-payment-gateway-grpc/pb/stats/card"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
 	cardhandler "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/handler/card"
 	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/database/schema"
@@ -139,7 +139,7 @@ func (s *CardApiTestSuite) SetupSuite() {
 
 	userQueries := userdb.New(pool)
 	repos := repository.NewRepositories(queries, nil)
-	userRepo := user_repo.NewRepositories(userQueries)
+	userRepo := user_repo.NewRepositories(&user_repo.Deps{Db: userQueries})
 
 	logger.ResetInstance()
 	lp := sdklog.NewLoggerProvider()
@@ -195,7 +195,7 @@ func (s *CardApiTestSuite) SetupSuite() {
 	})
 
 	// Create user
-	user, err := userRepo.UserCommand().CreateUser(context.Background(), &requests.CreateUserRequest{
+	user, err := userRepo.UserCommand.CreateUser(context.Background(), &requests.CreateUserRequest{
 		FirstName: "Api",
 		LastName:  "Card",
 		Email:     "api.card@example.com",

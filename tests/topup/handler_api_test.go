@@ -16,7 +16,7 @@ import (
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb/topup"
-	pbStats "github.com/MamangRust/microservice-payment-gateway-grpc/pb/topup/stats"
+	pbStats "github.com/MamangRust/microservice-payment-gateway-grpc/pb/stats/topup"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
 	api "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/handler/topup"
 	card_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/repository"
@@ -111,16 +111,12 @@ func (s *TopupHandlerTestSuite) SetupSuite() {
 
 	schemadbQueries := userdb.New(pool)
 
-	userRepos := user_repo.NewRepositories(schemadbQueries)
+	userRepos := user_repo.NewRepositories(&user_repo.Deps{Db: schemadbQueries})
 	cardRepos := card_repo.NewRepositories(carddbQueries, nil)
-	saldoRepos := saldo_repo.NewRepositories(saldodbQueries, nil)
+	saldoRepos := saldo_repo.NewRepositories(saldodbQueries, nil, nil)
 
-	cardAdapter := &topupCardRepoAdapter{
-		CardQueryRepository:   cardRepos.CardQuery,
-		CardCommandRepository: cardRepos.CardCommand,
-	}
-	s.topupRepo = topup_repo.NewRepositories(queries, cardAdapter, saldoRepos)
-	s.userRepo = userRepos.UserCommand()
+	s.topupRepo = topup_repo.NewRepositories(queries, nil, nil, nil, nil)
+	s.userRepo = userRepos.UserCommand
 	s.cardRepo = cardRepos.CardCommand
 	s.saldoRepo = saldoRepos
 

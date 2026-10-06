@@ -50,7 +50,7 @@ func (s *CardServiceTestSuite) SetupSuite() {
 
 	userdbQueries := userdb.New(pool)
 	repos := repository.NewRepositories(queries, nil)
-	s.userRepo = user_repo.NewRepositories(userdbQueries)
+	s.userRepo = user_repo.NewRepositories(&user_repo.Deps{Db: userdbQueries})
 
 	logger.ResetInstance()
 	lp := sdklog.NewLoggerProvider()
@@ -67,7 +67,7 @@ func (s *CardServiceTestSuite) SetupSuite() {
 	})
 
 	// Create a user for card ownership
-	user, err := s.userRepo.UserCommand().CreateUser(context.Background(), &requests.CreateUserRequest{
+	user, err := s.userRepo.UserCommand.CreateUser(context.Background(), &requests.CreateUserRequest{
 		FirstName: "Card",
 		LastName:  "Service",
 		Email:     "card.service@example.com",

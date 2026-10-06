@@ -2386,20 +2386,21 @@ type WithdrawYearlyAmountResponse struct {
 
 ### `NewApiErrorResponse`
 
-NewApiErrorResponse creates and sends a JSON error response using Echo framework.
+NewApiErrorResponse creates and sends a JSON error response using the chi framework.
 This is a convenience wrapper for returning standardized error responses in HTTP handlers.
 
 Parameters:
-  - c: Echo context
+  - w: HTTP response writer
+  - r: HTTP request
   - statusText: Status category ("error", "fail", etc.)
   - message: Human-readable error description
   - code: HTTP status code
 
 Returns:
-  - error: Echo error that will trigger the JSON response
+  - error: error that will trigger the JSON response
 
 ```go
-func NewApiErrorResponse(c echo.Context, statusText string, message string, code int) error
+func NewApiErrorResponse(w http.ResponseWriter, r *http.Request, statusText string, message string, code int) error
 ```
 
 ### `NewGrpcError`

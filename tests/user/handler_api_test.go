@@ -62,7 +62,7 @@ func (s *UserHandlerTestSuite) SetupSuite() {
 	s.redisClient = redis.NewClient(opts)
 
 	queries := db.New(pool)
-	repos := repository.NewRepositories(queries)
+	repos := repository.NewRepositories(&repository.Deps{Db: queries})
 
 	logger.ResetInstance()
 	lp := sdklog.NewLoggerProvider()

@@ -66,10 +66,10 @@ func (s *TransferServiceTestSuite) SetupSuite() {
 	// Repositories for seeding
 	s.userRepo = user_repo.NewUserCommandRepository(userdbQueries)
 	s.cardRepo = *card_repo.NewRepositories(carddbQueries, nil)
-	s.saldoRepo = saldo_repo.NewRepositories(saldodbQueries, nil)
+	s.saldoRepo = saldo_repo.NewRepositories(saldodbQueries, nil, nil)
 
 	// Transfer repos
-	s.repos = repository.NewRepositories(queries, s.saldoRepo, s.cardRepo.CardQuery)
+	s.repos = repository.NewRepositories(queries, nil, nil, nil, nil)
 
 	opts, err := redis.ParseURL(s.ts.RedisURL)
 	s.Require().NoError(err)
@@ -89,7 +89,7 @@ func (s *TransferServiceTestSuite) SetupSuite() {
 		SaldoAdapter:     s.ts.SaldoAdapter,
 		Logger:           log,
 		Cache:            cacheStore,
-		AISecurityClient: nil,
+		AISecurityAdapter: nil,
 	})
 
 	// Seed Sender

@@ -4,8 +4,6 @@ import (
 	"context"
 	"time"
 
-	carddb "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/database/schema"
-	saldodb "github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/database/schema"
 	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/transfer/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/idempotency"
@@ -18,18 +16,6 @@ type IdempotencyRepository interface {
 
 type OutboxRepository interface {
 	outbox.Store[db.OutboxRecord]
-}
-
-type SaldoRepository interface {
-	FindByCardNumber(ctx context.Context, card_number string) (*saldodb.Saldo, error)
-
-	UpdateSaldoBalance(ctx context.Context, request *requests.UpdateSaldoBalance) (*saldodb.UpdateSaldoBalanceRow, error)
-}
-
-type CardRepository interface {
-	FindUserCardByCardNumber(ctx context.Context, card_number string) (*carddb.GetUserEmailByCardNumberRow, error)
-
-	FindCardByCardNumber(ctx context.Context, card_number string) (*carddb.GetCardByCardNumberRow, error)
 }
 
 type TransferQueryRepository interface {

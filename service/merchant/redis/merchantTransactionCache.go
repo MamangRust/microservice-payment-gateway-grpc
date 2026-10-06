@@ -4,24 +4,24 @@ import (
 	"context"
 	"fmt"
 
-	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/merchant/database/schema"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/models"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/cache"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 )
 
 type merchantTransactionAllResponse struct {
-	Data         []*db.FindAllTransactionsRow `json:"data"`
-	TotalRecords *int                         `json:"total_records"`
+	Data         []*models.Transaction `json:"data"`
+	TotalRecords *int                  `json:"total_records"`
 }
 
 type merchantTransactionByMerchantResponse struct {
-	Data         []*db.FindAllTransactionsByMerchantRow `json:"data"`
-	TotalRecords *int                                   `json:"total_records"`
+	Data         []*models.Transaction `json:"data"`
+	TotalRecords *int                  `json:"total_records"`
 }
 
 type merchantTransactionByApikeyResponse struct {
-	Data         []*db.FindAllTransactionsByApikeyRow `json:"data"`
-	TotalRecords *int                                 `json:"total_records"`
+	Data         []*models.Transaction `json:"data"`
+	TotalRecords *int                  `json:"total_records"`
 }
 
 type merchantTransactionCache struct {
@@ -32,13 +32,13 @@ func NewMerchantTransactionCache(store *cache.CacheStore) MerchantTransactionCac
 	return &merchantTransactionCache{store: store}
 }
 
-func (m *merchantTransactionCache) SetCacheAllMerchantTransactions(ctx context.Context, req *requests.FindAllMerchantTransactions, data []*db.FindAllTransactionsRow, total *int) {
+func (m *merchantTransactionCache) SetCacheAllMerchantTransactions(ctx context.Context, req *requests.FindAllMerchantTransactions, data []*models.Transaction, total *int) {
 	if total == nil {
 		zero := 0
 		total = &zero
 	}
 	if data == nil {
-		data = []*db.FindAllTransactionsRow{}
+		data = []*models.Transaction{}
 	}
 
 	key := fmt.Sprintf(merchantTransactionsCacheKey, req.Search, req.Page, req.PageSize)
@@ -46,7 +46,7 @@ func (m *merchantTransactionCache) SetCacheAllMerchantTransactions(ctx context.C
 	cache.SetToCache(ctx, m.store, key, payload, ttlDefault)
 }
 
-func (m *merchantTransactionCache) GetCacheAllMerchantTransactions(ctx context.Context, req *requests.FindAllMerchantTransactions) ([]*db.FindAllTransactionsRow, *int, bool) {
+func (m *merchantTransactionCache) GetCacheAllMerchantTransactions(ctx context.Context, req *requests.FindAllMerchantTransactions) ([]*models.Transaction, *int, bool) {
 	key := fmt.Sprintf(merchantTransactionsCacheKey, req.Search, req.Page, req.PageSize)
 
 	result, found := cache.GetFromCache[merchantTransactionAllResponse](ctx, m.store, key)
@@ -58,13 +58,13 @@ func (m *merchantTransactionCache) GetCacheAllMerchantTransactions(ctx context.C
 	return result.Data, result.TotalRecords, true
 }
 
-func (m *merchantTransactionCache) SetCacheMerchantTransactions(ctx context.Context, req *requests.FindAllMerchantTransactionsById, data []*db.FindAllTransactionsByMerchantRow, total *int) {
+func (m *merchantTransactionCache) SetCacheMerchantTransactions(ctx context.Context, req *requests.FindAllMerchantTransactionsById, data []*models.Transaction, total *int) {
 	if total == nil {
 		zero := 0
 		total = &zero
 	}
 	if data == nil {
-		data = []*db.FindAllTransactionsByMerchantRow{}
+		data = []*models.Transaction{}
 	}
 
 	key := fmt.Sprintf(merchantTransactionCacheKey, req.MerchantID, req.Search, req.Page, req.PageSize)
@@ -72,7 +72,7 @@ func (m *merchantTransactionCache) SetCacheMerchantTransactions(ctx context.Cont
 	cache.SetToCache(ctx, m.store, key, payload, ttlDefault)
 }
 
-func (m *merchantTransactionCache) GetCacheMerchantTransactions(ctx context.Context, req *requests.FindAllMerchantTransactionsById) ([]*db.FindAllTransactionsByMerchantRow, *int, bool) {
+func (m *merchantTransactionCache) GetCacheMerchantTransactions(ctx context.Context, req *requests.FindAllMerchantTransactionsById) ([]*models.Transaction, *int, bool) {
 	key := fmt.Sprintf(merchantTransactionCacheKey, req.MerchantID, req.Search, req.Page, req.PageSize)
 
 	result, found := cache.GetFromCache[merchantTransactionByMerchantResponse](ctx, m.store, key)
@@ -84,13 +84,13 @@ func (m *merchantTransactionCache) GetCacheMerchantTransactions(ctx context.Cont
 	return result.Data, result.TotalRecords, true
 }
 
-func (m *merchantTransactionCache) SetCacheMerchantTransactionApikey(ctx context.Context, req *requests.FindAllMerchantTransactionsByApiKey, data []*db.FindAllTransactionsByApikeyRow, total *int) {
+func (m *merchantTransactionCache) SetCacheMerchantTransactionApikey(ctx context.Context, req *requests.FindAllMerchantTransactionsByApiKey, data []*models.Transaction, total *int) {
 	if total == nil {
 		zero := 0
 		total = &zero
 	}
 	if data == nil {
-		data = []*db.FindAllTransactionsByApikeyRow{}
+		data = []*models.Transaction{}
 	}
 
 	key := fmt.Sprintf(merchantTransactionApikeyCacheKey, req.ApiKey, req.Search, req.Page, req.PageSize)
@@ -98,7 +98,7 @@ func (m *merchantTransactionCache) SetCacheMerchantTransactionApikey(ctx context
 	cache.SetToCache(ctx, m.store, key, payload, ttlDefault)
 }
 
-func (m *merchantTransactionCache) GetCacheMerchantTransactionApikey(ctx context.Context, req *requests.FindAllMerchantTransactionsByApiKey) ([]*db.FindAllTransactionsByApikeyRow, *int, bool) {
+func (m *merchantTransactionCache) GetCacheMerchantTransactionApikey(ctx context.Context, req *requests.FindAllMerchantTransactionsByApiKey) ([]*models.Transaction, *int, bool) {
 	key := fmt.Sprintf(merchantTransactionApikeyCacheKey, req.ApiKey, req.Search, req.Page, req.PageSize)
 
 	result, found := cache.GetFromCache[merchantTransactionByApikeyResponse](ctx, m.store, key)

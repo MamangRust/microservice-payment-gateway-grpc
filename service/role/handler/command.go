@@ -89,7 +89,7 @@ func (s *roleCommandHandleGrpc) UpdateRole(ctx context.Context, reqPb *pb.Update
 	}, nil
 }
 
-func (s *roleCommandHandleGrpc) TrashedRole(ctx context.Context, req *pb.FindByIdRoleRequest) (*pb.ApiResponseRoleDeleteAt, error) {
+func (s *roleCommandHandleGrpc) TrashedRole(ctx context.Context, req *pb.FindByIdRoleRequest) (*pb.ApiResponseRole, error) {
 	roleID := int(req.GetRoleId())
 
 	if roleID == 0 {
@@ -102,22 +102,21 @@ func (s *roleCommandHandleGrpc) TrashedRole(ctx context.Context, req *pb.FindByI
 		return nil, errors.ToGrpcError(err)
 	}
 
-	protoRole := mapRoleResponseDeleteAt(
-		role.RoleID,
-		role.RoleName,
-		role.CreatedAt,
-		role.UpdatedAt,
-		role.DeletedAt,
-	)
+	protoRole := &pb.RoleResponse{
+		Id:        int32(role.RoleID),
+		Name:      role.RoleName,
+		CreatedAt: role.CreatedAt.Time.Format("2006-01-02"),
+		UpdatedAt: role.UpdatedAt.Time.Format("2006-01-02"),
+	}
 
-	return &pb.ApiResponseRoleDeleteAt{
+	return &pb.ApiResponseRole{
 		Status:  "success",
 		Message: "Successfully trashed role",
 		Data:    protoRole,
 	}, nil
 }
 
-func (s *roleCommandHandleGrpc) RestoreRole(ctx context.Context, req *pb.FindByIdRoleRequest) (*pb.ApiResponseRoleDeleteAt, error) {
+func (s *roleCommandHandleGrpc) RestoreRole(ctx context.Context, req *pb.FindByIdRoleRequest) (*pb.ApiResponseRole, error) {
 	roleID := int(req.GetRoleId())
 
 	if roleID == 0 {
@@ -130,15 +129,14 @@ func (s *roleCommandHandleGrpc) RestoreRole(ctx context.Context, req *pb.FindByI
 		return nil, errors.ToGrpcError(err)
 	}
 
-	protoRole := mapRoleResponseDeleteAt(
-		role.RoleID,
-		role.RoleName,
-		role.CreatedAt,
-		role.UpdatedAt,
-		role.DeletedAt,
-	)
+	protoRole := &pb.RoleResponse{
+		Id:        int32(role.RoleID),
+		Name:      role.RoleName,
+		CreatedAt: role.CreatedAt.Time.Format("2006-01-02"),
+		UpdatedAt: role.UpdatedAt.Time.Format("2006-01-02"),
+	}
 
-	return &pb.ApiResponseRoleDeleteAt{
+	return &pb.ApiResponseRole{
 		Status:  "success",
 		Message: "Successfully restored role",
 		Data:    protoRole,
@@ -187,52 +185,5 @@ func (s *roleCommandHandleGrpc) DeleteAllRolePermanent(ctx context.Context, _ *e
 	return &pb.ApiResponseRoleAll{
 		Status:  "success",
 		Message: "delete all roles permanent",
-	}, nil
-}
-func (s *roleCommandHandleGrpc) CreateUserRole(ctx context.Context, request *pb.CreateUserRoleRequest) (*pb.ApiResponseRole, error) {
-	userID := int(request.GetUserId())
-	roleID := int(request.GetRoleId())
-
-	if userID == 0 || roleID == 0 {
-		return nil, role_errors.ErrGrpcRoleInvalidId
-	}
-
-	role, err := s.roleCommand.CreateUserRole(ctx, userID, roleID)
-
-	if err != nil {
-		return nil, errors.ToGrpcError(err)
-	}
-
-	protoRole := &pb.RoleResponse{
-		Id:        int32(role.RoleID),
-		Name:      role.RoleName,
-		CreatedAt: role.CreatedAt.Time.Format("2006-01-02"),
-		UpdatedAt: role.UpdatedAt.Time.Format("2006-01-02"),
-	}
-
-	return &pb.ApiResponseRole{
-		Status:  "success",
-		Message: "Successfully associated role with user",
-		Data:    protoRole,
-	}, nil
-}
-
-func (s *roleCommandHandleGrpc) DeleteUserRole(ctx context.Context, request *pb.DeleteUserRoleRequest) (*pb.ApiResponseRole, error) {
-	userID := int(request.GetUserId())
-	roleID := int(request.GetRoleId())
-
-	if userID == 0 || roleID == 0 {
-		return nil, role_errors.ErrGrpcRoleInvalidId
-	}
-
-	_, err := s.roleCommand.DeleteUserRole(ctx, userID, roleID)
-
-	if err != nil {
-		return nil, errors.ToGrpcError(err)
-	}
-
-	return &pb.ApiResponseRole{
-		Status:  "success",
-		Message: "Successfully removed role from user",
 	}, nil
 }

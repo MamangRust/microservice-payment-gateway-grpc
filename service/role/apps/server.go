@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb/role"
+	pbuserrole "github.com/MamangRust/microservice-payment-gateway-grpc/pb/user_role"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/kafka"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/server"
 	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/role/database/schema"
@@ -49,6 +50,7 @@ func NewServer(cfg *server.Config) (*server.GRPCServer, error) {
 	srv.RegisterServices = func(gs *grpc.Server) {
 		pb.RegisterRoleQueryServiceServer(gs, h.RoleQuery)
 		pb.RegisterRoleCommandServiceServer(gs, h.RoleCommand)
+		pbuserrole.RegisterUserRoleServiceServer(gs, h.UserRole)
 	}
 
 	return srv, nil

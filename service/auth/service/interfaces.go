@@ -3,14 +3,14 @@ package service
 import (
 	"context"
 
-	userdb "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/database/schema"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/models"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/response"
 )
 
 //go:generate mockgen -source=interfaces.go -destination=mocks/mock.go
 type RegistrationService interface {
-	Register(ctx context.Context, request *requests.RegisterRequest) (*userdb.CreateUserRow, error)
+	Register(ctx context.Context, request *requests.RegisterRequest) (*models.User, error)
 }
 
 type LoginService interface {
@@ -28,5 +28,5 @@ type PasswordResetService interface {
 type IdentifyService interface {
 	RefreshToken(ctx context.Context, token string) (*response.TokenResponse, error)
 
-	GetMe(ctx context.Context, userId int) (*userdb.GetUserByIDRow, error)
+	GetMe(ctx context.Context, userId int) (*models.User, error)
 }

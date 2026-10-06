@@ -31,8 +31,6 @@ type RoleQueryResponseMapper interface {
 type RoleCommandResponseMapper interface {
 	RoleBaseResponseMapper
 
-	ToApiResponseRoleDeleteAt(pbResponse *pb.ApiResponseRoleDeleteAt) *response.ApiResponseRoleDeleteAt
-
 	// ToApiResponseRoleDelete maps a gRPC delete role response
 	// into an HTTP API response format.
 	ToApiResponseRoleDelete(pbResponse *pb.ApiResponseRoleDelete) *response.ApiResponseRoleDelete

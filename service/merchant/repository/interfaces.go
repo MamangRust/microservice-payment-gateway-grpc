@@ -4,13 +4,8 @@ import (
 	"context"
 
 	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/merchant/database/schema"
-	userdb "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 )
-
-type UserRepository interface {
-	FindById(ctx context.Context, user_id int) (*userdb.GetUserByIDRow, error)
-}
 
 type MerchantQueryRepository interface {
 	FindAllMerchants(ctx context.Context, req *requests.FindAllMerchants) ([]*db.GetMerchantsRow, error)
@@ -27,12 +22,6 @@ type MerchantDocumentQueryRepository interface {
 	FindByIdDocument(ctx context.Context, id int) (*db.GetMerchantDocumentRow, error)
 	FindByActiveDocuments(ctx context.Context, req *requests.FindAllMerchantDocuments) ([]*db.GetActiveMerchantDocumentsRow, error)
 	FindByTrashedDocuments(ctx context.Context, req *requests.FindAllMerchantDocuments) ([]*db.GetTrashedMerchantDocumentsRow, error)
-}
-
-type MerchantTransactionRepository interface {
-	FindAllTransactions(ctx context.Context, req *requests.FindAllMerchantTransactions) ([]*db.FindAllTransactionsRow, error)
-	FindAllTransactionsByMerchant(ctx context.Context, req *requests.FindAllMerchantTransactionsById) ([]*db.FindAllTransactionsByMerchantRow, error)
-	FindAllTransactionsByApikey(ctx context.Context, req *requests.FindAllMerchantTransactionsByApiKey) ([]*db.FindAllTransactionsByApikeyRow, error)
 }
 
 type MerchantCommandRepository interface {

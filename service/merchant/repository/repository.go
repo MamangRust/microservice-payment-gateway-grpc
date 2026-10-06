@@ -1,9 +1,16 @@
 package repository
 
 import (
-	pb_user "github.com/MamangRust/microservice-payment-gateway-grpc/pb/user"
+	pbuser "github.com/MamangRust/microservice-payment-gateway-grpc/pb/user"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/adapter"
 	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/merchant/database/schema"
 )
+
+type GuardOptions struct {
+	User []adapter.GuardOption
+}
+
+type UserRepository = adapter.UserAdapter
 
 type Repositories interface {
 	MerchantQueryRepository
@@ -23,13 +30,19 @@ type repositories struct {
 	UserRepository
 }
 
-func NewRepositories(db *db.Queries, userClient pb_user.UserQueryServiceClient) Repositories {
+func NewRepositories(db *db.Queries, userQueryClient pbuser.UserQueryServiceClient, guards ...GuardOptions) Repositories {
+	var g GuardOptions
+
+	if len(guards) > 0 {
+		g = guards[0]
+	}
+
 	return &repositories{
 		NewMerchantQueryRepository(db),
 		NewMerchantCommandRepository(db),
 		NewMerchantDocumentQueryRepository(db),
 		NewMerchantDocumentCommandRepository(db),
 		NewMerchantTransactionRepository(db),
-		NewUserRepository(userClient),
+		adapter.NewUserAdapter(userQueryClient, g.User...),
 	}
 }

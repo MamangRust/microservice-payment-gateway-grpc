@@ -1,36 +1,37 @@
 package repository
 
 import (
+	pbrole "github.com/MamangRust/microservice-payment-gateway-grpc/pb/role"
+	pbuserrole "github.com/MamangRust/microservice-payment-gateway-grpc/pb/user_role"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/adapter"
 	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/database/schema"
 )
 
-type Repositories interface {
-	UserQuery() UserQueryRepository
-	UserCommand() UserCommandRepository
-	Role() RoleRepository
+type GuardOptions struct {
+	UserRole []adapter.GuardOption
+	Role     []adapter.GuardOption
 }
 
-type repositories struct {
-	userQuery   UserQueryRepository
-	userCommand UserCommandRepository
-	role        RoleRepository
+type Repositories struct {
+	UserCommand UserCommandRepository
+	UserQuery   UserQueryRepository
+	Role        RoleRepository
+	UserRole    UserRoleRepository
 }
 
-func NewRepositories(db *db.Queries) Repositories {
+type Deps struct {
+	Db                *db.Queries
+	RoleQueryClient   pbrole.RoleQueryServiceClient
+	RoleCommandClient pbrole.RoleCommandServiceClient
+	UserRoleClient    pbuserrole.UserRoleServiceClient
+	Guard             GuardOptions
+}
 
-	return &repositories{
-		userCommand: NewUserCommandRepository(db),
-		userQuery:   NewUserQueryRepository(db),
-		role:        NewRoleRepository(db),
+func NewRepositories(deps *Deps) Repositories {
+	return Repositories{
+		UserCommand: NewUserCommandRepository(deps.Db),
+		UserQuery:   NewUserQueryRepository(deps.Db),
+		Role:        NewRoleRepository(adapter.NewRoleAdapter(deps.RoleQueryClient, deps.RoleCommandClient, deps.Guard.Role...)),
+		UserRole:    NewUserRoleRepository(adapter.NewUserRoleAdapter(deps.UserRoleClient, deps.Guard.UserRole...)),
 	}
-}
-
-func (r *repositories) UserQuery() UserQueryRepository {
-	return r.userQuery
-}
-func (r *repositories) UserCommand() UserCommandRepository {
-	return r.userCommand
-}
-func (r *repositories) Role() RoleRepository {
-	return r.role
 }

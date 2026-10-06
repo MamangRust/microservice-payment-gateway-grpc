@@ -16,7 +16,7 @@ import (
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb/withdraw"
-	pbStats "github.com/MamangRust/microservice-payment-gateway-grpc/pb/withdraw/stats"
+	pbStats "github.com/MamangRust/microservice-payment-gateway-grpc/pb/stats/withdraw"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
 	withdrawhandler "github.com/MamangRust/microservice-payment-gateway-grpc/service/apigateway/handler/withdraw"
 	card_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/repository"
@@ -108,13 +108,13 @@ func (s *WithdrawHandlerTestSuite) SetupSuite() {
 	// Repositories for seeding and service dependencies
 	userRepos := user_repo.NewUserCommandRepository(schemadbQueries)
 	cardRepos := card_repo.NewRepositories(carddbQueries, nil)
-	saldoRepos := saldo_repo.NewRepositories(saldodbQueries, nil)
+	saldoRepos := saldo_repo.NewRepositories(saldodbQueries, nil, nil)
 
 	s.userRepo = userRepos
 	s.cardRepo = cardRepos.CardCommand
 	s.saldoRepo = saldoRepos
 
-	s.repos = repository.NewRepositories(queries, cardRepos.CardQuery, saldoRepos)
+	s.repos = repository.NewRepositories(queries, nil, nil, nil, nil)
 
 	opts, err := redis.ParseURL(s.ts.RedisURL)
 	s.Require().NoError(err)
@@ -134,7 +134,6 @@ func (s *WithdrawHandlerTestSuite) SetupSuite() {
 		SaldoAdapter:     s.ts.SaldoAdapter,
 		Logger:           log,
 		Cache:            cacheStore,
-		AISecurityClient: nil,
 	})
 
 	// Seed Customer

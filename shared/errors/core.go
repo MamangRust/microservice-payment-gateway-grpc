@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+
+	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 type ErrorType string
@@ -110,13 +112,13 @@ func ErrNotFoundResponse(entity string) *AppError {
 	return ErrNotFound.WithMessage(entity + " not found")
 }
 
-// ErrNoRowsOrFailed maps a single-row mutation error: a "no rows in result set"
-// error (pgx.ErrNoRows proxies sql.ErrNoRows) becomes a 404 not-found AppError
-// for the given entity, and any other error becomes a generic failure for the
-// given operation. This avoids leaking a misleading 500 INTERNAL when a
-// mutation targets a row that does not exist (or is in the wrong state).
+// ErrNoRowsOrFailed maps a mutation error: a "no document/row" not-found error
+// becomes a 404 not-found AppError for the given entity, and any other error
+// becomes a generic failure for the given operation. This avoids leaking a
+// misleading 500 INTERNAL when a mutation targets a record that does not exist
+// (or is in the wrong state).
 func ErrNoRowsOrFailed(err error, entity, operation string) *AppError {
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, sql.ErrNoRows) || errors.Is(err, mongo.ErrNoDocuments) {
 		return ErrNotFoundResponse(entity).WithInternal(err)
 	}
 	return ErrFailed(operation).WithInternal(err)

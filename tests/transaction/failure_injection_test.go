@@ -6,6 +6,7 @@ import (
 	carddb "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/database/schema"
 	merchantdb "github.com/MamangRust/microservice-payment-gateway-grpc/service/merchant/database/schema"
 	saldodb "github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/database/schema"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/models"
 	userdb "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/database/schema"
 	"net/http"
 	"testing"
@@ -43,29 +44,29 @@ type faultInjectingSaldoAdapter struct {
 	failCredit bool
 }
 
-func (f *faultInjectingSaldoAdapter) FindByCardNumber(ctx context.Context, cardNumber string) (*saldodb.Saldo, error) {
+func (f *faultInjectingSaldoAdapter) FindByCardNumber(ctx context.Context, cardNumber string) (*models.Saldo, error) {
 	return f.inner.FindByCardNumber(ctx, cardNumber)
 }
 
-func (f *faultInjectingSaldoAdapter) UpdateSaldoBalance(ctx context.Context, req *requests.UpdateSaldoBalance) (*saldodb.UpdateSaldoBalanceRow, error) {
+func (f *faultInjectingSaldoAdapter) UpdateSaldoBalance(ctx context.Context, req *requests.UpdateSaldoBalance) (*models.SaldoMutationResult, error) {
 	return f.inner.UpdateSaldoBalance(ctx, req)
 }
 
-func (f *faultInjectingSaldoAdapter) DebitSaldo(ctx context.Context, req *requests.DebitSaldoRequest) (*saldodb.DebitSaldoRow, error) {
+func (f *faultInjectingSaldoAdapter) DebitSaldo(ctx context.Context, req *requests.DebitSaldoRequest) (*models.SaldoMutationResult, error) {
 	if f.failDebit {
 		return nil, status.Error(codes.Unavailable, "saldo service unavailable (injected)")
 	}
 	return f.inner.DebitSaldo(ctx, req)
 }
 
-func (f *faultInjectingSaldoAdapter) CreditSaldo(ctx context.Context, req *requests.CreditSaldoRequest) (*saldodb.CreditSaldoRow, error) {
+func (f *faultInjectingSaldoAdapter) CreditSaldo(ctx context.Context, req *requests.CreditSaldoRequest) (*models.SaldoMutationResult, error) {
 	if f.failCredit {
 		return nil, status.Error(codes.Unavailable, "saldo service unavailable (injected)")
 	}
 	return f.inner.CreditSaldo(ctx, req)
 }
 
-func (f *faultInjectingSaldoAdapter) UpdateSaldoWithdraw(ctx context.Context, req *requests.UpdateSaldoWithdraw) (*saldodb.UpdateSaldoWithdrawRow, error) {
+func (f *faultInjectingSaldoAdapter) UpdateSaldoWithdraw(ctx context.Context, req *requests.UpdateSaldoWithdraw) (*models.SaldoMutationResult, error) {
 	return f.inner.UpdateSaldoWithdraw(ctx, req)
 }
 
@@ -96,7 +97,7 @@ func (s *TransactionFailureInjectionTestSuite) SetupSuite() {
 
 	userRepo := user_repo.NewUserCommandRepository(userdb.New(pool))
 	cardRepo := *card_repo.NewRepositories(carddb.New(pool), nil)
-	saldoRepo := saldo_repo.NewRepositories(saldodb.New(pool), nil)
+	saldoRepo := saldo_repo.NewRepositories(saldodb.New(pool), nil, nil)
 	merchantRepo := merchant_repo.NewRepositories(merchantdb.New(pool), nil)
 
 	opts, err := redis.ParseURL(s.ts.RedisURL)
@@ -112,12 +113,7 @@ func (s *TransactionFailureInjectionTestSuite) SetupSuite() {
 	// Real adapters, wrapped with fault injection for the saldo dependency.
 	s.injectedSaldo = &faultInjectingSaldoAdapter{inner: s.ts.SaldoAdapter}
 
-	cardRepoWrapper := &transactionCardRepo{
-		query:   cardRepo.CardQuery,
-		command: cardRepo.CardCommand,
-	}
-
-	transactionRepos := repository.NewRepositories(s.queries, s.injectedSaldo, cardRepoWrapper, merchantRepo)
+	transactionRepos := repository.NewRepositories(s.queries, nil, nil, nil, nil, nil)
 	s.transactionSvc = service.NewService(&service.Deps{
 		Kafka:            nil,
 		Repositories:     transactionRepos,
@@ -126,7 +122,7 @@ func (s *TransactionFailureInjectionTestSuite) SetupSuite() {
 		SaldoAdapter:     s.injectedSaldo,
 		Logger:           log,
 		Cache:            cacheStore,
-		AISecurityClient: nil,
+		AISecurityAdapter: nil,
 	})
 
 	// Seed: user -> card + saldo -> merchant.

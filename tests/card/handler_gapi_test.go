@@ -9,7 +9,7 @@ import (
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb/card"
-	pbStats "github.com/MamangRust/microservice-payment-gateway-grpc/pb/card/stats"
+	pbStats "github.com/MamangRust/microservice-payment-gateway-grpc/pb/stats/card"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
 	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/card/handler"
@@ -151,7 +151,7 @@ func (s *CardGapiTestSuite) SetupSuite() {
 
 	userdbQueries := userdb.New(pool)
 	repos := repository.NewRepositories(queries, nil)
-	userRepo := user_repo.NewRepositories(userdbQueries)
+	userRepo := user_repo.NewRepositories(&user_repo.Deps{Db: userdbQueries})
 
 	logger.ResetInstance()
 	lp := sdklog.NewLoggerProvider()
@@ -202,7 +202,7 @@ func (s *CardGapiTestSuite) SetupSuite() {
 	s.withdrawClient = pbStats.NewCardStatsWithdrawServiceClient(conn)
 
 	// Create user
-	user, err := userRepo.UserCommand().CreateUser(context.Background(), &requests.CreateUserRequest{
+	user, err := userRepo.UserCommand.CreateUser(context.Background(), &requests.CreateUserRequest{
 		FirstName: "Gapi",
 		LastName:  "Card",
 		Email:     "gapi.card@example.com",

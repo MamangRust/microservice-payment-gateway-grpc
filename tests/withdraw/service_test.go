@@ -68,9 +68,9 @@ func (s *WithdrawServiceTestSuite) SetupSuite() {
 	// Create individual repositories from their respective modules
 	userCommandRepo := user_repo.NewUserCommandRepository(userdbQueries)
 	cardRepos := card_repo.NewRepositories(carddbQueries, nil)
-	saldoRepos := saldo_repo.NewRepositories(saldodbQueries, nil)
+	saldoRepos := saldo_repo.NewRepositories(saldodbQueries, nil, nil)
 
-	repos := withdraw_repo.NewRepositories(queries, cardRepos.CardQuery, saldoRepos)
+	repos := withdraw_repo.NewRepositories(queries, nil, nil, nil, nil)
 	s.userRepo = userCommandRepo
 	s.cardRepo = cardRepos.CardCommand
 	s.saldoRepo = saldoRepos
@@ -91,7 +91,7 @@ func (s *WithdrawServiceTestSuite) SetupSuite() {
 		SaldoAdapter:     s.ts.SaldoAdapter,
 		Logger:           log,
 		Cache:            cacheStore,
-		AISecurityClient: nil,
+		AISecurityAdapter: nil,
 	})
 
 	// Seed User, Card and Saldo
@@ -312,7 +312,7 @@ func (s *WithdrawServiceTestSuite) Test10_DailyWithdrawalLimit() {
 		SaldoAdapter:         s.ts.SaldoAdapter,
 		Logger:               log,
 		Cache:                cacheStore,
-		AISecurityClient:     nil,
+		AISecurityAdapter:    nil,
 		DailyWithdrawalLimit: 150000,
 	})
 

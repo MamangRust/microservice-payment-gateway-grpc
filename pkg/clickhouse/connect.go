@@ -11,24 +11,33 @@ import (
 	"go.uber.org/zap"
 )
 
-func NewClient(l logger.LoggerInterface) (clickhouse.Conn, error) {
+func resolveAddr() string {
 	addr := viper.GetString("CLICKHOUSE_ADDR")
-	if addr == "" {
-		host := viper.GetString("CLICKHOUSE_HOST")
-		if host == "" {
-			host = "clickhouse"
-		}
-		port := viper.GetString("CLICKHOUSE_PORT")
-		if port == "" {
-			port = "9000"
-		}
-		addr = fmt.Sprintf("%s:%s", host, port)
+	if addr != "" {
+		return addr
 	}
+
+	host := viper.GetString("CLICKHOUSE_HOST")
+	if host == "" {
+		host = "clickhouse"
+	}
+	port := viper.GetString("CLICKHOUSE_PORT")
+	if port == "" {
+		port = "9000"
+	}
+	return fmt.Sprintf("%s:%s", host, port)
+}
+
+// openConn dials ClickHouse with the given database selected. An empty database
+// lets the driver fall back to "default", which is what EnsureDatabase needs
+// before the configured database exists.
+func openConn(l logger.LoggerInterface, database string) (clickhouse.Conn, error) {
+	addr := resolveAddr()
 
 	conn, err := clickhouse.Open(&clickhouse.Options{
 		Addr: []string{addr},
 		Auth: clickhouse.Auth{
-			Database: viper.GetString("CLICKHOUSE_DATABASE"),
+			Database: database,
 			Username: viper.GetString("CLICKHOUSE_USERNAME"),
 			Password: viper.GetString("CLICKHOUSE_PASSWORD"),
 		},
@@ -44,6 +53,17 @@ func NewClient(l logger.LoggerInterface) (clickhouse.Conn, error) {
 	if err != nil {
 		l.Error("Failed to open ClickHouse connection", zap.Error(err))
 		return nil, fmt.Errorf("failed to open clickhouse connection: %w", err)
+	}
+
+	return conn, nil
+}
+
+func NewClient(l logger.LoggerInterface) (clickhouse.Conn, error) {
+	addr := resolveAddr()
+
+	conn, err := openConn(l, viper.GetString("CLICKHOUSE_DATABASE"))
+	if err != nil {
+		return nil, err
 	}
 
 	if err := conn.Ping(context.Background()); err != nil {

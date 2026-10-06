@@ -9,8 +9,8 @@ import (
 
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/email"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/kafka"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/models"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
-	carddb "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/database/schema"
 	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/topup/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/async"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
@@ -138,14 +138,6 @@ func (s *topupCommandService) CreateTopup(ctx context.Context, request *requests
 		status = "error"
 		return errorhandler.HandleError[*db.UpdateTopupStatusRow](s.logger, sharedErrors.NewForbiddenError("card does not belong to authenticated user"), method, span)
 	}
-	card := &carddb.GetUserEmailByCardNumberRow{
-		CardID: cardIdentity.CardID, UserID: cardIdentity.UserID,
-		CardNumber: cardIdentity.CardNumber, CardType: cardIdentity.CardType,
-		ExpireDate: cardIdentity.ExpireDate, Cvv: cardIdentity.Cvv,
-		CardProvider: cardIdentity.CardProvider, CreatedAt: cardIdentity.CreatedAt,
-		UpdatedAt: cardIdentity.UpdatedAt,
-	}
-
 	topup, err := s.topupCommandRepository.CreateTopup(ctx, request)
 	if err != nil {
 		status = "error"
@@ -166,15 +158,18 @@ func (s *topupCommandService) CreateTopup(ctx context.Context, request *requests
 	}
 	newBalance := int(creditedSaldo.TotalBalance)
 
-	expireDate := card.ExpireDate.Time
+	var expireDate time.Time
+	if cardIdentity.ExpireDate != nil {
+		expireDate = *cardIdentity.ExpireDate
+	}
 
 	_, err = s.cardAdapter.UpdateCard(ctx, &requests.UpdateCardRequest{
-		CardID:       int(card.CardID),
-		UserID:       int(card.UserID),
-		CardType:     card.CardType,
+		CardID:       int(cardIdentity.CardID),
+		UserID:       int(cardIdentity.UserID),
+		CardType:     cardIdentity.CardType,
 		ExpireDate:   expireDate,
-		CVV:          card.Cvv,
-		CardProvider: card.CardProvider,
+		CVV:          cardIdentity.Cvv,
+		CardProvider: cardIdentity.CardProvider,
 	})
 	if err != nil {
 		status = "error"
@@ -213,7 +208,7 @@ func (s *topupCommandService) CreateTopup(ctx context.Context, request *requests
 	}
 
 	// Phase 3: Outbox instead of fire-and-forget goroutine
-	s.enqueueTopupEvents(ctx, topup, updatedTopup, card, request, newBalance)
+	s.enqueueTopupEvents(ctx, topup, updatedTopup, cardIdentity, request, newBalance)
 
 	logSuccess("Topup created successfully", zap.String("cardNumber", security.MaskCardNumber(request.CardNumber)), zap.Int("topupID", int(topup.TopupID)), zap.Float64("topupAmount", float64(request.TopupAmount)))
 
@@ -450,7 +445,7 @@ func (s *topupCommandService) DeleteAllTopupPermanent(ctx context.Context) (bool
 	return true, nil
 }
 
-func (s *topupCommandService) enqueueTopupEvents(ctx context.Context, topup *db.CreateTopupRow, updatedTopup *db.UpdateTopupStatusRow, card *carddb.GetUserEmailByCardNumberRow, request *requests.CreateTopupRequest, newBalance int) {
+func (s *topupCommandService) enqueueTopupEvents(ctx context.Context, topup *db.CreateTopupRow, updatedTopup *db.UpdateTopupStatusRow, card *models.Card, request *requests.CreateTopupRequest, newBalance int) {
 	if s.outboxStore == nil {
 		return
 	}

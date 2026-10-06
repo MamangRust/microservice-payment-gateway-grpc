@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"time"
 
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/auth/service"
@@ -33,6 +34,14 @@ func NewAuthHandleGrpc(authService *service.Service, logger logger.LoggerInterfa
 		logger:               logger,
 		mapper:               protomapper.NewAuthResponseMapper(),
 	}
+}
+
+// formatTimestamp renders an optional timestamp for the wire, empty when unset.
+func formatTimestamp(t *time.Time) string {
+	if t == nil {
+		return ""
+	}
+	return t.String()
 }
 
 func (s *authHandleGrpc) VerifyCode(ctx context.Context, req *pb.VerifyCodeRequest) (*pb.ApiResponseVerifyCode, error) {
@@ -156,8 +165,8 @@ func (s *authHandleGrpc) GetMe(ctx context.Context, req *pb.GetMeRequest) (*pb.A
 			Firstname: res.Firstname,
 			Lastname:  res.Lastname,
 			Email:     res.Email,
-			CreatedAt: res.CreatedAt.Time.String(),
-			UpdatedAt: res.UpdatedAt.Time.String(),
+			CreatedAt: formatTimestamp(res.CreatedAt),
+			UpdatedAt: formatTimestamp(res.UpdatedAt),
 		},
 	}, nil
 }
@@ -188,8 +197,8 @@ func (s *authHandleGrpc) RegisterUser(ctx context.Context, req *pb.RegisterReque
 			Firstname: res.Firstname,
 			Lastname:  res.Lastname,
 			Email:     res.Email,
-			CreatedAt: res.CreatedAt.Time.String(),
-			UpdatedAt: res.UpdatedAt.Time.String(),
+			CreatedAt: formatTimestamp(res.CreatedAt),
+			UpdatedAt: formatTimestamp(res.UpdatedAt),
 		},
 	}, nil
 }

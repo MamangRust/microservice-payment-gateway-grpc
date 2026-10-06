@@ -48,7 +48,7 @@ func newUserQueryService(
 	return NewUserQueryService(
 		&userQueryDeps{
 			Cache:         cache,
-			Repository:    deps.Repositories.UserQuery(),
+			Repository:    deps.Repositories.UserQuery,
 			Logger:        deps.Logger,
 			Observability: obs,
 		},
@@ -63,9 +63,8 @@ func newUserCommandService(
 	return NewUserCommandService(
 		&userCommandDeps{
 			Cache:                 cache,
-			UserQueryRepository:   deps.Repositories.UserQuery(),
-			UserCommandRepository: deps.Repositories.UserCommand(),
-			RoleRepository:        deps.Repositories.Role(),
+			UserQueryRepository:   deps.Repositories.UserQuery,
+			UserCommandRepository: deps.Repositories.UserCommand,
 			Logger:                deps.Logger,
 			Hashing:               deps.Hash,
 			Observability:         obs,

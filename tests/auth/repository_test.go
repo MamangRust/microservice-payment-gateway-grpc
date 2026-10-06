@@ -35,13 +35,14 @@ func (s *AuthRepositoryTestSuite) SetupSuite() {
 	s.dbPool = pool
 
 	queries := db.New(pool)
-	s.repo = repository.NewRepositories(&repository.RepositoriesDeps{
-		DB:                queries,
-		UserQueryClient:   s.ts.UserClient,
-		UserCommandClient: s.ts.UserClient,
-		RoleQueryClient:   s.ts.RoleClient,
-		RoleCommandClient: s.ts.RoleClient,
-	})
+	s.repo = repository.NewRepositories(
+		queries,
+		s.ts.UserQueryClient,
+		s.ts.UserCommandClient,
+		s.ts.RoleQueryClient,
+		s.ts.RoleCommandClient,
+		s.ts.RoleClient,
+	)
 	s.email = "auth.repo.test@example.com"
 }
 

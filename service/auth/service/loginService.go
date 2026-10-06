@@ -6,6 +6,7 @@ import (
 	mencache "github.com/MamangRust/microservice-payment-gateway-grpc/service/auth/redis"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/auth/repository"
 
+	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/adapter"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/auth"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/hash"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
@@ -24,8 +25,8 @@ type LoginServiceDeps struct {
 	Logger logger.LoggerInterface
 	Hash   hash.HashPassword
 
-	UserRepository repository.UserRepository
-	RefreshToken   repository.RefreshTokenRepository
+	UserAdapter  adapter.AuthUserAdapter
+	RefreshToken repository.RefreshTokenRepository
 
 	Token        auth.TokenManager
 	TokenService *tokenService
@@ -38,7 +39,7 @@ type loginService struct {
 	logger   logger.LoggerInterface
 	hash     hash.HashPassword
 
-	user         repository.UserRepository
+	user         adapter.AuthUserAdapter
 	refreshToken repository.RefreshTokenRepository
 
 	token        auth.TokenManager
@@ -52,7 +53,7 @@ func NewLoginService(params *LoginServiceDeps) *loginService {
 		mencache:      params.Cache,
 		logger:        params.Logger,
 		hash:          params.Hash,
-		user:          params.UserRepository,
+		user:          params.UserAdapter,
 		refreshToken:  params.RefreshToken,
 		token:         params.Token,
 		tokenService:  params.TokenService,

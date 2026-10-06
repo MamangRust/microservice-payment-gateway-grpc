@@ -4,6 +4,7 @@ import (
 	"context"
 
 	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/database/schema"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/adapter"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
 	mencache "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/redis"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/card/repository"
@@ -19,7 +20,7 @@ import (
 type cardQueryServiceDeps struct {
 	Cache               mencache.CardQueryCache
 	CardQueryRepository repository.CardQueryRepository
-	UserRepository      repository.UserRepository
+	UserAdapter         adapter.UserAdapter
 	Logger              logger.LoggerInterface
 	Observability       observability.TraceLoggerObservability
 }
@@ -28,7 +29,7 @@ type cardQueryServiceDeps struct {
 type cardQueryService struct {
 	cache               mencache.CardQueryCache
 	cardQueryRepository repository.CardQueryRepository
-	userRepository      repository.UserRepository
+	userAdapter         adapter.UserAdapter
 	logger              logger.LoggerInterface
 	observability       observability.TraceLoggerObservability
 }
@@ -47,7 +48,7 @@ func NewCardQueryService(
 ) CardQueryService {
 	return &cardQueryService{
 		cardQueryRepository: params.CardQueryRepository,
-		userRepository:      params.UserRepository,
+		userAdapter:         params.UserAdapter,
 		logger:              params.Logger,
 		observability:       params.Observability,
 		cache:               params.Cache,
@@ -407,11 +408,11 @@ func (s *cardQueryService) FindUserCardByCardNumber(ctx context.Context, card_nu
 //   - The normalized page number.
 //   - The normalized page size.
 func (s *cardQueryService) enrichUserEmail(ctx context.Context, card *db.GetUserEmailByCardNumberRow) error {
-	if s.userRepository == nil {
-		return sharedErrors.ErrInternal.WithMessage("user repository is not configured")
+	if s.userAdapter == nil {
+		return sharedErrors.ErrInternal.WithMessage("user adapter is not configured")
 	}
 
-	user, err := s.userRepository.FindById(ctx, int(card.UserID))
+	user, err := s.userAdapter.FindById(ctx, int(card.UserID))
 	if err != nil {
 		return err
 	}

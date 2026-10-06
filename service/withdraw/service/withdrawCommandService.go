@@ -8,12 +8,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/MamangRust/microservice-payment-gateway-grpc/pb/ai_security"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/adapter"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/models"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/email"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/kafka"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
-	carddb "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/database/schema"
 	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/withdraw/database/schema"
 	mencache "github.com/MamangRust/microservice-payment-gateway-grpc/service/withdraw/redis"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/withdraw/repository"
@@ -45,7 +44,7 @@ type withdrawCommandServiceDeps struct {
 
 	Logger               logger.LoggerInterface
 	Observability        observability.TraceLoggerObservability
-	AISecurityClient     ai_security.AISecurityServiceClient
+	AISecurityAdapter     adapter.AISecurityAdapter
 	DailyWithdrawalLimit int64
 }
 
@@ -64,7 +63,7 @@ type withdrawCommandService struct {
 
 	logger               logger.LoggerInterface
 	observability        observability.TraceLoggerObservability
-	aiSecurityClient     ai_security.AISecurityServiceClient
+	aiSecurityAdapter     adapter.AISecurityAdapter
 	dailyWithdrawalLimit int64
 }
 
@@ -82,7 +81,7 @@ func NewWithdrawCommandService(
 		outboxStore:               deps.OutboxStore,
 		logger:                    deps.Logger,
 		observability:             deps.Observability,
-		aiSecurityClient:          deps.AISecurityClient,
+		aiSecurityAdapter:          deps.AISecurityAdapter,
 		dailyWithdrawalLimit:      deps.DailyWithdrawalLimit,
 	}
 }
@@ -150,14 +149,6 @@ func (s *withdrawCommandService) Create(ctx context.Context, request *requests.C
 		status = "error"
 		return errorhandler.HandleError[*db.UpdateWithdrawStatusRow](s.logger, sharedErrors.NewForbiddenError("card does not belong to authenticated user"), method, span)
 	}
-	card := &carddb.GetUserEmailByCardNumberRow{
-		CardID: cardIdentity.CardID, UserID: cardIdentity.UserID,
-		CardNumber: cardIdentity.CardNumber, CardType: cardIdentity.CardType,
-		ExpireDate: cardIdentity.ExpireDate, Cvv: cardIdentity.Cvv,
-		CardProvider: cardIdentity.CardProvider, CreatedAt: cardIdentity.CreatedAt,
-		UpdatedAt: cardIdentity.UpdatedAt,
-	}
-
 	saldo, err := s.saldoAdapter.FindByCardNumber(ctx, request.CardNumber)
 	if err != nil {
 		status = "error"
@@ -189,13 +180,13 @@ func (s *withdrawCommandService) Create(ctx context.Context, request *requests.C
 	}
 
 	// AI Security Check
-	if s.aiSecurityClient != nil {
-		secRes, err := s.aiSecurityClient.VerifySecurity(ctx, &ai_security.SecurityRequest{
-			Domain:   ai_security.SecurityDomain_WITHDRAW,
-			EntityId: request.CardNumber,
+	if s.aiSecurityAdapter != nil {
+		secRes, err := s.aiSecurityAdapter.VerifySecurity(ctx, &adapter.SecurityCheckRequest{
+			Domain:   adapter.SecurityDomainWithdraw,
+			EntityID: request.CardNumber,
 			Amount:   float64(request.WithdrawAmount),
 		})
-		if err == nil && !secRes.IsSafe {
+		if err == nil && secRes != nil && !secRes.IsSafe {
 			status = "error"
 			s.logger.Warn("Withdrawal blocked by AI Security", zap.String("reason", secRes.Reason))
 			return nil, errors.New("security block: " + secRes.Reason)
@@ -255,7 +246,7 @@ func (s *withdrawCommandService) Create(ctx context.Context, request *requests.C
 	}
 
 	// Phase 3: Outbox instead of fire-and-forget goroutine
-	s.enqueueWithdrawEvents(ctx, withdrawRecord, updatedWithdraw, card, request, newTotalBalance)
+	s.enqueueWithdrawEvents(ctx, withdrawRecord, updatedWithdraw, cardIdentity, request, newTotalBalance)
 
 	logSuccess("Successfully created withdraw", zap.Int("withdraw.id", int(updatedWithdraw.WithdrawID)))
 
@@ -529,7 +520,7 @@ func (s *withdrawCommandService) DeleteAllWithdrawPermanent(ctx context.Context)
 	return true, nil
 }
 
-func (s *withdrawCommandService) enqueueWithdrawEvents(ctx context.Context, withdraw *db.CreateWithdrawRow, updatedWithdraw *db.UpdateWithdrawStatusRow, card *carddb.GetUserEmailByCardNumberRow, request *requests.CreateWithdrawRequest, newTotalBalance int) {
+func (s *withdrawCommandService) enqueueWithdrawEvents(ctx context.Context, withdraw *db.CreateWithdrawRow, updatedWithdraw *db.UpdateWithdrawStatusRow, card *models.Card, request *requests.CreateWithdrawRequest, newTotalBalance int) {
 	if s.outboxStore == nil {
 		return
 	}

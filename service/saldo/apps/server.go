@@ -14,7 +14,7 @@ import (
 	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/handler"
 	saldokafka "github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/kafka"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/redis"
+	mencache "github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/redis"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/repository"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/service"
 	ledgerworker "github.com/MamangRust/microservice-payment-gateway-grpc/shared/ledger"
@@ -44,7 +44,15 @@ func NewServer(cfg *server.Config) (*server.GRPCServer, error) {
 	cardGuard := resilience.NewDependencyGuard("card", 5, 30, 100, 3*time.Second, srv.Logger)
 	cardAdapter := adapter.NewCardAdapter(cardClientQuery, cardClientCmd, adapter.WithDependencyGuard(cardGuard))
 
-	repos := repository.NewRepositories(queries, cardAdapter)
+	guardCard := resilience.NewDependencyGuard("card", 5, 30, 100, 3*time.Second, srv.Logger)
+
+	repos := repository.NewRepositories(queries, cardClientQuery, cardClientCmd,
+		repository.GuardOptions{
+			Card: []adapter.GuardOption{
+				adapter.WithDependencyGuard(guardCard),
+			},
+		},
+	)
 
 	mykafka, err := kafka.NewKafka(srv.Logger, []string{viper.GetString("KAFKA_BROKERS")})
 	if err != nil {

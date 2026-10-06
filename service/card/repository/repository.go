@@ -1,29 +1,39 @@
 package repository
 
 import (
-	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb/user"
+	pbuser "github.com/MamangRust/microservice-payment-gateway-grpc/pb/user"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/adapter"
 	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/database/schema"
 )
 
-// Repositories contains all repositories used by the card service.
+type GuardOptions struct {
+	User []adapter.GuardOption
+}
+
 type Repositories struct {
 	CardCommand         CardCommandRepository
 	CardQuery           CardQueryRepository
-	User                UserRepository
+	User                adapter.UserAdapter
 	CardAuthTransaction CardAuthTransactionRepository
 	CardPayment         CardPaymentRepository
 	CardReward          CardRewardRepository
 	BillingCycle        BillingCycleRepository
 }
 
-func NewRepositories(database *db.Queries, userClient pb.UserQueryServiceClient) *Repositories {
+func NewRepositories(db *db.Queries, userQueryClient pbuser.UserQueryServiceClient, guards ...GuardOptions) *Repositories {
+	var g GuardOptions
+
+	if len(guards) > 0 {
+		g = guards[0]
+	}
+
 	return &Repositories{
-		CardQuery:           NewCardQueryRepository(database),
-		CardCommand:         NewCardCommandRepository(database),
-		User:                NewUserRepository(userClient),
-		CardAuthTransaction: NewCardAuthTransactionRepository(database),
-		CardPayment:         NewCardPaymentRepository(database),
-		CardReward:          NewCardRewardRepository(database),
-		BillingCycle:        NewBillingCycleRepository(database),
+		CardQuery:           NewCardQueryRepository(db),
+		CardCommand:         NewCardCommandRepository(db),
+		User:                adapter.NewUserAdapter(userQueryClient, g.User...),
+		CardAuthTransaction: NewCardAuthTransactionRepository(db),
+		CardPayment:         NewCardPaymentRepository(db),
+		CardReward:          NewCardRewardRepository(db),
+		BillingCycle:        NewBillingCycleRepository(db),
 	}
 }

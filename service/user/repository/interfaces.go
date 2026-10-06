@@ -27,8 +27,3 @@ type UserCommandRepository interface {
 	RestoreAllUser(ctx context.Context) (bool, error)
 	DeleteAllUserPermanent(ctx context.Context) (bool, error)
 }
-
-type RoleRepository interface {
-	FindById(ctx context.Context, role_id int) (*db.Role, error)
-	FindByName(ctx context.Context, name string) (*db.Role, error)
-}

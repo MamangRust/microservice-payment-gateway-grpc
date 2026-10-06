@@ -1,9 +1,16 @@
 package repository
 
 import (
+	pbcard "github.com/MamangRust/microservice-payment-gateway-grpc/pb/card"
+	pbsaldo "github.com/MamangRust/microservice-payment-gateway-grpc/pb/saldo"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/adapter"
 	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/withdraw/database/schema"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/outbox"
 )
+
+type GuardOptions struct {
+	Card  []adapter.GuardOption
+	Saldo []adapter.GuardOption
+}
 
 type Repositories interface {
 	CardRepository
@@ -25,15 +32,24 @@ type repositories struct {
 
 func NewRepositories(
 	db *db.Queries,
-	card CardRepository,
-	saldo SaldoRepository,
+	cardQuery pbcard.CardQueryServiceClient,
+	cardCommand pbcard.CardCommandServiceClient,
+	saldoQuery pbsaldo.SaldoQueryServiceClient,
+	saldoCommand pbsaldo.SaldoCommandServiceClient,
+	guards ...GuardOptions,
 ) Repositories {
+	var g GuardOptions
+
+	if len(guards) > 0 {
+		g = guards[0]
+	}
+
 	return &repositories{
-		CardRepository:            card,
-		SaldoRepository:           saldo,
+		CardRepository:            adapter.NewCardAdapter(cardQuery, cardCommand, g.Card...),
+		SaldoRepository:           adapter.NewSaldoAdapter(saldoQuery, saldoCommand, g.Saldo...),
 		WithdrawQueryRepository:   NewWithdrawQueryRepository(db),
 		WithdrawCommandRepository: NewWithdrawCommandRepository(db),
 		IdempotencyRepository:     NewWithdrawIdempotencyRepository(db),
-		OutboxRepository:          outbox.NewStore(db.InsertOutbox),
+		OutboxRepository:          NewOutboxGormStore(db),
 	}
 }

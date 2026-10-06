@@ -13,6 +13,7 @@ import (
 
 	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb/merchant"
 	pbdocument "github.com/MamangRust/microservice-payment-gateway-grpc/pb/merchant_document"
+	pbtransaction "github.com/MamangRust/microservice-payment-gateway-grpc/pb/transaction"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pb/user"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/adapter"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/kafka"
@@ -37,9 +38,19 @@ func NewServer(cfg *server.Config) (*server.GRPCServer, error) {
 		return nil, fmt.Errorf("failed to connect to User service: %w", err)
 	}
 
+	// Establish GRPC connection to Transaction service (cross-owner reads)
+	transactionConn, err := grpc.NewClient(viper.GetString("GRPC_TRANSACTION_ADDR"), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to Transaction service: %w", err)
+	}
+
 	userQueryClient := user.NewUserQueryServiceClient(userConn)
 	userGuard := resilience.NewDependencyGuard("user", 5, 30, 100, 3*time.Second, srv.Logger)
 	userAdapter := adapter.NewUserAdapter(userQueryClient, adapter.WithDependencyGuard(userGuard))
+
+	transactionQueryClient := pbtransaction.NewTransactionQueryServiceClient(transactionConn)
+	transactionGuard := resilience.NewDependencyGuard("transaction", 5, 30, 100, 3*time.Second, srv.Logger)
+	transactionAdapter := adapter.NewTransactionAdapter(transactionQueryClient, adapter.WithDependencyGuard(transactionGuard))
 
 	kafkaBrokers := strings.Split(viper.GetString("KAFKA_BROKERS"), ",")
 	mykafka, err := kafka.NewKafka(srv.Logger, kafkaBrokers)
@@ -47,13 +58,21 @@ func NewServer(cfg *server.Config) (*server.GRPCServer, error) {
 		return nil, fmt.Errorf("failed to create Kafka producer: %w", err)
 	}
 
-	repos := repository.NewRepositories(queries, userQueryClient)
+	repos := repository.NewRepositories(queries, user.NewUserQueryServiceClient(userConn),
+		repository.GuardOptions{
+			User: []adapter.GuardOption{
+				adapter.WithDependencyGuard(resilience.NewDependencyGuard("user", 5, 30, 100, 3*time.Second, srv.Logger)),
+			},
+		},
+	)
+
 	svc := service.NewService(&service.Deps{
-		Cache:        srv.CacheStore,
-		Logger:       srv.Logger,
-		Repositories: repos,
-		UserAdapter:  userAdapter,
-		Kafka:        mykafka,
+		Cache:              srv.CacheStore,
+		Logger:             srv.Logger,
+		Repositories:       repos,
+		UserAdapter:        userAdapter,
+		TransactionAdapter: transactionAdapter,
+		Kafka:              mykafka,
 	})
 	h := handler.NewHandler(svc)
 

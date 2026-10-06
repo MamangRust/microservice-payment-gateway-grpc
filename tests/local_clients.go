@@ -3,8 +3,9 @@ package tests
 import (
 	"context"
 
-	"github.com/MamangRust/microservice-payment-gateway-grpc/pb/role"
+	role "github.com/MamangRust/microservice-payment-gateway-grpc/pb/role"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pb/user"
+	pbuserrole "github.com/MamangRust/microservice-payment-gateway-grpc/pb/user_role"
 	role_handler "github.com/MamangRust/microservice-payment-gateway-grpc/service/role/handler"
 	user_handler "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/handler"
 	"google.golang.org/grpc"
@@ -101,19 +102,19 @@ func (c *LocalRoleClient) DeleteRolePermanent(ctx context.Context, in *role.Find
 	return c.Handler.RoleCommand.DeleteRolePermanent(ctx, in)
 }
 
-func (c *LocalRoleClient) CreateUserRole(ctx context.Context, in *role.CreateUserRoleRequest, opts ...grpc.CallOption) (*role.ApiResponseRole, error) {
-	return c.Handler.RoleCommand.CreateUserRole(ctx, in)
+func (c *LocalRoleClient) AssignRoleToUser(ctx context.Context, in *pbuserrole.AssignRoleToUserRequest, opts ...grpc.CallOption) (*pbuserrole.ApiResponseUserRole, error) {
+	return c.Handler.UserRole.AssignRoleToUser(ctx, in)
 }
 
-func (c *LocalRoleClient) DeleteUserRole(ctx context.Context, in *role.DeleteUserRoleRequest, opts ...grpc.CallOption) (*role.ApiResponseRole, error) {
-	return c.Handler.RoleCommand.DeleteUserRole(ctx, in)
+func (c *LocalRoleClient) RemoveRoleFromUser(ctx context.Context, in *pbuserrole.RemoveRoleFromUserRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	return c.Handler.UserRole.RemoveRoleFromUser(ctx, in)
 }
 
-func (c *LocalRoleClient) TrashedRole(ctx context.Context, in *role.FindByIdRoleRequest, opts ...grpc.CallOption) (*role.ApiResponseRoleDeleteAt, error) {
+func (c *LocalRoleClient) TrashedRole(ctx context.Context, in *role.FindByIdRoleRequest, opts ...grpc.CallOption) (*role.ApiResponseRole, error) {
 	return c.Handler.RoleCommand.TrashedRole(ctx, in)
 }
 
-func (c *LocalRoleClient) RestoreRole(ctx context.Context, in *role.FindByIdRoleRequest, opts ...grpc.CallOption) (*role.ApiResponseRoleDeleteAt, error) {
+func (c *LocalRoleClient) RestoreRole(ctx context.Context, in *role.FindByIdRoleRequest, opts ...grpc.CallOption) (*role.ApiResponseRole, error) {
 	return c.Handler.RoleCommand.RestoreRole(ctx, in)
 }
 
@@ -125,8 +126,8 @@ func (c *LocalRoleClient) DeleteAllRolePermanent(ctx context.Context, in *emptyp
 	return c.Handler.RoleCommand.DeleteAllRolePermanent(ctx, in)
 }
 
-func (c *LocalRoleClient) FindByUserId(ctx context.Context, in *role.FindByIdUserRoleRequest, opts ...grpc.CallOption) (*role.ApiResponsesRole, error) {
-	return c.Handler.RoleQuery.FindByUserId(ctx, in)
+func (c *LocalRoleClient) FindByUserId(ctx context.Context, in *pbuserrole.FindByIdUserRoleRequest, opts ...grpc.CallOption) (*role.ApiResponsesRole, error) {
+	return c.Handler.UserRole.FindByUserId(ctx, in)
 }
 
 func (c *LocalRoleClient) FindByActive(ctx context.Context, in *role.FindAllRoleRequest, opts ...grpc.CallOption) (*role.ApiResponsePaginationRoleDeleteAt, error) {

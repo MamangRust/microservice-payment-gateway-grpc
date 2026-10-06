@@ -11,7 +11,8 @@ import (
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb/withdraw"
-	pbStats "github.com/MamangRust/microservice-payment-gateway-grpc/pb/withdraw/stats"
+	pbStats "github.com/MamangRust/microservice-payment-gateway-grpc/pb/stats/withdraw"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/adapter"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
 	card_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/repository"
 	saldo_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/repository"
@@ -107,13 +108,13 @@ func (s *WithdrawGapiTestSuite) SetupSuite() {
 	// Repositories for seeding and service dependencies
 	userRepos := user_repo.NewUserCommandRepository(userdbQueries)
 	cardRepos := card_repo.NewRepositories(carddbQueries, nil)
-	saldoRepos := saldo_repo.NewRepositories(saldodbQueries, nil)
+	saldoRepos := saldo_repo.NewRepositories(saldodbQueries, nil, nil)
 
 	s.userRepo = userRepos
 	s.cardRepo = cardRepos.CardCommand
 	s.saldoRepo = saldoRepos
 
-	s.repos = repository.NewRepositories(queries, cardRepos.CardQuery, saldoRepos)
+	s.repos = repository.NewRepositories(queries, nil, nil, nil, nil)
 
 	logger.ResetInstance()
 	lp := sdklog.NewLoggerProvider()
@@ -149,7 +150,7 @@ func (s *WithdrawGapiTestSuite) SetupSuite() {
 		SaldoAdapter:     s.ts.SaldoAdapter,
 		Logger:           log,
 		Cache:            cacheStore,
-		AISecurityClient: aiSecurityClient,
+		AISecurityAdapter: adapter.NewAISecurityAdapter(aiSecurityClient),
 	})
 
 	withdrawHandler := handler.NewHandler(withdrawService)

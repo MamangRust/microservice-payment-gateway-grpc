@@ -7,9 +7,9 @@ import (
 	"time"
 
 	mencache "github.com/MamangRust/microservice-payment-gateway-grpc/service/auth/redis"
-	"github.com/MamangRust/microservice-payment-gateway-grpc/service/auth/repository"
-	userdb "github.com/MamangRust/microservice-payment-gateway-grpc/service/user/database/schema"
 
+	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/adapter"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/database/models"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/email"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/hash"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/kafka"
@@ -27,11 +27,11 @@ import (
 type RegisterServiceDeps struct {
 	Cache mencache.RegisterCache
 
-	User repository.UserRepository
+	User adapter.AuthUserAdapter
 
-	Role repository.RoleRepository
+	RoleAdapter adapter.RoleAdapter
 
-	UserRole repository.UserRoleRepository
+	UserRoleAdapter adapter.UserRoleAdapter
 
 	Hash hash.HashPassword
 
@@ -45,11 +45,11 @@ type RegisterServiceDeps struct {
 type registerService struct {
 	mencache mencache.RegisterCache
 
-	user repository.UserRepository
+	user adapter.AuthUserAdapter
 
-	role repository.RoleRepository
+	roleAdapter adapter.RoleAdapter
 
-	userRole repository.UserRoleRepository
+	userRoleAdapter adapter.UserRoleAdapter
 
 	hash hash.HashPassword
 
@@ -63,18 +63,18 @@ type registerService struct {
 func NewRegisterService(params *RegisterServiceDeps) *registerService {
 
 	return &registerService{
-		mencache:      params.Cache,
-		user:          params.User,
-		role:          params.Role,
-		userRole:      params.UserRole,
-		hash:          params.Hash,
-		kafka:         params.Kafka,
-		logger:        params.Logger,
-		observability: params.Observability,
+		mencache:       params.Cache,
+		user:           params.User,
+		roleAdapter:    params.RoleAdapter,
+		userRoleAdapter: params.UserRoleAdapter,
+		hash:           params.Hash,
+		kafka:          params.Kafka,
+		logger:         params.Logger,
+		observability:  params.Observability,
 	}
 }
 
-func (s *registerService) Register(ctx context.Context, request *requests.RegisterRequest) (*userdb.CreateUserRow, error) {
+func (s *registerService) Register(ctx context.Context, request *requests.RegisterRequest) (*models.User, error) {
 	const method = "Register"
 
 	ctx, span, end, status, logSuccess := s.observability.StartTracingAndLogging(ctx, method, attribute.String("email", request.Email))
@@ -86,7 +86,7 @@ func (s *registerService) Register(ctx context.Context, request *requests.Regist
 	existingUser, err := s.user.FindByEmail(ctx, request.Email)
 	if err == nil && existingUser != nil {
 		status = "error"
-		return sharederrorhandler.HandleError[*userdb.CreateUserRow](
+		return sharederrorhandler.HandleError[*models.User](
 			s.logger,
 			user_errors.ErrUserEmailAlready,
 			method,
@@ -99,21 +99,21 @@ func (s *registerService) Register(ctx context.Context, request *requests.Regist
 	// passwordHash, err := s.hash.HashPassword(request.Password)
 	// if err != nil {
 	// 	status = "error"
-	// 	return sharederrorhandler.HandleError[*userdb.CreateUserRow](s.logger, err, method, span)
+	// 	return sharederrorhandler.HandleError[*models.User](s.logger, err, method, span)
 	// }
 	// request.Password = passwordHash
 
 	const defaultRoleName = "ROLE_ADMIN"
-	role, err := s.role.FindByName(ctx, defaultRoleName)
+	role, err := s.roleAdapter.FindByName(ctx, defaultRoleName)
 	if err != nil || role == nil {
 		status = "error"
-		return sharederrorhandler.HandleError[*userdb.CreateUserRow](s.logger, err, method, span, zap.String("role_name", defaultRoleName))
+		return sharederrorhandler.HandleError[*models.User](s.logger, err, method, span, zap.String("role_name", defaultRoleName))
 	}
 
 	random, err := randomstring.GenerateRandomString(10)
 	if err != nil {
 		status = "error"
-		return sharederrorhandler.HandleError[*userdb.CreateUserRow](s.logger, err, method, span)
+		return sharederrorhandler.HandleError[*models.User](s.logger, err, method, span)
 	}
 	request.VerifiedCode = random
 	request.IsVerified = false
@@ -121,7 +121,7 @@ func (s *registerService) Register(ctx context.Context, request *requests.Regist
 	newUser, err := s.user.CreateUser(ctx, request)
 	if err != nil {
 		status = "error"
-		return sharederrorhandler.HandleError[*userdb.CreateUserRow](s.logger, err, method, span)
+		return sharederrorhandler.HandleError[*models.User](s.logger, err, method, span)
 	}
 
 	go func() {
@@ -156,13 +156,13 @@ func (s *registerService) Register(ctx context.Context, request *requests.Regist
 		}
 	}()
 
-	_, err = s.userRole.AssignRoleToUser(ctx, &requests.CreateUserRoleRequest{
+	_, err = s.userRoleAdapter.AssignRoleToUser(ctx, &requests.CreateUserRoleRequest{
 		UserId: int(newUser.UserID),
 		RoleId: int(role.RoleID),
 	})
 	if err != nil {
 		status = "error"
-		return sharederrorhandler.HandleError[*userdb.CreateUserRow](s.logger, err, method, span, zap.Int("user.id", int(newUser.UserID)))
+		return sharederrorhandler.HandleError[*models.User](s.logger, err, method, span, zap.Int("user.id", int(newUser.UserID)))
 	}
 
 	s.mencache.SetVerificationCodeCache(ctx, request.Email, random, 15*time.Minute)

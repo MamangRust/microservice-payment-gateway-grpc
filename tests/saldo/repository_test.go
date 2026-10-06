@@ -46,11 +46,11 @@ func (s *SaldoRepositoryTestSuite) SetupSuite() {
 	carddbQueries := carddb.New(pool)
 
 	userdbQueries := userdb.New(pool)
-	s.repo = saldo_repo.NewRepositories(queries, nil)
+	s.repo = saldo_repo.NewRepositories(queries, nil, nil)
 
-	userRepos := user_repo.NewRepositories(userdbQueries)
+	userRepos := user_repo.NewRepositories(&user_repo.Deps{Db: userdbQueries})
 	cardRepos := card_repo.NewRepositories(carddbQueries, nil)
-	s.userRepo = userRepos.UserCommand()
+	s.userRepo = userRepos.UserCommand
 	s.cardRepo = cardRepos.CardCommand
 
 	// Seed User and Card

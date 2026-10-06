@@ -3,7 +3,6 @@ package repository
 import (
 	"context"
 
-	carddb "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/database/schema"
 	db "github.com/MamangRust/microservice-payment-gateway-grpc/service/saldo/database/schema"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/shared/domain/requests"
 )
@@ -34,8 +33,4 @@ type SaldoCommandRepository interface {
 
 	RestoreAllSaldo(ctx context.Context) (bool, error)
 	DeleteAllSaldoPermanent(ctx context.Context) (bool, error)
-}
-
-type CardRepository interface {
-	FindCardByCardNumber(ctx context.Context, card_number string) (*carddb.GetCardByCardNumberRow, error)
 }

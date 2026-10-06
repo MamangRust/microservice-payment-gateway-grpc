@@ -13,7 +13,8 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2"
 	pbAISecurity "github.com/MamangRust/microservice-payment-gateway-grpc/pb/ai_security"
 	pb "github.com/MamangRust/microservice-payment-gateway-grpc/pb/transaction"
-	pbStats "github.com/MamangRust/microservice-payment-gateway-grpc/pb/transaction/stats"
+	pbStats "github.com/MamangRust/microservice-payment-gateway-grpc/pb/stats/transaction"
+	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/adapter"
 	"github.com/MamangRust/microservice-payment-gateway-grpc/pkg/logger"
 	card_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/card/repository"
 	merchant_repo "github.com/MamangRust/microservice-payment-gateway-grpc/service/merchant/repository"
@@ -111,7 +112,7 @@ func (s *TransactionGapiTestSuite) SetupSuite() {
 	userdbQueries := userdb.New(pool)
 	s.userRepo = user_repo.NewUserCommandRepository(userdbQueries)
 	s.cardRepo = *card_repo.NewRepositories(carddbQueries, nil)
-	s.saldoRepo = saldo_repo.NewRepositories(saldodbQueries, nil)
+	s.saldoRepo = saldo_repo.NewRepositories(saldodbQueries, nil, nil)
 	s.merchantRepo = merchant_repo.NewRepositories(merchantdbQueries, nil)
 
 	opts, err := redis.ParseURL(s.ts.RedisURL)
@@ -125,15 +126,10 @@ func (s *TransactionGapiTestSuite) SetupSuite() {
 	cacheMetrics, _ := observability.NewCacheMetrics("test")
 	cacheStore := cache.NewCacheStore(s.redisClient, log, cacheMetrics)
 
-	cardRepoWrapper := &transactionCardRepo{
-		query:   s.cardRepo.CardQuery,
-		command: s.cardRepo.CardCommand,
-	}
-
 	lis, err := net.Listen("tcp", "localhost:0")
 	s.Require().NoError(err)
 
-	transactionRepos := repository.NewRepositories(queries, s.saldoRepo, cardRepoWrapper, s.merchantRepo)
+	transactionRepos := repository.NewRepositories(queries, nil, nil, nil, nil, nil)
 
 	conn, err := grpc.NewClient(lis.Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	s.Require().NoError(err)
@@ -149,7 +145,7 @@ func (s *TransactionGapiTestSuite) SetupSuite() {
 		SaldoAdapter:     s.ts.SaldoAdapter,
 		Logger:           log,
 		Cache:            cacheStore,
-		AISecurityClient: aiSecurityClient,
+		AISecurityAdapter: adapter.NewAISecurityAdapter(aiSecurityClient),
 	})
 
 	transactionHandler := handler.NewHandler(transactionService)

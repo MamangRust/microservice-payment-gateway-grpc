@@ -24,7 +24,6 @@ type userCommandDeps struct {
 	Cache                 mencache.UserCommandCache
 	UserQueryRepository   repository.UserQueryRepository
 	UserCommandRepository repository.UserCommandRepository
-	RoleRepository        repository.RoleRepository
 	Logger                logger.LoggerInterface
 	Hashing               hash.HashPassword
 	Observability         observability.TraceLoggerObservability
@@ -35,7 +34,6 @@ type userCommandService struct {
 	cache                 mencache.UserCommandCache
 	userQueryRepository   repository.UserQueryRepository
 	userCommandRepository repository.UserCommandRepository
-	roleRepository        repository.RoleRepository
 	logger                logger.LoggerInterface
 	hashing               hash.HashPassword
 	observability         observability.TraceLoggerObservability
@@ -49,7 +47,6 @@ func NewUserCommandService(
 		cache:                 params.Cache,
 		userQueryRepository:   params.UserQueryRepository,
 		userCommandRepository: params.UserCommandRepository,
-		roleRepository:        params.RoleRepository,
 		logger:                params.Logger,
 		hashing:               params.Hashing,
 		observability:         params.Observability,

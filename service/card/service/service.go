@@ -51,7 +51,7 @@ func newCardQuery(deps *Deps, observability observability.TraceLoggerObservabili
 	return NewCardQueryService(&cardQueryServiceDeps{
 		Cache:               cache,
 		CardQueryRepository: deps.Repositories.CardQuery,
-		UserRepository:      deps.Repositories.User,
+		UserAdapter:         deps.UserAdapter,
 		Logger:              deps.Logger,
 		Observability:       observability,
 	})
